@@ -281,6 +281,11 @@ class Command(BaseCommand):
             temp = round(random.uniform(36.0, 39.5), 1)
             o2_sat = random.randint(85, 100)
             
+            # Determine priority level (only one can be true, emergent overrides urgent)
+            priority_choice = random.choice(['urgent', 'emergent'])
+            is_urgent = priority_choice == 'urgent'
+            is_emergent = priority_choice == 'emergent'
+            
             # Random complaint and impression
             complaint_idx = random.randint(0, len(chief_complaints) - 1)
             chief_complaint = chief_complaints[complaint_idx]
@@ -317,7 +322,8 @@ class Command(BaseCommand):
                 
                 # Specialty Needed
                 specialty_needed=random.choice(specialties),
-                is_urgent=random.choice([True, False]),
+                is_urgent=is_urgent,
+                is_emergent=is_emergent,
                 reason_for_referral=f"Patient requires {random.choice(['specialized care', 'advanced imaging', 'surgical intervention', 'intensive monitoring'])} not available at our facility",
                 
                 # Referring Hospital Information - ENSURE ALL ARE POPULATED
@@ -332,11 +338,11 @@ class Command(BaseCommand):
                 
                 # System fields - IMPORTANT: Set status to PENDING for EDCC queue
                 status='pending',  # This ensures it appears in EDCC queue only
-                priority=random.choice(['routine', 'urgent', 'critical']),
                 created_by=admin_user,
             )
             
-            self.stdout.write(f'Created referral {i+1}/50: {referral.referral_id} - {patient_name}')
+            priority_label = "🚨 EMERGENT" if is_emergent else "⚡ URGENT"
+            self.stdout.write(f'Created referral {i+1}/50: {referral.referral_id} - {patient_name} ({priority_label})')
 
         self.stdout.write(
             self.style.SUCCESS('Successfully created sample data!')

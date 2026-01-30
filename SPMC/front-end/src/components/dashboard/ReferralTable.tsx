@@ -21,6 +21,7 @@ interface ReferralData {
   status: string;
   priority: string;
   is_urgent: boolean;
+  is_emergent?: boolean;
   created_at: string;
   assigned_to_name?: string;
   triage_decision?: string;
@@ -78,9 +79,11 @@ const getPriorityColor = (priority: string) => {
     case "critical":
       return "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30";
     case "urgent":
-      return "bg-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/30";
+      return "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30";
     case "routine":
       return "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30";
+    case "schedule_opd":
+      return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
     default:
       return "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30";
   }
@@ -430,6 +433,9 @@ export const ReferralTable = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<"priority" | "date" | "name">("priority");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | "emergent" | "urgent">("all");
   const [showTriageModal, setShowTriageModal] = useState(false);
   const [triageDecision, setTriageDecision] = useState("");
   const [triageNotes, setTriageNotes] = useState("");
@@ -588,9 +594,11 @@ export const ReferralTable = () => {
       setTriageNotes("");
       
       // Success notification with triage decision
-      const decisionEmoji = triageDecision === 'emergent' ? '🚨' : 
+      const decisionEmoji = triageDecision === 'critical' ? '🚨' : 
                            triageDecision === 'urgent' ? '⚡' : '📅';
-      const decisionText = triageDecision.replace('_', ' ').toUpperCase();
+      const decisionText = triageDecision === 'critical' ? 'EMERGENT' :
+                          triageDecision === 'urgent' ? 'URGENT' :
+                          triageDecision.replace('_', ' ').toUpperCase();
       
       toast({
         title: `Referral Accepted! ${decisionEmoji}`,
@@ -608,16 +616,59 @@ export const ReferralTable = () => {
     }
   };
 
+  // Calculate priority counts for display
+  const priorityCounts = {
+    emergent: referrals.filter(r => r.is_emergent === true).length,
+    urgent: referrals.filter(r => r.is_urgent === true && !r.is_emergent).length,
+    total: referrals.length
+  };
+
   // Handle assign to me
-  const filteredReferrals = referrals.filter(referral =>
-    referral.patient_full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    referral.referral_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    referral.chief_complaint.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    referral.specialty_needed_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    referral.referring_hospital_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    referral.referrer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (referral.hrn && referral.hrn.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredReferrals = referrals
+    .filter(referral => {
+      // Search filter
+      const matchesSearch = referral.patient_full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        referral.referral_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        referral.chief_complaint.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        referral.specialty_needed_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        referral.referring_hospital_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        referral.referrer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (referral.hrn && referral.hrn.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      // Priority filter
+      const matchesPriority = priorityFilter === "all" || 
+        (priorityFilter === "emergent" && referral.is_emergent === true) ||
+        (priorityFilter === "urgent" && referral.is_urgent === true && !referral.is_emergent);
+      
+      return matchesSearch && matchesPriority;
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case "priority":
+          // Define priority order: emergent > urgent
+          const getUrgencyLevel = (ref: ReferralData) => {
+            if (ref.is_emergent) return 2;
+            if (ref.is_urgent) return 1;
+            return 0;
+          };
+          const aUrgency = getUrgencyLevel(a);
+          const bUrgency = getUrgencyLevel(b);
+          comparison = bUrgency - aUrgency; // Higher urgency first by default
+          break;
+        case "date":
+          comparison = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          break;
+        case "name":
+          comparison = a.patient_full_name.localeCompare(b.patient_full_name);
+          break;
+        default:
+          comparison = 0;
+      }
+      
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
 
   if (loading) {
     return (
@@ -677,7 +728,44 @@ export const ReferralTable = () => {
             </div>
           </div>
           
-          {/* Search Bar */}
+          {/* Priority Filter Widget */}
+          <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-200 dark:border-gray-600">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Priority:</span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={priorityFilter === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPriorityFilter("all")}
+                className="text-xs"
+              >
+                All Cases ({priorityCounts.total})
+              </Button>
+              <Button
+                variant={priorityFilter === "emergent" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPriorityFilter("emergent")}
+                className={`text-xs ${priorityFilter === "emergent" ? "bg-red-600 hover:bg-red-700 text-white" : "border-red-300 text-red-600 hover:bg-red-50 dark:border-red-600 dark:text-red-400 dark:hover:bg-red-900/20"}`}
+              >
+                🚨 Emergent ({priorityCounts.emergent})
+              </Button>
+              <Button
+                variant={priorityFilter === "urgent" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPriorityFilter("urgent")}
+                className={`text-xs ${priorityFilter === "urgent" ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/20"}`}
+              >
+                ⚡ Urgent ({priorityCounts.urgent})
+              </Button>
+            </div>
+            {priorityFilter !== "all" && (
+              <Badge variant="secondary" className="text-xs">
+                {priorityFilter === "emergent" ? `${filteredReferrals.length} emergent` :
+                 `${filteredReferrals.length} urgent cases`}
+              </Badge>
+            )}
+          </div>
+          
+          {/* Search Bar and Sort Controls */}
           <div className="flex items-center gap-4">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -689,6 +777,36 @@ export const ReferralTable = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            
+            {/* Sort Controls */}
+            <div className="flex items-center gap-2">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "priority" | "date" | "name")}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              >
+                <option value="priority">Sort by Priority</option>
+                <option value="date">Sort by Date</option>
+                <option value="name">Sort by Name</option>
+              </select>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                className="px-2"
+                title={`Sort ${sortOrder === "asc" ? "Descending" : "Ascending"}`}
+              >
+                {sortOrder === "asc" ? "↑" : "↓"}
+              </Button>
+              
+              {sortBy === "priority" && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                  {sortOrder === "desc" ? "🚨⚡📋" : "📋⚡🚨"}
+                </div>
+              )}
+            </div>
+            
             <Badge variant="outline" className="text-xs">
               {filteredReferrals.length} referrals
             </Badge>
@@ -834,8 +952,18 @@ export const ReferralTable = () => {
                       </Badge>
                     </td>
                     <td className="p-4">
-                      <Badge className={getPriorityColor(referral.priority)}>
-                        {referral.priority?.charAt(0)?.toUpperCase() + referral.priority?.slice(1)}
+                      <Badge className={
+                        referral.is_emergent 
+                          ? "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30"
+                          : referral.is_urgent 
+                          ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                          : "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30"
+                      }>
+                        {referral.is_emergent 
+                          ? '🚨 Emergent' 
+                          : referral.is_urgent 
+                          ? '⚡ Urgent' 
+                          : '📋 Routine'}
                       </Badge>
                     </td>
                     <td className="p-4 text-gray-500 dark:text-gray-400 text-sm">
@@ -945,8 +1073,8 @@ export const ReferralTable = () => {
                   required
                 >
                   <option value="">Select triage decision...</option>
-                  <option value="emergent">🚨 Emergent - Immediate attention required</option>
-                  <option value="urgent">⚡ Urgent - Needs prompt care</option>
+                  <option value="critical">🚨 Emergent - Immediate attention required (RED)</option>
+                  <option value="urgent">⚡ Urgent - Needs prompt care (AMBER)</option>
                   <option value="schedule_opd">📅 Schedule for OPD - Outpatient follow-up</option>
                 </select>
               </div>
@@ -967,12 +1095,12 @@ export const ReferralTable = () => {
               {triageDecision && (
                 <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    <strong>Selected:</strong> {triageDecision === 'emergent' ? '🚨 Emergent' : 
+                    <strong>Selected:</strong> {triageDecision === 'critical' ? '🚨 Emergent' : 
                                                 triageDecision === 'urgent' ? '⚡ Urgent' : 
                                                 '📅 Schedule for OPD'}
                   </p>
                   <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
-                    {triageDecision === 'emergent' ? 'Patient will be prioritized for immediate care' : 
+                    {triageDecision === 'critical' ? 'Patient will be prioritized for immediate care' : 
                      triageDecision === 'urgent' ? 'Patient will receive prompt attention' : 
                      'Patient will be scheduled for outpatient follow-up'}
                   </p>

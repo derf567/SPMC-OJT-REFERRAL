@@ -41,7 +41,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
         model = Referral
         fields = [
             # Basic referral info
-            'id', 'referral_id', 'status', 'priority', 'is_urgent', 'created_at', 'updated_at',
+            'id', 'referral_id', 'status', 'priority', 'is_urgent', 'is_emergent', 'created_at', 'updated_at',
             
             # Patient information
             'patient_full_name', 'age', 'gender', 'hrn', 'current_address', 'birthday', 'patient_category',
