@@ -73,7 +73,9 @@ class Referral(models.Model):
         ('pending', 'Pending'),
         ('in_transit', 'In Transit'),
         ('waiting', 'Waiting'),
-        ('accepted', 'Accepted'),
+        ('emergent', 'Emergent'),
+        ('urgent', 'Urgent'),
+        ('schedule_opd', 'Schedule for OPD'),
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
     ]
@@ -104,6 +106,12 @@ class Referral(models.Model):
     GENDER_CHOICES = [
         ('male', 'Male'),
         ('female', 'Female'),
+    ]
+    
+    TRIAGE_DECISION_CHOICES = [
+        ('emergent', 'Emergent'),
+        ('urgent', 'Urgent'),
+        ('schedule_opd', 'Schedule for OPD'),
     ]
     
     # Basic referral info
@@ -160,6 +168,10 @@ class Referral(models.Model):
     # System fields
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_referrals')
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_referrals')
+    
+    # Triage decision (set when triage accepts the referral)
+    triage_decision = models.CharField(max_length=20, choices=TRIAGE_DECISION_CHOICES, blank=True, null=True)
+    triage_notes = models.TextField(blank=True, null=True, help_text="Additional notes from triage team")
     
     class Meta:
         ordering = ['-created_at']

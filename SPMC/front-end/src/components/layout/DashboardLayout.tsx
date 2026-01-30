@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { referralsAPI } from "@/lib/api";
 import {
   Home,
   FileText,
@@ -23,15 +24,6 @@ import {
 interface DashboardLayoutProps {
   children: ReactNode;
 }
-
-const navigation = [
-  { name: "Dashboard", href: "/", icon: Home },
-  { name: "Active Referrals", href: "/referrals", icon: Users, badge: "12" },
-  { name: "Patients", href: "/patients", icon: Users },
-  { name: "Ambulance", href: "/ambulance", icon: Truck },
-  { name: "Facilities", href: "/facilities", icon: Building2 },
-  { name: "Reports", href: "/reports", icon: BarChart3 },
-];
 
 const notifications = [
   {
@@ -68,9 +60,19 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [activeReferralsCount, setActiveReferralsCount] = useState(0);
   
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
+
+  const navigation = [
+    { name: "Dashboard", href: "/", icon: Home },
+    { name: "Active Referrals", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
+    { name: "Patients", href: "/patients", icon: Users },
+    { name: "Ambulance", href: "/ambulance", icon: Truck },
+    { name: "Facilities", href: "/facilities", icon: Building2 },
+    { name: "Reports", href: "/reports", icon: BarChart3 },
+  ];
 
   // Apply dark mode to document on mount and when isDarkMode changes
   useEffect(() => {
@@ -99,6 +101,47 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Fetch active referrals count
+  useEffect(() => {
+    const fetchActiveReferralsCount = async () => {
+      try {
+        const response = await referralsAPI.getAll();
+        const referrals = response.results || response;
+        
+        // Filter based on user role
+        let activeReferrals = [];
+        if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
+          // EDCC Personnel: Count only pending referrals
+          activeReferrals = Array.isArray(referrals) 
+            ? referrals.filter((ref: any) => ref.status === 'pending')
+            : [];
+        } else if (user?.permissions?.can_triage_referrals) {
+          // Triage Users: Count only waiting referrals
+          activeReferrals = Array.isArray(referrals) 
+            ? referrals.filter((ref: any) => ref.status === 'waiting')
+            : [];
+        } else {
+          // Other users: Count all non-completed/cancelled referrals
+          activeReferrals = Array.isArray(referrals) 
+            ? referrals.filter((ref: any) => !['completed', 'cancelled'].includes(ref.status))
+            : [];
+        }
+        
+        setActiveReferralsCount(activeReferrals.length);
+      } catch (error) {
+        console.error('Error fetching active referrals count:', error);
+        setActiveReferralsCount(0);
+      }
+    };
+
+    if (user) {
+      fetchActiveReferralsCount();
+      // Refresh count every 30 seconds
+      const interval = setInterval(fetchActiveReferralsCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
@@ -224,20 +267,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               {/* Search Bar - Aligned with sidebar logo */}
               <div className="flex items-center gap-6 flex-1">
                 <div className="relative flex items-center flex-1 max-w-md ml-0">
-                  <Search className={cn(
-                    "absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 transition-colors duration-300",
-                    isDarkMode ? "text-gray-400" : "text-gray-500"
-                  )} />
-                  <input
-                    type="text"
-                    placeholder="Search patients, referrals..."
-                    className={cn(
-                      "w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-300",
-                      isDarkMode 
-                        ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400" 
-                        : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
-                    )}
-                  />
                 </div>
               </div>
 

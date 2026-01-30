@@ -31,7 +31,7 @@ class ReferralDocumentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ReferralListSerializer(serializers.ModelSerializer):
-    """Serializer for listing referrals (minimal data)"""
+    """Serializer for listing referrals (includes all data needed for enhanced table view)"""
     specialty_needed_name = serializers.CharField(source='specialty_needed.name', read_only=True)
     referring_hospital_name = serializers.CharField(source='referring_hospital.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
@@ -40,10 +40,31 @@ class ReferralListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Referral
         fields = [
-            'id', 'referral_id', 'patient_full_name', 'age', 'gender',
-            'chief_complaint', 'working_impression', 'specialty_needed_name',
-            'referring_hospital_name', 'referrer_name', 'status', 'priority',
-            'is_urgent', 'created_at', 'created_by_name', 'assigned_to_name'
+            # Basic referral info
+            'id', 'referral_id', 'status', 'priority', 'is_urgent', 'created_at', 'updated_at',
+            
+            # Patient information
+            'patient_full_name', 'age', 'gender', 'hrn', 'current_address', 'birthday', 'patient_category',
+            
+            # Medical information
+            'chief_complaint', 'working_impression', 'pertinent_history', 'pertinent_physical_exam',
+            'reason_for_referral', 'management_done',
+            
+            # Vital signs
+            'bp', 'hr', 'rr', 'temp', 'o2_sat', 'gcs_score', 'o2_support',
+            
+            # Medical status
+            'admission_status', 'rtpcr_result',
+            
+            # Specialty and referrer info
+            'specialty_needed_name', 'referring_hospital_name', 'referrer_name', 
+            'referrer_profession', 'referrer_cellphone', 'mode_of_transportation',
+            
+            # System fields
+            'created_by_name', 'assigned_to_name', 'consent_secured',
+            
+            # Triage decision (if available)
+            'triage_decision', 'triage_notes'
         ]
 
 class ReferralDetailSerializer(serializers.ModelSerializer):

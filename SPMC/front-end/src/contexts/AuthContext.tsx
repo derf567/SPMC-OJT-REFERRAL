@@ -9,6 +9,15 @@ interface User {
   last_name: string;
   full_name: string;
   is_staff: boolean;
+  role: string;
+  role_display: string;
+  department: string;
+  permissions: {
+    can_view_referrals: boolean;
+    can_triage_referrals: boolean;
+    can_transfer_referrals: boolean;
+    is_admin_user: boolean;
+  };
 }
 
 interface AuthContextType {
