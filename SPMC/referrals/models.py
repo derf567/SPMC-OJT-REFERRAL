@@ -153,6 +153,7 @@ class Referral(models.Model):
     specialty_needed = models.ForeignKey(Specialty, on_delete=models.CASCADE)
     other_specialty = models.CharField(max_length=100, blank=True, null=True)
     is_urgent = models.BooleanField(default=False)
+    is_emergent = models.BooleanField(default=False)
     reason_for_referral = models.TextField()
     
     # Referring Hospital Information

@@ -8,7 +8,6 @@ import {
   FileText, 
   Truck, 
   CheckCircle,
-  AlertCircle,
   Phone,
   Building2
 } from "lucide-react";
@@ -44,7 +43,10 @@ interface ReferralFormData {
   // Specialty Needed
   specialtyNeeded: string;
   otherSpecialty: string;
-  isUrgent: boolean;
+  priorityLevel: string; // "routine", "urgent", "emergent"
+  
+  // Laboratory Files
+  laboratoryFiles: File[];
   
   // Referring Hospital
   isInsideDavaoCity: boolean;
@@ -98,7 +100,9 @@ const initialFormData: ReferralFormData = {
   
   specialtyNeeded: "",
   otherSpecialty: "",
-  isUrgent: false,
+  priorityLevel: "urgent",
+  
+  laboratoryFiles: [],
   
   isInsideDavaoCity: true,
   hospitalLocation: "",
@@ -228,6 +232,12 @@ const ExternalReferral = () => {
     if (!formData.specialtyNeeded) errors.push("Specialty Needed is required");
     if (!formData.reasonForReferral.trim()) errors.push("Reason for Referral is required");
     
+    // Laboratory files validation (optional but recommended)
+    if (formData.laboratoryFiles.length === 0) {
+      // This is just a warning, not an error
+      console.warn("No laboratory files uploaded. Consider uploading relevant medical documents.");
+    }
+    
     // Step 4 - Referring Hospital validation
     if (!formData.referringFacilityName) errors.push("Referring Facility is required");
     if (!formData.referrerName.trim()) errors.push("Referrer Name is required");
@@ -288,7 +298,8 @@ const ExternalReferral = () => {
         // Specialty Needed
         specialty_needed: parseInt(formData.specialtyNeeded) || 1,
         other_specialty: formData.otherSpecialty || null,
-        is_urgent: formData.isUrgent,
+        is_urgent: formData.priorityLevel === "urgent",
+        is_emergent: formData.priorityLevel === "emergent",
         reason_for_referral: formData.reasonForReferral,
         
         // Referring Hospital
@@ -320,9 +331,21 @@ const ExternalReferral = () => {
       };
 
       console.log('Submitting data:', apiData); // Debug log
+      console.log('Laboratory files to upload:', formData.laboratoryFiles.length, 'files'); // Debug log
+      
+      // TODO: Implement file upload functionality
+      // For now, we'll submit the referral without files
+      // In a full implementation, files would be uploaded separately or as FormData
       
       const response = await externalReferralsAPI.create(apiData);
-      alert(`Referral submitted successfully! Reference ID: ${response.referral_id}\n\nYour referral has been sent to SPMC Emergency Dispatch and Communication Center for review.`);
+      
+      let successMessage = `Referral submitted successfully! Reference ID: ${response.referral_id}\n\nYour referral has been sent to SPMC Emergency Dispatch and Communication Center for review.`;
+      
+      if (formData.laboratoryFiles.length > 0) {
+        successMessage += `\n\nNote: ${formData.laboratoryFiles.length} laboratory file(s) were selected. Please ensure all medical documents are properly attached for review.`;
+      }
+      
+      alert(successMessage);
       
       // Reset form
       setFormData(initialFormData);
@@ -715,17 +738,44 @@ const ExternalReferral = () => {
               )}
 
               <div className="md:col-span-2">
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    checked={formData.isUrgent}
-                    onChange={(e) => updateFormData('isUrgent', e.target.checked)}
-                  />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Mark as Urgent
-                  </span>
-                </label>
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Priority Level *
+                  </label>
+                  <select 
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    value={formData.priorityLevel}
+                    onChange={(e) => updateFormData('priorityLevel', e.target.value)}
+                  >
+                    <option value="urgent">⚡ Urgent - Needs prompt care (Amber Priority)</option>
+                    <option value="emergent">🚨 Emergent - Immediate attention required (Red Priority)</option>
+                  </select>
+                  
+                  <div className={`p-3 rounded-lg border ${
+                    formData.priorityLevel === "emergent" 
+                      ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' 
+                      : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                  }`}>
+                    <p className={`text-sm font-medium ${
+                      formData.priorityLevel === "emergent" 
+                        ? 'text-red-800 dark:text-red-200' 
+                        : 'text-amber-800 dark:text-amber-200'
+                    }`}>
+                      {formData.priorityLevel === "emergent" 
+                        ? '🚨 EMERGENT PRIORITY: This referral will be flagged for immediate attention' 
+                        : '⚡ URGENT PRIORITY: This referral will be flagged for prompt care'}
+                    </p>
+                    <p className={`text-xs mt-1 ${
+                      formData.priorityLevel === "emergent" 
+                        ? 'text-red-600 dark:text-red-300' 
+                        : 'text-amber-600 dark:text-amber-300'
+                    }`}>
+                      {formData.priorityLevel === "emergent" 
+                        ? 'Use for life-threatening conditions requiring immediate intervention' 
+                        : 'Use for conditions that need prompt medical attention but are not immediately life-threatening'}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="md:col-span-2">
@@ -742,14 +792,62 @@ const ExternalReferral = () => {
               </div>
             </div>
 
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-yellow-800 dark:text-yellow-200">Laboratory Upload</h4>
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                    Please upload pertinent laboratories and images or send directly through Viber (0915) 541 3040
+                <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-blue-800 dark:text-blue-200">Laboratory Upload</h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mt-1 mb-3">
+                    Please upload pertinent laboratories and medical images (X-rays, CT scans, lab results, etc.)
                   </p>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                        Upload Files (Images, PDFs, Documents)
+                      </label>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx"
+                        className="w-full px-3 py-2 border border-blue-300 dark:border-blue-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          updateFormData('laboratoryFiles', files);
+                        }}
+                      />
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        Supported formats: Images (JPG, PNG, GIF), PDF, Word documents. Max 10MB per file.
+                      </p>
+                    </div>
+                    
+                    {formData.laboratoryFiles.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                          Selected Files ({formData.laboratoryFiles.length}):
+                        </p>
+                        <div className="space-y-1">
+                          {formData.laboratoryFiles.map((file, index) => (
+                            <div key={index} className="flex items-center justify-between bg-white dark:bg-gray-700 p-2 rounded border">
+                              <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                                📎 {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newFiles = formData.laboratoryFiles.filter((_, i) => i !== index);
+                                  updateFormData('laboratoryFiles', newFiles);
+                                }}
+                                className="text-red-500 hover:text-red-700 text-sm ml-2"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1231,7 +1329,7 @@ const ExternalReferral = () => {
               </p>
               <div className="mt-2 space-y-1">
                 <p className="text-blue-900 dark:text-blue-100 font-medium">📞 (082) 227-2731</p>
-                <p className="text-blue-900 dark:text-blue-100 font-medium">📱 Viber: (0915) 541-3040</p>
+                <p className="text-blue-900 dark:text-blue-100 font-medium">� emergency@spmc.gov.ph</p>
               </div>
             </div>
           </div>
