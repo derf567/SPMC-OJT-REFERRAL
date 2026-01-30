@@ -115,6 +115,48 @@ class ReferralViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['post'])
+    def accept_with_triage_decision(self, request, pk=None):
+        """Accept referral with triage decision (Triage user action)"""
+        referral = self.get_object()
+        
+        # Check if user has permission to triage referrals
+        if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
+            return Response({
+                'error': 'You do not have permission to make triage decisions'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        triage_decision = request.data.get('triage_decision')
+        triage_notes = request.data.get('triage_notes', '')
+        
+        if not triage_decision or triage_decision not in ['emergent', 'urgent', 'schedule_opd']:
+            return Response({
+                'error': 'Valid triage decision is required (emergent, urgent, or schedule_opd)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update referral - set status to the triage decision
+        old_status = referral.status
+        referral.status = triage_decision  # Set status to emergent/urgent/schedule_opd
+        referral.triage_decision = triage_decision
+        referral.triage_notes = triage_notes
+        referral.assigned_to = request.user
+        referral.save()
+        
+        # Create status history record
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=old_status,
+            new_status=triage_decision,  # Use triage decision as new status
+            changed_by=request.user,
+            notes=f'Triage decision: {triage_decision.replace("_", " ").title()}. Notes: {triage_notes}'
+        )
+        
+        return Response({
+            'message': f'Referral processed with triage decision: {triage_decision.replace("_", " ").title()}',
+            'new_status': referral.status,
+            'triage_decision': referral.triage_decision
+        })
+    
+    @action(detail=True, methods=['post'])
     def assign_to_me(self, request, pk=None):
         """Assign referral to current user"""
         referral = self.get_object()
@@ -126,6 +168,36 @@ class ReferralViewSet(viewsets.ModelViewSet):
             'assigned_to': request.user.get_full_name()
         })
     
+    @action(detail=True, methods=['post'])
+    def transfer_to_triage(self, request, pk=None):
+        """Transfer referral to triage (EDCC Personnel action)"""
+        referral = self.get_object()
+        
+        # Check if user has permission to transfer referrals
+        if not hasattr(request.user, 'profile') or not request.user.profile.can_transfer_referrals:
+            return Response({
+                'error': 'You do not have permission to transfer referrals'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Update status to waiting (transferred to triage)
+        old_status = referral.status
+        referral.status = 'waiting'
+        referral.save()
+        
+        # Create status history record
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=old_status,
+            new_status='waiting',
+            changed_by=request.user,
+            notes='Transferred to EDMAR/EDHO Triage for review'
+        )
+        
+        return Response({
+            'message': 'Referral successfully transferred to EDMAR/EDHO Triage',
+            'new_status': referral.status
+        })
+    
     @action(detail=False, methods=['get'])
     def dashboard_stats(self, request):
         """Get dashboard statistics"""
@@ -134,6 +206,11 @@ class ReferralViewSet(viewsets.ModelViewSet):
         in_transit_referrals = Referral.objects.filter(status='in_transit').count()
         critical_referrals = Referral.objects.filter(priority='critical').count()
         urgent_referrals = Referral.objects.filter(is_urgent=True).count()
+        
+        # Triage decisions
+        emergent_referrals = Referral.objects.filter(status='emergent').count()
+        urgent_triage_referrals = Referral.objects.filter(status='urgent').count()
+        scheduled_opd_referrals = Referral.objects.filter(status='schedule_opd').count()
         
         # Recent referrals (last 24 hours)
         from django.utils import timezone
@@ -147,6 +224,9 @@ class ReferralViewSet(viewsets.ModelViewSet):
             'in_transit_referrals': in_transit_referrals,
             'critical_referrals': critical_referrals,
             'urgent_referrals': urgent_referrals,
+            'emergent_referrals': emergent_referrals,
+            'urgent_triage_referrals': urgent_triage_referrals,
+            'scheduled_opd_referrals': scheduled_opd_referrals,
             'recent_referrals': recent_referrals,
         })
     
@@ -218,6 +298,109 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         serializer = ReferralListSerializer(referrals, many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def reports_analytics(self, request):
+        """Get comprehensive reports and analytics data"""
+        from django.utils import timezone
+        from datetime import timedelta
+        from django.db.models import Count, Q
+        
+        # Basic counts
+        total_referrals = Referral.objects.count()
+        successful_referrals = Referral.objects.filter(status='completed').count()
+        pending_referrals = Referral.objects.filter(status='pending').count()
+        cancelled_referrals = Referral.objects.filter(status='cancelled').count()
+        
+        # Calculate success rate
+        success_rate = (successful_referrals / total_referrals * 100) if total_referrals > 0 else 0
+        cancellation_rate = (cancelled_referrals / total_referrals * 100) if total_referrals > 0 else 0
+        
+        # Monthly trends (last 6 months)
+        monthly_data = []
+        for i in range(6):
+            month_start = timezone.now().replace(day=1) - timedelta(days=30*i)
+            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            
+            month_referrals = Referral.objects.filter(
+                created_at__date__gte=month_start.date(),
+                created_at__date__lte=month_end.date()
+            ).count()
+            
+            monthly_data.append({
+                'month': month_start.strftime('%B %Y'),
+                'count': month_referrals
+            })
+        
+        monthly_data.reverse()  # Show oldest to newest
+        
+        # Top referring hospitals
+        top_hospitals = ReferringHospital.objects.annotate(
+            referral_count=Count('referral')
+        ).filter(referral_count__gt=0).order_by('-referral_count')[:5]
+        
+        hospital_data = []
+        for hospital in top_hospitals:
+            percentage = (hospital.referral_count / total_referrals * 100) if total_referrals > 0 else 0
+            hospital_data.append({
+                'name': hospital.name,
+                'count': hospital.referral_count,
+                'percentage': round(percentage, 1)
+            })
+        
+        # Status distribution
+        status_distribution = Referral.objects.values('status').annotate(
+            count=Count('status')
+        ).order_by('-count')
+        
+        # Priority distribution
+        priority_distribution = Referral.objects.values('priority').annotate(
+            count=Count('priority')
+        ).order_by('-count')
+        
+        # Specialty distribution
+        specialty_distribution = Specialty.objects.annotate(
+            referral_count=Count('referral')
+        ).filter(referral_count__gt=0).order_by('-referral_count')[:10]
+        
+        specialty_data = []
+        for specialty in specialty_distribution:
+            specialty_data.append({
+                'name': specialty.name,
+                'count': specialty.referral_count
+            })
+        
+        # Recent activity (last 7 days)
+        week_ago = timezone.now() - timedelta(days=7)
+        recent_referrals = Referral.objects.filter(created_at__gte=week_ago).count()
+        
+        # Average processing time (for completed referrals)
+        completed_referrals = Referral.objects.filter(status='completed')
+        avg_processing_time = 0
+        if completed_referrals.exists():
+            total_time = sum([
+                (ref.updated_at - ref.created_at).total_seconds() / 3600  # Convert to hours
+                for ref in completed_referrals
+            ])
+            avg_processing_time = total_time / completed_referrals.count()
+        
+        return Response({
+            'summary': {
+                'total_referrals': total_referrals,
+                'successful_referrals': successful_referrals,
+                'pending_referrals': pending_referrals,
+                'cancelled_referrals': cancelled_referrals,
+                'success_rate': round(success_rate, 1),
+                'cancellation_rate': round(cancellation_rate, 1),
+                'recent_referrals': recent_referrals,
+                'avg_processing_time_hours': round(avg_processing_time, 1)
+            },
+            'monthly_trends': monthly_data,
+            'top_hospitals': hospital_data,
+            'status_distribution': list(status_distribution),
+            'priority_distribution': list(priority_distribution),
+            'specialty_distribution': specialty_data
+        })
 
 class TransitInfoViewSet(viewsets.ModelViewSet):
     queryset = TransitInfo.objects.select_related('referral')

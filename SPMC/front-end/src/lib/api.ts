@@ -171,6 +171,29 @@ export const referralsAPI = {
   getPatientHistory: async (patientName: string) => {
     return apiRequest(`/referrals/patient_history/?patient_name=${encodeURIComponent(patientName)}`);
   },
+
+  // Get reports and analytics data
+  getReportsAnalytics: async () => {
+    return apiRequest('/referrals/reports_analytics/');
+  },
+
+  // Transfer referral to triage (EDCC Personnel action)
+  transferToTriage: async (id: string) => {
+    return apiRequest(`/referrals/${id}/transfer_to_triage/`, {
+      method: 'POST',
+    });
+  },
+
+  // Accept referral with triage decision (Triage user action)
+  acceptWithTriageDecision: async (id: string, triageDecision: string, triageNotes?: string) => {
+    return apiRequest(`/referrals/${id}/accept_with_triage_decision/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        triage_decision: triageDecision,
+        triage_notes: triageNotes || ''
+      }),
+    });
+  },
 };
 
 // Hospitals API
