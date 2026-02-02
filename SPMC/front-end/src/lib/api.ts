@@ -185,12 +185,32 @@ export const referralsAPI = {
   },
 
   // Accept referral with triage decision (Triage user action)
-  acceptWithTriageDecision: async (id: string, triageDecision: string, triageNotes?: string) => {
+  acceptWithTriageDecision: async (id: string, triageDecision: string, triageNotes?: string, scheduledDate?: string, scheduledTime?: string) => {
+    const requestBody: any = {
+      triage_decision: triageDecision,
+      triage_notes: triageNotes || ''
+    };
+
+    // Add scheduled date and time if provided (for schedule_opd decisions)
+    if (scheduledDate) {
+      requestBody.scheduled_date = scheduledDate;
+    }
+    if (scheduledTime) {
+      requestBody.scheduled_time = scheduledTime;
+    }
+
     return apiRequest(`/referrals/${id}/accept_with_triage_decision/`, {
       method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+  },
+
+  // Mark appointment as completed
+  markAsCompleted: async (id: string, notes?: string) => {
+    return apiRequest(`/referrals/${id}/mark_appointment_completed/`, {
+      method: 'POST',
       body: JSON.stringify({
-        triage_decision: triageDecision,
-        triage_notes: triageNotes || ''
+        completion_notes: notes || ''
       }),
     });
   },

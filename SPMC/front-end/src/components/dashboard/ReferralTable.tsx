@@ -439,6 +439,9 @@ export const ReferralTable = () => {
   const [showTriageModal, setShowTriageModal] = useState(false);
   const [triageDecision, setTriageDecision] = useState("");
   const [triageNotes, setTriageNotes] = useState("");
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
+  const [dateError, setDateError] = useState("");
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -523,7 +526,7 @@ export const ReferralTable = () => {
     }
 
     try {
-      const response = await referralsAPI.transferToTriage(referralId);
+      await referralsAPI.transferToTriage(referralId);
       
       // Refresh the referrals list with role-based filtering
       const refreshResponse = await referralsAPI.getAll();
@@ -557,6 +560,39 @@ export const ReferralTable = () => {
     }
   };
 
+  // Validate selected date
+  const validateScheduledDate = (selectedDate: string) => {
+    if (!selectedDate) {
+      setDateError("");
+      return true;
+    }
+
+    const selected = new Date(selectedDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for accurate comparison
+
+    if (selected < today) {
+      setDateError("❌ Cannot schedule appointments for past dates. Please select a future date.");
+      return false;
+    }
+
+    // Check if it's the same day but current time has passed
+    if (selected.getTime() === today.getTime() && scheduledTime) {
+      const now = new Date();
+      const [hours, minutes] = scheduledTime.split(':').map(Number);
+      const selectedDateTime = new Date();
+      selectedDateTime.setHours(hours, minutes, 0, 0);
+      
+      if (selectedDateTime <= now) {
+        setDateError("❌ Cannot schedule appointments for past times today. Please select a future time.");
+        return false;
+      }
+    }
+
+    setDateError("");
+    return true;
+  };
+
   // Handle accept with triage decision (Triage user action)
   const handleAcceptWithTriageDecision = async () => {
     if (!selectedReferral || !triageDecision) {
@@ -568,11 +604,37 @@ export const ReferralTable = () => {
       return;
     }
 
+    // Validate date and time for schedule_opd
+    if (triageDecision === 'schedule_opd') {
+      if (!scheduledDate || !scheduledTime) {
+        toast({
+          variant: "destructive",
+          title: "Missing Schedule Information",
+          description: "Please select both appointment date and time for OPD scheduling.",
+        });
+        return;
+      }
+
+      // Validate that the selected date is not in the past
+      if (!validateScheduledDate(scheduledDate)) {
+        return; // Error message already shown by validateScheduledDate
+      }
+
+      const selectedDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+      const now = new Date();
+      if (selectedDateTime <= now) {
+        setDateError("❌ Cannot schedule appointments for past date and time. Please select a future appointment slot.");
+        return;
+      }
+    }
+
     try {
-      const response = await referralsAPI.acceptWithTriageDecision(
+      await referralsAPI.acceptWithTriageDecision(
         selectedReferral.id || selectedReferral.referral_id,
         triageDecision,
-        triageNotes
+        triageNotes,
+        triageDecision === 'schedule_opd' ? scheduledDate : undefined,
+        triageDecision === 'schedule_opd' ? scheduledTime : undefined
       );
       
       // Refresh the referrals list with role-based filtering
@@ -592,6 +654,9 @@ export const ReferralTable = () => {
       setSelectedReferral(null);
       setTriageDecision("");
       setTriageNotes("");
+      setScheduledDate("");
+      setScheduledTime("");
+      setDateError("");
       
       // Success notification with triage decision
       const decisionEmoji = triageDecision === 'critical' ? '🚨' : 
@@ -600,9 +665,21 @@ export const ReferralTable = () => {
                           triageDecision === 'urgent' ? 'URGENT' :
                           triageDecision.replace('_', ' ').toUpperCase();
       
+      let successMessage = `The referral has been accepted and marked as: ${decisionText}. Patient care team has been notified and appropriate care pathway initiated.`;
+      
+      if (triageDecision === 'schedule_opd') {
+        const appointmentDate = new Date(scheduledDate).toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        successMessage = `The referral has been scheduled for OPD appointment on ${appointmentDate} at ${scheduledTime}. Patient will be notified of the appointment details.`;
+      }
+      
       toast({
         title: `Referral Accepted! ${decisionEmoji}`,
-        description: `The referral has been accepted and marked as: ${decisionText}. Patient care team has been notified and appropriate care pathway initiated.`,
+        description: successMessage,
         className: "bg-green-50 border-green-200 text-green-800",
       });
     } catch (err: any) {
@@ -1054,6 +1131,9 @@ export const ReferralTable = () => {
                   setShowTriageModal(false);
                   setTriageDecision("");
                   setTriageNotes("");
+                  setScheduledDate("");
+                  setScheduledTime("");
+                  setDateError("");
                 }}
               >
                 <X className="w-4 h-4" />
@@ -1092,6 +1172,84 @@ export const ReferralTable = () => {
                 />
               </div>
 
+              {/* Date and Time Selection for Schedule OPD */}
+              {triageDecision === 'schedule_opd' && (
+                <div className="space-y-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <h4 className="font-medium text-green-800 dark:text-green-200">📅 Schedule Appointment</h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Appointment Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={scheduledDate}
+                        onChange={(e) => {
+                          setScheduledDate(e.target.value);
+                          validateScheduledDate(e.target.value);
+                        }}
+                        min={new Date().toISOString().split('T')[0]} // Only allow future dates
+                        className={`w-full p-2 border rounded-md focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                          dateError 
+                            ? 'border-red-500 focus:ring-red-500' 
+                            : 'border-gray-300 dark:border-gray-600 focus:ring-green-500'
+                        }`}
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Appointment Time *
+                      </label>
+                      <select
+                        value={scheduledTime}
+                        onChange={(e) => {
+                          setScheduledTime(e.target.value);
+                          if (scheduledDate) {
+                            validateScheduledDate(scheduledDate);
+                          }
+                        }}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        required
+                      >
+                        <option value="">Select time...</option>
+                        <option value="08:00">8:00 AM</option>
+                        <option value="08:30">8:30 AM</option>
+                        <option value="09:00">9:00 AM</option>
+                        <option value="09:30">9:30 AM</option>
+                        <option value="10:00">10:00 AM</option>
+                        <option value="10:30">10:30 AM</option>
+                        <option value="11:00">11:00 AM</option>
+                        <option value="11:30">11:30 AM</option>
+                        <option value="13:00">1:00 PM</option>
+                        <option value="13:30">1:30 PM</option>
+                        <option value="14:00">2:00 PM</option>
+                        <option value="14:30">2:30 PM</option>
+                        <option value="15:00">3:00 PM</option>
+                        <option value="15:30">3:30 PM</option>
+                        <option value="16:00">4:00 PM</option>
+                        <option value="16:30">4:30 PM</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  {/* Date Error Message */}
+                  {dateError && (
+                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <p className="text-sm text-red-800 dark:text-red-200 font-medium">
+                        {dateError}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    Please select a future date and available time slot for the outpatient appointment.
+                  </p>
+                </div>
+              )}
+
               {triageDecision && (
                 <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                   <p className="text-sm text-blue-800 dark:text-blue-200">
@@ -1116,6 +1274,9 @@ export const ReferralTable = () => {
                   setShowTriageModal(false);
                   setTriageDecision("");
                   setTriageNotes("");
+                  setScheduledDate("");
+                  setScheduledTime("");
+                  setDateError("");
                 }}
               >
                 Cancel

@@ -174,6 +174,10 @@ class Referral(models.Model):
     triage_decision = models.CharField(max_length=20, choices=TRIAGE_DECISION_CHOICES, blank=True, null=True)
     triage_notes = models.TextField(blank=True, null=True, help_text="Additional notes from triage team")
     
+    # Outpatient scheduling (for schedule_opd triage decisions)
+    scheduled_date = models.DateField(blank=True, null=True, help_text="Scheduled appointment date for OPD")
+    scheduled_time = models.TimeField(blank=True, null=True, help_text="Scheduled appointment time for OPD")
+    
     class Meta:
         ordering = ['-created_at']
     

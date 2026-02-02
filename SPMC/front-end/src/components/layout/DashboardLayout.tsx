@@ -11,6 +11,7 @@ import {
   Truck,
   Building2,
   BarChart3,
+  Calendar,
   Settings,
   Search,
   Bell,
@@ -68,6 +69,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const navigation = [
     { name: "Dashboard", href: "/", icon: Home },
     { name: "Active Referrals", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
+    { name: "Outpatient", href: "/outpatient", icon: Calendar },
     { name: "Patients", href: "/patients", icon: Users },
     { name: "Ambulance", href: "/ambulance", icon: Truck },
     { name: "Facilities", href: "/facilities", icon: Building2 },
