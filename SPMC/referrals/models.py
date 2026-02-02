@@ -114,6 +114,21 @@ class Referral(models.Model):
         ('schedule_opd', 'Schedule for OPD'),
     ]
     
+    DEPARTMENT_CHOICES = [
+        ('emergency', 'Emergency Department'),
+        ('internal_medicine', 'Internal Medicine'),
+        ('surgery', 'Surgery Department'),
+        ('obstetrics_gynecology', 'Obstetrics and Gynecology'),
+        ('pediatrics', 'Pediatrics'),
+        ('orthopedics', 'Orthopedics'),
+        ('cardiology', 'Cardiology'),
+        ('neurology', 'Neurology'),
+        ('anesthesiology', 'Anesthesiology'),
+        ('radiology', 'Radiology'),
+        ('pathology', 'Pathology'),
+        ('other', 'Other Department'),
+    ]
+    
     # Basic referral info
     referral_id = models.CharField(max_length=20, unique=True, editable=False)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -173,6 +188,15 @@ class Referral(models.Model):
     # Triage decision (set when triage accepts the referral)
     triage_decision = models.CharField(max_length=20, choices=TRIAGE_DECISION_CHOICES, blank=True, null=True)
     triage_notes = models.TextField(blank=True, null=True, help_text="Additional notes from triage team")
+    
+    # Department assignment (set by EDCC when transferring to triage)
+    assigned_department = models.CharField(
+        max_length=50, 
+        choices=DEPARTMENT_CHOICES, 
+        blank=True, 
+        null=True,
+        help_text="Department assigned by EDCC when transferring to triage"
+    )
     
     # Outpatient scheduling (for schedule_opd triage decisions)
     scheduled_date = models.DateField(blank=True, null=True, help_text="Scheduled appointment date for OPD")

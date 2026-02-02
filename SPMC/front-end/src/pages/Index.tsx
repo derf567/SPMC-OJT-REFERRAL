@@ -8,7 +8,7 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
-  Truck,
+  Users,
 } from "lucide-react";
 
 interface DashboardStats {
@@ -171,14 +171,14 @@ const Index = () => {
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors duration-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Active Ambulances</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Patients</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-                  {loading ? '...' : '6'}
+                  {loading ? '...' : '247'}
                 </p>
-                <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">2 en route</p>
+                <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">Registered in system</p>
               </div>
-              <div className="p-3 rounded-lg bg-cyan-500/10">
-                <Truck className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
+              <div className="p-3 rounded-lg bg-purple-500/10">
+                <Users className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               </div>
             </div>
           </div>

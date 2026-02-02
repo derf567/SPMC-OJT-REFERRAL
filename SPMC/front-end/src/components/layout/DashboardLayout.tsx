@@ -8,8 +8,6 @@ import {
   Home,
   FileText,
   Users,
-  Truck,
-  Building2,
   BarChart3,
   Calendar,
   Settings,
@@ -36,17 +34,17 @@ const notifications = [
   },
   {
     id: 2,
-    title: "Ambulance Dispatched",
-    message: "Unit A-03 en route to Metro Davao Medical",
+    title: "Referral Completed",
+    message: "Patient Maria Santos successfully transferred",
     time: "5 mins ago",
-    type: "info"
+    type: "success"
   },
   {
     id: 3,
-    title: "Bed Available",
-    message: "ICU bed now available at SPMC Emergency",
+    title: "Department Assignment",
+    message: "New referral assigned to Cardiology",
     time: "10 mins ago",
-    type: "success"
+    type: "info"
   }
 ];
 
@@ -71,8 +69,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Active Referrals", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
     { name: "Patients", href: "/patients", icon: Users },
-    { name: "Ambulance", href: "/ambulance", icon: Truck },
-    { name: "Facilities", href: "/facilities", icon: Building2 },
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
