@@ -64,7 +64,10 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'created_by_name', 'assigned_to_name', 'consent_secured',
             
             # Triage decision (if available)
-            'triage_decision', 'triage_notes', 'scheduled_date', 'scheduled_time'
+            'triage_decision', 'triage_notes', 'scheduled_date', 'scheduled_time',
+            
+            # Department assignment
+            'assigned_department'
         ]
 
 class ReferralDetailSerializer(serializers.ModelSerializer):

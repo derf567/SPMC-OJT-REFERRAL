@@ -178,9 +178,10 @@ export const referralsAPI = {
   },
 
   // Transfer referral to triage (EDCC Personnel action)
-  transferToTriage: async (id: string) => {
+  transferToTriage: async (id: string, department: string) => {
     return apiRequest(`/referrals/${id}/transfer_to_triage/`, {
       method: 'POST',
+      body: JSON.stringify({ department }),
     });
   },
 
@@ -212,6 +213,14 @@ export const referralsAPI = {
       body: JSON.stringify({
         completion_notes: notes || ''
       }),
+    });
+  },
+
+  // Change department assignment (Triage user action)
+  changeDepartment: async (id: string, newDepartment: string) => {
+    return apiRequest(`/referrals/${id}/change_department/`, {
+      method: 'POST',
+      body: JSON.stringify({ department: newDepartment }),
     });
   },
 };

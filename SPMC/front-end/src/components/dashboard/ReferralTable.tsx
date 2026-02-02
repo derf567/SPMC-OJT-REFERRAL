@@ -26,6 +26,7 @@ interface ReferralData {
   assigned_to_name?: string;
   triage_decision?: string;
   triage_notes?: string;
+  assigned_department?: string;
   // Add other fields as needed for detail view
   pertinent_history?: string;
   pertinent_physical_exam?: string;
@@ -74,19 +75,60 @@ const getStatusColor = (status: string) => {
   }
 };
 
-const getPriorityColor = (priority: string) => {
-  switch (priority) {
-    case "critical":
-      return "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30";
-    case "urgent":
-      return "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30";
-    case "routine":
-      return "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30";
-    case "schedule_opd":
-      return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
-    default:
-      return "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30";
-  }
+// Department options for EDCC transfer
+const DEPARTMENT_OPTIONS = [
+  { value: 'emergency', label: 'Emergency Department', icon: '🚨', color: 'red' },
+  { value: 'internal_medicine', label: 'Internal Medicine', icon: '🩺', color: 'blue' },
+  { value: 'surgery', label: 'Surgery Department', icon: '🔪', color: 'purple' },
+  { value: 'obstetrics_gynecology', label: 'Obstetrics and Gynecology', icon: '👶', color: 'pink' },
+  { value: 'pediatrics', label: 'Pediatrics', icon: '🧸', color: 'yellow' },
+  { value: 'orthopedics', label: 'Orthopedics', icon: '🦴', color: 'orange' },
+  { value: 'cardiology', label: 'Cardiology', icon: '❤️', color: 'red' },
+  { value: 'neurology', label: 'Neurology', icon: '🧠', color: 'indigo' },
+  { value: 'anesthesiology', label: 'Anesthesiology', icon: '💉', color: 'green' },
+  { value: 'radiology', label: 'Radiology', icon: '📡', color: 'cyan' },
+  { value: 'pathology', label: 'Pathology', icon: '🔬', color: 'violet' },
+  { value: 'other', label: 'Other Department', icon: '🏥', color: 'gray' },
+];
+
+// Get department color classes
+const getDepartmentColorClasses = (color: string, isActive: boolean = false) => {
+  const colorMap = {
+    red: isActive 
+      ? 'bg-red-600 hover:bg-red-700 text-white border-red-600' 
+      : 'border-red-300 text-red-600 hover:bg-red-50 dark:border-red-600 dark:text-red-400 dark:hover:bg-red-900/20',
+    blue: isActive 
+      ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' 
+      : 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:border-blue-600 dark:text-blue-400 dark:hover:bg-blue-900/20',
+    purple: isActive 
+      ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-600' 
+      : 'border-purple-300 text-purple-600 hover:bg-purple-50 dark:border-purple-600 dark:text-purple-400 dark:hover:bg-purple-900/20',
+    pink: isActive 
+      ? 'bg-pink-600 hover:bg-pink-700 text-white border-pink-600' 
+      : 'border-pink-300 text-pink-600 hover:bg-pink-50 dark:border-pink-600 dark:text-pink-400 dark:hover:bg-pink-900/20',
+    yellow: isActive 
+      ? 'bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600' 
+      : 'border-yellow-300 text-yellow-600 hover:bg-yellow-50 dark:border-yellow-600 dark:text-yellow-400 dark:hover:bg-yellow-900/20',
+    orange: isActive 
+      ? 'bg-orange-600 hover:bg-orange-700 text-white border-orange-600' 
+      : 'border-orange-300 text-orange-600 hover:bg-orange-50 dark:border-orange-600 dark:text-orange-400 dark:hover:bg-orange-900/20',
+    green: isActive 
+      ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
+      : 'border-green-300 text-green-600 hover:bg-green-50 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900/20',
+    indigo: isActive 
+      ? 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600' 
+      : 'border-indigo-300 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-600 dark:text-indigo-400 dark:hover:bg-indigo-900/20',
+    cyan: isActive 
+      ? 'bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-600' 
+      : 'border-cyan-300 text-cyan-600 hover:bg-cyan-50 dark:border-cyan-600 dark:text-cyan-400 dark:hover:bg-cyan-900/20',
+    violet: isActive 
+      ? 'bg-violet-600 hover:bg-violet-700 text-white border-violet-600' 
+      : 'border-violet-300 text-violet-600 hover:bg-violet-50 dark:border-violet-600 dark:text-violet-400 dark:hover:bg-violet-900/20',
+    gray: isActive 
+      ? 'bg-gray-600 hover:bg-gray-700 text-white border-gray-600' 
+      : 'border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-900/20',
+  };
+  return colorMap[color as keyof typeof colorMap] || colorMap.gray;
 };
 
 const getRtpcrColor = (result: string) => {
@@ -106,17 +148,17 @@ const getRtpcrColor = (result: string) => {
 const ReferralDetailModal = ({ 
   referral, 
   onClose, 
-  handleStatusUpdate, 
   handleTransferToTriage, 
   user,
-  setShowTriageModal 
+  setShowTriageModal,
+  setShowChangeDepartmentModal 
 }: { 
   referral: ReferralData; 
   onClose: () => void;
-  handleStatusUpdate: (id: string, status: string) => void;
   handleTransferToTriage: (id: string) => void;
   user: any;
   setShowTriageModal: (show: boolean) => void;
+  setShowChangeDepartmentModal: (show: boolean) => void;
 }) => {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -332,10 +374,36 @@ const ReferralDetailModal = ({
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Specialty Needed</label>
                 <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.specialty_needed_name}</p>
               </div>
+              {referral.assigned_department && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Assigned Department</label>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="text-lg">
+                      {DEPARTMENT_OPTIONS.find(d => d.value === referral.assigned_department)?.icon || '🏥'}
+                    </span>
+                    <Badge className={`text-xs ${getDepartmentColorClasses(
+                      DEPARTMENT_OPTIONS.find(d => d.value === referral.assigned_department)?.color || 'gray',
+                      false
+                    )}`}>
+                      {DEPARTMENT_OPTIONS.find(d => d.value === referral.assigned_department)?.label || referral.assigned_department}
+                    </Badge>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Urgency</label>
-                <Badge className={referral.is_urgent ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"}>
-                  {referral.is_urgent ? "Urgent" : "Routine"}
+                <Badge className={
+                  referral.is_emergent 
+                    ? "bg-red-100 text-red-800" 
+                    : referral.is_urgent 
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-blue-100 text-blue-800"
+                }>
+                  {referral.is_emergent 
+                    ? "🚨 Emergent" 
+                    : referral.is_urgent 
+                    ? "⚡ Urgent" 
+                    : "📋 Routine"}
                 </Badge>
               </div>
               {referral.reason_for_referral && (
@@ -410,6 +478,17 @@ const ReferralDetailModal = ({
               Transfer to EDMAR/EDHO Triage
             </Button>
           )}
+          {user?.permissions?.can_triage_referrals && referral.assigned_department && (
+            <Button 
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              onClick={() => {
+                setShowChangeDepartmentModal(true);
+                onClose();
+              }}
+            >
+              Change Department
+            </Button>
+          )}
           {user?.permissions?.can_triage_referrals && (
             <Button 
               className="bg-green-600 hover:bg-green-700 text-white"
@@ -433,10 +512,16 @@ export const ReferralTable = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<"priority" | "date" | "name">("priority");
+  const [sortBy, setSortBy] = useState<"priority" | "date" | "name">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [priorityFilter, setPriorityFilter] = useState<"all" | "emergent" | "urgent">("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [showTriageModal, setShowTriageModal] = useState(false);
+  const [showDepartmentModal, setShowDepartmentModal] = useState(false);
+  const [showChangeDepartmentModal, setShowChangeDepartmentModal] = useState(false);
+  const [selectedReferralForTransfer, setSelectedReferralForTransfer] = useState<ReferralData | null>(null);
+  const [selectedReferralForDepartmentChange, setSelectedReferralForDepartmentChange] = useState<ReferralData | null>(null);
+  const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [newDepartment, setNewDepartment] = useState("");
   const [triageDecision, setTriageDecision] = useState("");
   const [triageNotes, setTriageNotes] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
@@ -478,55 +563,31 @@ export const ReferralTable = () => {
     fetchReferrals();
   }, [user]);
 
-  // Handle status update
-  const handleStatusUpdate = async (referralId: string, newStatus: string) => {
-    try {
-      await referralsAPI.updateStatus(referralId, newStatus);
-      
-      // Refresh the referrals list with role-based filtering
-      const response = await referralsAPI.getAll();
-      const allReferrals = response.results || response;
-      
-      let filteredByRole = allReferrals;
-      if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
-        // EDCC Personnel: Only show pending referrals
-        filteredByRole = allReferrals.filter((ref: any) => ref.status === 'pending');
-      } else if (user?.permissions?.can_triage_referrals) {
-        // Triage Users: Only show waiting referrals (not yet accepted)
-        filteredByRole = allReferrals.filter((ref: any) => ref.status === 'waiting');
-      }
-      
-      setReferrals(filteredByRole);
-    } catch (err: any) {
-      console.error('Error updating status:', err);
-      toast({
-        variant: "destructive",
-        title: "Update Failed",
-        description: `Failed to update status: ${err.message}`,
-      });
+  // Handle transfer to triage (EDCC Personnel action) - Show department selection modal
+  const handleTransferToTriage = (referralId: string) => {
+    const referral = referrals.find(r => (r.id || r.referral_id) === referralId);
+    if (referral) {
+      setSelectedReferralForTransfer(referral);
+      setShowDepartmentModal(true);
     }
   };
 
-  // Handle transfer to triage (EDCC Personnel action)
-  const handleTransferToTriage = async (referralId: string) => {
-    // Show confirmation dialog
-    const confirmed = window.confirm(
-      '🚨 TRANSFER CONFIRMATION 🚨\n\n' +
-      'Are you sure you want to transfer this referral to EDMAR/EDHO Triage?\n\n' +
-      '⚠️  IMPORTANT:\n' +
-      '• This referral will be removed from your EDCC queue\n' +
-      '• It will appear in the EDMAR/EDHO Triage queue\n' +
-      '• You will no longer be able to manage this referral\n' +
-      '• This action cannot be undone\n\n' +
-      'Click OK to proceed with the transfer.'
-    );
-    
-    if (!confirmed) {
-      return; // User cancelled
+  // Handle department selection and actual transfer
+  const handleDepartmentTransfer = async () => {
+    if (!selectedReferralForTransfer || !selectedDepartment) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please select a department before transferring the referral.",
+      });
+      return;
     }
 
     try {
-      await referralsAPI.transferToTriage(referralId);
+      const response = await referralsAPI.transferToTriage(
+        selectedReferralForTransfer.id || selectedReferralForTransfer.referral_id, 
+        selectedDepartment
+      );
       
       // Refresh the referrals list with role-based filtering
       const refreshResponse = await referralsAPI.getAll();
@@ -543,10 +604,15 @@ export const ReferralTable = () => {
       
       setReferrals(filteredByRole);
       
+      // Close modal and reset state
+      setShowDepartmentModal(false);
+      setSelectedReferralForTransfer(null);
+      setSelectedDepartment("");
+      
       // Success notification
       toast({
         title: "Transfer Successful! 🚀",
-        description: "The referral has been successfully transferred to EDMAR/EDHO Triage. It will now appear in their queue for review and decision.",
+        description: response.message || "The referral has been successfully transferred to EDMAR/EDHO Triage.",
         className: "bg-green-50 border-green-200 text-green-800",
       });
     } catch (err: any) {
@@ -556,6 +622,59 @@ export const ReferralTable = () => {
         variant: "destructive",
         title: "Transfer Failed ❌",
         description: `Failed to transfer referral: ${errorMessage}`,
+      });
+    }
+  };
+
+  // Handle department change (Triage user action)
+  const handleDepartmentChange = async () => {
+    if (!selectedReferralForDepartmentChange || !newDepartment) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please select a new department.",
+      });
+      return;
+    }
+
+    try {
+      const response = await referralsAPI.changeDepartment(
+        selectedReferralForDepartmentChange.id || selectedReferralForDepartmentChange.referral_id, 
+        newDepartment
+      );
+      
+      // Refresh the referrals list with role-based filtering
+      const refreshResponse = await referralsAPI.getAll();
+      const allReferrals = refreshResponse.results || refreshResponse;
+      
+      let filteredByRole = allReferrals;
+      if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
+        filteredByRole = allReferrals.filter((ref: any) => ref.status === 'pending');
+      } else if (user?.permissions?.can_triage_referrals) {
+        // Triage Users: Only show waiting referrals (not yet accepted)
+        filteredByRole = allReferrals.filter((ref: any) => ref.status === 'waiting');
+      }
+      
+      setReferrals(filteredByRole);
+      
+      // Close modal and reset state
+      setShowChangeDepartmentModal(false);
+      setSelectedReferralForDepartmentChange(null);
+      setNewDepartment("");
+      
+      // Success notification
+      toast({
+        title: "Department Changed! 🔄",
+        description: response.message || "The department assignment has been successfully updated.",
+        className: "bg-blue-50 border-blue-200 text-blue-800",
+      });
+    } catch (err: any) {
+      console.error('Error changing department:', err);
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to change department';
+      toast({
+        variant: "destructive",
+        title: "Change Failed ❌",
+        description: `Failed to change department: ${errorMessage}`,
       });
     }
   };
@@ -693,13 +812,6 @@ export const ReferralTable = () => {
     }
   };
 
-  // Calculate priority counts for display
-  const priorityCounts = {
-    emergent: referrals.filter(r => r.is_emergent === true).length,
-    urgent: referrals.filter(r => r.is_urgent === true && !r.is_emergent).length,
-    total: referrals.length
-  };
-
   // Handle assign to me
   const filteredReferrals = referrals
     .filter(referral => {
@@ -712,23 +824,23 @@ export const ReferralTable = () => {
         referral.referrer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (referral.hrn && referral.hrn.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      // Priority filter
-      const matchesPriority = priorityFilter === "all" || 
-        (priorityFilter === "emergent" && referral.is_emergent === true) ||
-        (priorityFilter === "urgent" && referral.is_urgent === true && !referral.is_emergent);
+      // Department filter (only for triage users)
+      const matchesDepartment = departmentFilter === "all" || 
+        referral.assigned_department === departmentFilter ||
+        (!referral.assigned_department && departmentFilter === "unassigned");
       
-      return matchesSearch && matchesPriority;
+      return matchesSearch && matchesDepartment;
     })
     .sort((a, b) => {
       let comparison = 0;
       
       switch (sortBy) {
         case "priority":
-          // Define priority order: emergent > urgent
+          // Define priority order: emergent > urgent > routine
           const getUrgencyLevel = (ref: ReferralData) => {
-            if (ref.is_emergent) return 2;
-            if (ref.is_urgent) return 1;
-            return 0;
+            if (ref.is_emergent) return 3;
+            if (ref.is_urgent) return 2;
+            return 1; // routine
           };
           const aUrgency = getUrgencyLevel(a);
           const bUrgency = getUrgencyLevel(b);
@@ -805,42 +917,102 @@ export const ReferralTable = () => {
             </div>
           </div>
           
-          {/* Priority Filter Widget */}
-          <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-200 dark:border-gray-600">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Priority:</span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant={priorityFilter === "all" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setPriorityFilter("all")}
-                className="text-xs"
-              >
-                All Cases ({priorityCounts.total})
-              </Button>
-              <Button
-                variant={priorityFilter === "emergent" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setPriorityFilter("emergent")}
-                className={`text-xs ${priorityFilter === "emergent" ? "bg-red-600 hover:bg-red-700 text-white" : "border-red-300 text-red-600 hover:bg-red-50 dark:border-red-600 dark:text-red-400 dark:hover:bg-red-900/20"}`}
-              >
-                🚨 Emergent ({priorityCounts.emergent})
-              </Button>
-              <Button
-                variant={priorityFilter === "urgent" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setPriorityFilter("urgent")}
-                className={`text-xs ${priorityFilter === "urgent" ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/20"}`}
-              >
-                ⚡ Urgent ({priorityCounts.urgent})
-              </Button>
+          {/* Department Filter Widget - Only show for triage users */}
+          {user?.permissions?.can_triage_referrals && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Department</h3>
+                <Badge variant="outline" className="text-xs">
+                  {filteredReferrals.length} referrals
+                </Badge>
+              </div>
+              
+              {/* Department Filter Buttons */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
+                {/* All Departments Button */}
+                <Button
+                  variant={departmentFilter === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDepartmentFilter("all")}
+                  className={`text-xs h-auto py-2 px-3 flex flex-col items-center gap-1 ${
+                    departmentFilter === "all" 
+                      ? "bg-gray-600 hover:bg-gray-700 text-white" 
+                      : "border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-900/20"
+                  }`}
+                >
+                  <span className="text-lg">📋</span>
+                  <span className="text-xs font-medium">All Depts</span>
+                  <span className="text-xs opacity-75">({referrals.length})</span>
+                </Button>
+
+                {/* Individual Department Buttons */}
+                {DEPARTMENT_OPTIONS.map((dept) => {
+                  const deptCount = referrals.filter(r => r.assigned_department === dept.value).length;
+                  const isActive = departmentFilter === dept.value;
+                  
+                  return (
+                    <Button
+                      key={dept.value}
+                      variant={isActive ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setDepartmentFilter(dept.value)}
+                      className={`text-xs h-auto py-2 px-3 flex flex-col items-center gap-1 ${getDepartmentColorClasses(dept.color, isActive)}`}
+                      disabled={deptCount === 0}
+                    >
+                      <span className="text-lg">{dept.icon}</span>
+                      <span className="text-xs font-medium text-center leading-tight">
+                        {dept.label.split(' ').slice(0, 2).join(' ')}
+                      </span>
+                      <span className="text-xs opacity-75">({deptCount})</span>
+                    </Button>
+                  );
+                })}
+
+                {/* Unassigned Button */}
+                <Button
+                  variant={departmentFilter === "unassigned" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDepartmentFilter("unassigned")}
+                  className={`text-xs h-auto py-2 px-3 flex flex-col items-center gap-1 ${
+                    departmentFilter === "unassigned" 
+                      ? "bg-amber-600 hover:bg-amber-700 text-white" 
+                      : "border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                  }`}
+                >
+                  <span className="text-lg">❓</span>
+                  <span className="text-xs font-medium">Unassigned</span>
+                  <span className="text-xs opacity-75">
+                    ({referrals.filter(r => !r.assigned_department).length})
+                  </span>
+                </Button>
+              </div>
+
+              {/* Active Filter Indicator */}
+              {departmentFilter !== "all" && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="text-blue-600 dark:text-blue-400">🔍</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                      Filtering by: {departmentFilter === "unassigned" 
+                        ? "Unassigned Referrals" 
+                        : DEPARTMENT_OPTIONS.find(d => d.value === departmentFilter)?.label}
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-300">
+                      Showing {filteredReferrals.length} of {referrals.length} referrals
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDepartmentFilter("all")}
+                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+                  >
+                    Clear Filter
+                  </Button>
+                </div>
+              )}
             </div>
-            {priorityFilter !== "all" && (
-              <Badge variant="secondary" className="text-xs">
-                {priorityFilter === "emergent" ? `${filteredReferrals.length} emergent` :
-                 `${filteredReferrals.length} urgent cases`}
-              </Badge>
-            )}
-          </div>
+          )}
           
           {/* Search Bar and Sort Controls */}
           <div className="flex items-center gap-4">
@@ -876,12 +1048,6 @@ export const ReferralTable = () => {
               >
                 {sortOrder === "asc" ? "↑" : "↓"}
               </Button>
-              
-              {sortBy === "priority" && (
-                <div className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                  {sortOrder === "desc" ? "🚨⚡📋" : "📋⚡🚨"}
-                </div>
-              )}
             </div>
             
             <Badge variant="outline" className="text-xs">
@@ -899,8 +1065,10 @@ export const ReferralTable = () => {
                 <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Medical Details</th>
                 <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Vital Signs</th>
                 <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Referring Hospital</th>
+                {user?.permissions?.can_triage_referrals && (
+                  <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Department</th>
+                )}
                 <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Status</th>
-                <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Priority</th>
                 <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Date</th>
                 <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Actions</th>
               </tr>
@@ -908,7 +1076,7 @@ export const ReferralTable = () => {
             <tbody>
               {filteredReferrals.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={user?.permissions?.can_triage_referrals ? 8 : 7} className="p-8 text-center text-gray-500 dark:text-gray-400">
                     {searchTerm ? 'No referrals match your search' : 
                      user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals 
                        ? 'No pending referrals in your queue'
@@ -1023,24 +1191,32 @@ export const ReferralTable = () => {
                         )}
                       </div>
                     </td>
+                    {user?.permissions?.can_triage_referrals && (
+                      <td className="p-4">
+                        {referral.assigned_department ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">
+                              {DEPARTMENT_OPTIONS.find(d => d.value === referral.assigned_department)?.icon || '🏥'}
+                            </span>
+                            <div>
+                              <Badge className={`text-xs ${getDepartmentColorClasses(
+                                DEPARTMENT_OPTIONS.find(d => d.value === referral.assigned_department)?.color || 'gray',
+                                false
+                              )}`}>
+                                {DEPARTMENT_OPTIONS.find(d => d.value === referral.assigned_department)?.label || referral.assigned_department}
+                              </Badge>
+                            </div>
+                          </div>
+                        ) : (
+                          <Badge className="bg-amber-100 text-amber-800 text-xs">
+                            ❓ Unassigned
+                          </Badge>
+                        )}
+                      </td>
+                    )}
                     <td className="p-4">
                       <Badge className={getStatusColor(referral.status)}>
                         {referral.status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </Badge>
-                    </td>
-                    <td className="p-4">
-                      <Badge className={
-                        referral.is_emergent 
-                          ? "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30"
-                          : referral.is_urgent 
-                          ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                          : "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30"
-                      }>
-                        {referral.is_emergent 
-                          ? '🚨 Emergent' 
-                          : referral.is_urgent 
-                          ? '⚡ Urgent' 
-                          : '📋 Routine'}
                       </Badge>
                     </td>
                     <td className="p-4 text-gray-500 dark:text-gray-400 text-sm">
@@ -1103,10 +1279,16 @@ export const ReferralTable = () => {
         <ReferralDetailModal 
           referral={selectedReferral} 
           onClose={() => setSelectedReferral(null)}
-          handleStatusUpdate={handleStatusUpdate}
           handleTransferToTriage={handleTransferToTriage}
           user={user}
           setShowTriageModal={setShowTriageModal}
+          setShowChangeDepartmentModal={(show: boolean) => {
+            if (show) {
+              setSelectedReferralForDepartmentChange(selectedReferral);
+              setNewDepartment(selectedReferral.assigned_department || "");
+            }
+            setShowChangeDepartmentModal(show);
+          }}
         />
       )}
 
@@ -1287,6 +1469,245 @@ export const ReferralTable = () => {
                 disabled={!triageDecision}
               >
                 Accept & Apply Decision
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Department Selection Modal */}
+      {showDepartmentModal && selectedReferralForTransfer && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Select Department
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {selectedReferralForTransfer.referral_id} - {selectedReferralForTransfer.patient_full_name}
+                </p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  setShowDepartmentModal(false);
+                  setSelectedReferralForTransfer(null);
+                  setSelectedDepartment("");
+                }}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">🏥 Department Assignment</h4>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Select the appropriate department for this referral. The referral will be transferred to EDMAR/EDHO Triage 
+                  and assigned to the selected department for specialized review.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Department *
+                </label>
+                <select
+                  value={selectedDepartment}
+                  onChange={(e) => setSelectedDepartment(e.target.value)}
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  required
+                >
+                  <option value="">Select department...</option>
+                  {DEPARTMENT_OPTIONS.map((dept) => (
+                    <option key={dept.value} value={dept.value}>
+                      {dept.icon} {dept.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Patient Summary */}
+              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
+                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Patient Summary</h5>
+                <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                  <p><strong>Chief Complaint:</strong> {selectedReferralForTransfer.chief_complaint}</p>
+                  <p><strong>Specialty Needed:</strong> {selectedReferralForTransfer.specialty_needed_name}</p>
+                  <p><strong>Referring Hospital:</strong> {selectedReferralForTransfer.referring_hospital_name}</p>
+                </div>
+              </div>
+
+              {/* Warning */}
+              <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div className="flex items-start gap-2">
+                  <div className="text-amber-600 dark:text-amber-400 mt-0.5">⚠️</div>
+                  <div>
+                    <h5 className="font-medium text-amber-800 dark:text-amber-200">Important</h5>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                      Once transferred, this referral will be removed from your EDCC queue and appear in the 
+                      EDMAR/EDHO Triage queue for the selected department. This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowDepartmentModal(false);
+                  setSelectedReferralForTransfer(null);
+                  setSelectedDepartment("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={handleDepartmentTransfer}
+                disabled={!selectedDepartment}
+              >
+                Transfer to {selectedDepartment ? DEPARTMENT_OPTIONS.find(d => d.value === selectedDepartment)?.label : 'Department'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Department Modal */}
+      {showChangeDepartmentModal && selectedReferralForDepartmentChange && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Change Department Assignment
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {selectedReferralForDepartmentChange.referral_id} - {selectedReferralForDepartmentChange.patient_full_name}
+                </p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  setShowChangeDepartmentModal(false);
+                  setSelectedReferralForDepartmentChange(null);
+                  setNewDepartment("");
+                }}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg border border-orange-200 dark:border-orange-800">
+                <h4 className="font-medium text-orange-800 dark:text-orange-200 mb-2">🔄 Department Reassignment</h4>
+                <p className="text-sm text-orange-700 dark:text-orange-300">
+                  Change the department assignment for this referral. This will update the department 
+                  responsible for reviewing and processing this case.
+                </p>
+              </div>
+
+              {/* Current Department */}
+              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
+                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Current Assignment</h5>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">
+                    {DEPARTMENT_OPTIONS.find(d => d.value === selectedReferralForDepartmentChange.assigned_department)?.icon || '🏥'}
+                  </span>
+                  <Badge className={`text-xs ${getDepartmentColorClasses(
+                    DEPARTMENT_OPTIONS.find(d => d.value === selectedReferralForDepartmentChange.assigned_department)?.color || 'gray',
+                    false
+                  )}`}>
+                    {DEPARTMENT_OPTIONS.find(d => d.value === selectedReferralForDepartmentChange.assigned_department)?.label || 'Unassigned'}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* New Department Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  New Department *
+                </label>
+                <select
+                  value={newDepartment}
+                  onChange={(e) => setNewDepartment(e.target.value)}
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  required
+                >
+                  <option value="">Select new department...</option>
+                  {DEPARTMENT_OPTIONS.map((dept) => (
+                    <option 
+                      key={dept.value} 
+                      value={dept.value}
+                      disabled={dept.value === selectedReferralForDepartmentChange.assigned_department}
+                    >
+                      {dept.icon} {dept.label}
+                      {dept.value === selectedReferralForDepartmentChange.assigned_department ? ' (Current)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Patient Summary */}
+              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
+                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Patient Summary</h5>
+                <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                  <p><strong>Chief Complaint:</strong> {selectedReferralForDepartmentChange.chief_complaint}</p>
+                  <p><strong>Specialty Needed:</strong> {selectedReferralForDepartmentChange.specialty_needed_name}</p>
+                  <p><strong>Referring Hospital:</strong> {selectedReferralForDepartmentChange.referring_hospital_name}</p>
+                </div>
+              </div>
+
+              {/* Preview of Change */}
+              {newDepartment && newDepartment !== selectedReferralForDepartmentChange.assigned_department && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <h5 className="font-medium text-blue-800 dark:text-blue-200 mb-2">📋 Change Preview</h5>
+                  <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span>From:</span>
+                      <span className="font-medium">
+                        {DEPARTMENT_OPTIONS.find(d => d.value === selectedReferralForDepartmentChange.assigned_department)?.label || 'Unassigned'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>To:</span>
+                      <span className="font-medium">
+                        {DEPARTMENT_OPTIONS.find(d => d.value === newDepartment)?.label}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowChangeDepartmentModal(false);
+                  setSelectedReferralForDepartmentChange(null);
+                  setNewDepartment("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+                onClick={handleDepartmentChange}
+                disabled={!newDepartment || newDepartment === selectedReferralForDepartmentChange.assigned_department}
+              >
+                Change to {newDepartment ? DEPARTMENT_OPTIONS.find(d => d.value === newDepartment)?.label : 'Department'}
               </Button>
             </div>
           </div>

@@ -43,7 +43,6 @@ interface ReferralFormData {
   // Specialty Needed
   specialtyNeeded: string;
   otherSpecialty: string;
-  priorityLevel: string; // "routine", "urgent", "emergent"
   
   // Laboratory Files
   laboratoryFiles: File[];
@@ -100,7 +99,6 @@ const initialFormData: ReferralFormData = {
   
   specialtyNeeded: "",
   otherSpecialty: "",
-  priorityLevel: "urgent",
   
   laboratoryFiles: [],
   
@@ -298,8 +296,6 @@ const ExternalReferral = () => {
         // Specialty Needed
         specialty_needed: parseInt(formData.specialtyNeeded) || 1,
         other_specialty: formData.otherSpecialty || null,
-        is_urgent: formData.priorityLevel === "urgent",
-        is_emergent: formData.priorityLevel === "emergent",
         reason_for_referral: formData.reasonForReferral,
         
         // Referring Hospital
@@ -736,47 +732,6 @@ const ExternalReferral = () => {
                   />
                 </div>
               )}
-
-              <div className="md:col-span-2">
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Priority Level *
-                  </label>
-                  <select 
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                    value={formData.priorityLevel}
-                    onChange={(e) => updateFormData('priorityLevel', e.target.value)}
-                  >
-                    <option value="urgent">⚡ Urgent - Needs prompt care (Amber Priority)</option>
-                    <option value="emergent">🚨 Emergent - Immediate attention required (Red Priority)</option>
-                  </select>
-                  
-                  <div className={`p-3 rounded-lg border ${
-                    formData.priorityLevel === "emergent" 
-                      ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' 
-                      : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
-                  }`}>
-                    <p className={`text-sm font-medium ${
-                      formData.priorityLevel === "emergent" 
-                        ? 'text-red-800 dark:text-red-200' 
-                        : 'text-amber-800 dark:text-amber-200'
-                    }`}>
-                      {formData.priorityLevel === "emergent" 
-                        ? '🚨 EMERGENT PRIORITY: This referral will be flagged for immediate attention' 
-                        : '⚡ URGENT PRIORITY: This referral will be flagged for prompt care'}
-                    </p>
-                    <p className={`text-xs mt-1 ${
-                      formData.priorityLevel === "emergent" 
-                        ? 'text-red-600 dark:text-red-300' 
-                        : 'text-amber-600 dark:text-amber-300'
-                    }`}>
-                      {formData.priorityLevel === "emergent" 
-                        ? 'Use for life-threatening conditions requiring immediate intervention' 
-                        : 'Use for conditions that need prompt medical attention but are not immediately life-threatening'}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

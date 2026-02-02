@@ -266,10 +266,28 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'error': 'You do not have permission to transfer referrals'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Update status to waiting (transferred to triage)
+        # Get department from request data
+        department = request.data.get('department')
+        if not department:
+            return Response({
+                'error': 'Department selection is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate department choice
+        valid_departments = [choice[0] for choice in Referral.DEPARTMENT_CHOICES]
+        if department not in valid_departments:
+            return Response({
+                'error': 'Invalid department selection'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update status to waiting (transferred to triage) and assign department
         old_status = referral.status
         referral.status = 'waiting'
+        referral.assigned_department = department
         referral.save()
+        
+        # Get department display name
+        department_display = dict(Referral.DEPARTMENT_CHOICES).get(department, department)
         
         # Create status history record
         ReferralStatusHistory.objects.create(
@@ -277,12 +295,73 @@ class ReferralViewSet(viewsets.ModelViewSet):
             old_status=old_status,
             new_status='waiting',
             changed_by=request.user,
-            notes='Transferred to EDMAR/EDHO Triage for review'
+            notes=f'Transferred to EDMAR/EDHO Triage for review - Assigned to {department_display}'
         )
         
         return Response({
-            'message': 'Referral successfully transferred to EDMAR/EDHO Triage',
-            'new_status': referral.status
+            'message': f'Referral successfully transferred to EDMAR/EDHO Triage - {department_display}',
+            'new_status': referral.status,
+            'assigned_department': department,
+            'department_display': department_display
+        })
+    
+    @action(detail=True, methods=['post'])
+    def change_department(self, request, pk=None):
+        """Change department assignment (Triage user action)"""
+        referral = self.get_object()
+        
+        # Check if user has permission to triage referrals
+        if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
+            return Response({
+                'error': 'You do not have permission to change department assignments'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Only allow changing department for waiting referrals
+        if referral.status != 'waiting':
+            return Response({
+                'error': 'Can only change department for referrals in waiting status'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get new department from request data
+        new_department = request.data.get('department')
+        if not new_department:
+            return Response({
+                'error': 'Department selection is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate department choice
+        valid_departments = [choice[0] for choice in Referral.DEPARTMENT_CHOICES]
+        if new_department not in valid_departments:
+            return Response({
+                'error': 'Invalid department selection'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Store old department for history
+        old_department = referral.assigned_department
+        old_department_display = dict(Referral.DEPARTMENT_CHOICES).get(old_department, old_department) if old_department else 'Unassigned'
+        
+        # Update department assignment
+        referral.assigned_department = new_department
+        referral.save()
+        
+        # Get new department display name
+        new_department_display = dict(Referral.DEPARTMENT_CHOICES).get(new_department, new_department)
+        
+        # Create status history record
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=referral.status,
+            new_status=referral.status,  # Status stays the same, only department changes
+            changed_by=request.user,
+            notes=f'Department assignment changed from {old_department_display} to {new_department_display}'
+        )
+        
+        return Response({
+            'message': f'Department assignment successfully changed to {new_department_display}',
+            'assigned_department': new_department,
+            'department_display': new_department_display,
+            'old_department': old_department,
+            'old_department_display': old_department_display
         })
     
     @action(detail=False, methods=['get'])

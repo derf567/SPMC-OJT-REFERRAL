@@ -3,6 +3,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { referralsAPI } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { 
   Calendar, 
@@ -181,10 +182,21 @@ const Outpatient = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOutpatient, setSelectedOutpatient] = useState<OutpatientData | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const { user } = useAuth();
   const { toast } = useToast();
 
   // Mark appointment as completed
   const handleMarkAsCompleted = async (outpatient: OutpatientData) => {
+    // Check if user has permission to complete appointments
+    if (!user?.permissions?.can_triage_referrals) {
+      toast({
+        variant: "destructive",
+        title: "Permission Denied ❌",
+        description: "Only triage users can mark appointments as completed. EDCC users have view-only access to outpatient appointments.",
+      });
+      return;
+    }
+
     const confirmed = window.confirm(
       `✅ MARK APPOINTMENT AS COMPLETED\n\n` +
       `Patient: ${outpatient.patient_full_name}\n` +
@@ -321,7 +333,9 @@ const Outpatient = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {showCompleted 
                     ? 'Appointments that have been completed and archived'
-                    : 'Patients scheduled for outpatient department visits'
+                    : user?.permissions?.can_triage_referrals
+                    ? 'Patients scheduled for outpatient department visits'
+                    : 'View-only access to scheduled outpatient appointments'
                   }
                 </p>
               </div>
@@ -454,7 +468,7 @@ const Outpatient = () => {
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
-                            {!showCompleted && (
+                            {!showCompleted && user?.permissions?.can_triage_referrals && (
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
@@ -464,6 +478,11 @@ const Outpatient = () => {
                               >
                                 <CheckCircle2 className="w-4 h-4" />
                               </Button>
+                            )}
+                            {!showCompleted && !user?.permissions?.can_triage_referrals && (
+                              <Badge className="bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30 text-xs">
+                                📅 View Only
+                              </Badge>
                             )}
                             {showCompleted && (
                               <Badge className="bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30 text-xs">
