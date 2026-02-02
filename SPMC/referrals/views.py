@@ -127,11 +127,38 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         triage_decision = request.data.get('triage_decision')
         triage_notes = request.data.get('triage_notes', '')
+        scheduled_date = request.data.get('scheduled_date')
+        scheduled_time = request.data.get('scheduled_time')
         
         if not triage_decision or triage_decision not in ['emergent', 'urgent', 'schedule_opd']:
             return Response({
                 'error': 'Valid triage decision is required (emergent, urgent, or schedule_opd)'
             }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate scheduled date and time for schedule_opd
+        if triage_decision == 'schedule_opd':
+            if not scheduled_date or not scheduled_time:
+                return Response({
+                    'error': 'Scheduled date and time are required for OPD appointments'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate date format and ensure it's in the future
+            try:
+                from datetime import datetime, date, time
+                appointment_date = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
+                appointment_time = datetime.strptime(scheduled_time, '%H:%M').time()
+                
+                # Check if the appointment is in the future
+                appointment_datetime = datetime.combine(appointment_date, appointment_time)
+                if appointment_datetime <= datetime.now():
+                    return Response({
+                        'error': 'Appointment must be scheduled for a future date and time'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                    
+            except ValueError:
+                return Response({
+                    'error': 'Invalid date or time format. Use YYYY-MM-DD for date and HH:MM for time'
+                }, status=status.HTTP_400_BAD_REQUEST)
         
         # Update referral - set status to the triage decision
         old_status = referral.status
@@ -139,21 +166,81 @@ class ReferralViewSet(viewsets.ModelViewSet):
         referral.triage_decision = triage_decision
         referral.triage_notes = triage_notes
         referral.assigned_to = request.user
+        
+        # Set scheduled date and time for OPD appointments
+        if triage_decision == 'schedule_opd':
+            referral.scheduled_date = scheduled_date
+            referral.scheduled_time = scheduled_time
+        
         referral.save()
         
         # Create status history record
+        history_notes = f'Triage decision: {triage_decision.replace("_", " ").title()}.'
+        if triage_decision == 'schedule_opd':
+            history_notes += f' Scheduled for {scheduled_date} at {scheduled_time}.'
+        if triage_notes:
+            history_notes += f' Notes: {triage_notes}'
+            
         ReferralStatusHistory.objects.create(
             referral=referral,
             old_status=old_status,
             new_status=triage_decision,  # Use triage decision as new status
             changed_by=request.user,
-            notes=f'Triage decision: {triage_decision.replace("_", " ").title()}. Notes: {triage_notes}'
+            notes=history_notes
         )
         
-        return Response({
+        response_data = {
             'message': f'Referral processed with triage decision: {triage_decision.replace("_", " ").title()}',
             'new_status': referral.status,
             'triage_decision': referral.triage_decision
+        }
+        
+        if triage_decision == 'schedule_opd':
+            response_data['scheduled_date'] = referral.scheduled_date
+            response_data['scheduled_time'] = referral.scheduled_time
+        
+        return Response(response_data)
+    
+    @action(detail=True, methods=['post'])
+    def mark_appointment_completed(self, request, pk=None):
+        """Mark outpatient appointment as completed"""
+        referral = self.get_object()
+        
+        # Check if user has permission (can be triage users or other authorized staff)
+        if not hasattr(request.user, 'profile'):
+            return Response({
+                'error': 'You do not have permission to mark appointments as completed'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if this is actually a scheduled appointment
+        if referral.triage_decision != 'schedule_opd' or not referral.scheduled_date:
+            return Response({
+                'error': 'This referral is not a scheduled outpatient appointment'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        completion_notes = request.data.get('completion_notes', '')
+        
+        # Update referral status to completed
+        old_status = referral.status
+        referral.status = 'completed'
+        referral.save()
+        
+        # Create status history record
+        history_notes = f'Outpatient appointment completed.'
+        if completion_notes:
+            history_notes += f' Notes: {completion_notes}'
+            
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=old_status,
+            new_status='completed',
+            changed_by=request.user,
+            notes=history_notes
+        )
+        
+        return Response({
+            'message': 'Appointment marked as completed successfully',
+            'new_status': referral.status
         })
     
     @action(detail=True, methods=['post'])
