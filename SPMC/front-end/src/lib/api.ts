@@ -177,6 +177,20 @@ export const referralsAPI = {
     return apiRequest('/referrals/reports_analytics/');
   },
 
+  // Get referrals by time period (week, month, year)
+  getReferralsByTimePeriod: async (filter: string, year?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) {
+      params.append('year', year.toString());
+    }
+    return apiRequest(`/referrals/referrals_by_time_period/?${params.toString()}`);
+  },
+
+  // Get department analytics for pie chart
+  getDepartmentAnalytics: async () => {
+    return apiRequest('/referrals/department_analytics/');
+  },
+
   // Transfer referral to triage (EDCC Personnel action)
   transferToTriage: async (id: string, department: string) => {
     return apiRequest(`/referrals/${id}/transfer_to_triage/`, {

@@ -570,6 +570,152 @@ class ReferralViewSet(viewsets.ModelViewSet):
             'specialty_distribution': specialty_data
         })
 
+    @action(detail=False, methods=['get'])
+    def referrals_by_time_period(self, request):
+        """Get referrals data by time period (week, month, year)"""
+        from django.utils import timezone
+        from datetime import timedelta, datetime
+        from django.db.models import Count
+        
+        time_filter = request.query_params.get('filter', 'month')  # week, month, year
+        year = request.query_params.get('year', timezone.now().year)
+        
+        try:
+            year = int(year)
+        except (ValueError, TypeError):
+            year = timezone.now().year
+        
+        data = []
+        
+        if time_filter == 'week':
+            # Get last 12 weeks for the specified year
+            start_of_year = datetime(year, 1, 1)
+            end_of_year = datetime(year, 12, 31)
+            
+            # Get current date or end of specified year if in the past
+            current_date = min(timezone.now().date(), end_of_year.date())
+            
+            for i in range(11, -1, -1):  # Last 12 weeks
+                week_start = current_date - timedelta(days=current_date.weekday() + (i * 7))
+                week_end = week_start + timedelta(days=6)
+                
+                # Ensure we don't go beyond the year boundaries
+                week_start = max(week_start, start_of_year.date())
+                week_end = min(week_end, end_of_year.date())
+                
+                count = Referral.objects.filter(
+                    created_at__date__gte=week_start,
+                    created_at__date__lte=week_end
+                ).count()
+                
+                data.append({
+                    'period': f'Week {12 - i}',
+                    'full_period': f'{week_start.strftime("%m/%d")} - {week_end.strftime("%m/%d")}',
+                    'count': count,
+                    'start_date': week_start.isoformat(),
+                    'end_date': week_end.isoformat()
+                })
+        
+        elif time_filter == 'month':
+            # Get 12 months for the specified year
+            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            
+            for month in range(1, 13):
+                try:
+                    month_start = datetime(year, month, 1).date()
+                    # Get last day of month
+                    if month == 12:
+                        month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                    else:
+                        month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                    
+                    count = Referral.objects.filter(
+                        created_at__date__gte=month_start,
+                        created_at__date__lte=month_end
+                    ).count()
+                    
+                    data.append({
+                        'period': f'{months[month-1]} {year}',
+                        'full_period': f'{months[month-1]} {year}',
+                        'count': count,
+                        'start_date': month_start.isoformat(),
+                        'end_date': month_end.isoformat()
+                    })
+                except ValueError:
+                    # Handle invalid dates
+                    continue
+        
+        else:  # year
+            # Get last 5 years
+            current_year = timezone.now().year
+            for i in range(4, -1, -1):
+                target_year = current_year - i
+                year_start = datetime(target_year, 1, 1).date()
+                year_end = datetime(target_year, 12, 31).date()
+                
+                count = Referral.objects.filter(
+                    created_at__date__gte=year_start,
+                    created_at__date__lte=year_end
+                ).count()
+                
+                data.append({
+                    'period': str(target_year),
+                    'full_period': str(target_year),
+                    'count': count,
+                    'start_date': year_start.isoformat(),
+                    'end_date': year_end.isoformat()
+                })
+        
+        return Response(data)
+
+    @action(detail=False, methods=['get'])
+    def department_analytics(self, request):
+        """Get referrals by department (for pie chart)"""
+        from django.db.models import Count
+        
+        # Get referrals by assigned department
+        department_data = Referral.objects.filter(
+            assigned_department__isnull=False
+        ).values('assigned_department').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        # Convert to display format with colors
+        colors = [
+            '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', 
+            '#ec4899', '#06b6d4', '#6b7280', '#84cc16', '#f97316'
+        ]
+        
+        result = []
+        total_count = sum(item['count'] for item in department_data)
+        
+        for i, item in enumerate(department_data):
+            # Get department display name
+            department_display = dict(Referral.DEPARTMENT_CHOICES).get(
+                item['assigned_department'], 
+                item['assigned_department']
+            )
+            
+            result.append({
+                'name': department_display,
+                'count': item['count'],
+                'color': colors[i % len(colors)],
+                'percentage': round((item['count'] / total_count * 100), 1) if total_count > 0 else 0
+            })
+        
+        # Add "Unassigned" category if there are referrals without department
+        unassigned_count = Referral.objects.filter(assigned_department__isnull=True).count()
+        if unassigned_count > 0:
+            total_with_unassigned = total_count + unassigned_count
+            result.append({
+                'name': 'Unassigned',
+                'count': unassigned_count,
+                'color': '#9ca3af',
+                'percentage': round((unassigned_count / total_with_unassigned * 100), 1)
+            })
+        
+        return Response(result)
+
 class TransitInfoViewSet(viewsets.ModelViewSet):
     queryset = TransitInfo.objects.select_related('referral')
     serializer_class = TransitInfoSerializer
