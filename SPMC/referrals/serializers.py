@@ -48,7 +48,7 @@ class ReferrerAccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReferrerAccount
         fields = ['id', 'user', 'first_name', 'middle_name', 'last_name', 'referrer_type',
-                  'specialties', 'affiliate_hospitals', 'position', 'created_at', 'documents']
+                  'specialties', 'affiliate_hospitals', 'position', 'age', 'address', 'gender', 'created_at', 'documents']
 
 
 class ReferrerRegistrationSerializer(serializers.Serializer):
@@ -63,6 +63,14 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
     specialties = serializers.ListField(child=serializers.IntegerField(), required=False)
     affiliate_hospitals = serializers.ListField(child=serializers.IntegerField(), required=False)
     position = serializers.CharField(required=False, allow_blank=True)
+    age = serializers.IntegerField(required=False)
+    # address pieces from cascading dropdowns
+    region = serializers.CharField(required=False, allow_blank=True)
+    province = serializers.CharField(required=False, allow_blank=True)
+    city = serializers.CharField(required=False, allow_blank=True)
+    barangay = serializers.CharField(required=False, allow_blank=True)
+    exact_address = serializers.CharField(required=False, allow_blank=True)
+    gender = serializers.ChoiceField(choices=ReferrerAccount.GENDER_CHOICES, required=False)
     documents = serializers.ListField(child=serializers.FileField(), required=False)
 
     def create(self, validated_data):
@@ -71,6 +79,15 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
         docs = validated_data.pop('documents', [])
         specialties = validated_data.pop('specialties', [])
         affiliate_hospitals = validated_data.pop('affiliate_hospitals', [])
+        age = validated_data.pop('age', None)
+        region = validated_data.pop('region', '')
+        province = validated_data.pop('province', '')
+        city = validated_data.pop('city', '')
+        barangay = validated_data.pop('barangay', '')
+        exact_address = validated_data.pop('exact_address', '')
+        # build a single address string
+        address = ', '.join([part for part in [exact_address, barangay, city, province, region] if part])
+        gender = validated_data.pop('gender', None)
 
         username = validated_data.pop('username')
         password = validated_data.pop('password')
@@ -86,7 +103,10 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
             middle_name=validated_data.get('middle_name', ''),
             last_name=validated_data.get('last_name', ''),
             referrer_type=validated_data.get('referrer_type'),
-            position=validated_data.get('position', '')
+            position=validated_data.get('position', ''),
+            age=age,
+            address=address,
+            gender=gender
         )
 
         if specialties:
