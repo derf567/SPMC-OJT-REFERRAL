@@ -10,7 +10,6 @@ import {
   User, 
   Calendar, 
   MapPin, 
-  Phone, 
   FileText,
   X,
   Clock
@@ -235,8 +234,8 @@ const Patients = () => {
         
         setError(null);
       } catch (err: any) {
-        setError(err.message || 'Failed to fetch patients');
-        console.error('Error fetching patients:', err);
+        setError(err.message || 'Failed to fetch archived referrals');
+        console.error('Error fetching archived referrals:', err);
       } finally {
         setLoading(false);
       }
@@ -258,7 +257,7 @@ const Patients = () => {
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading patients...</p>
+            <p className="text-gray-600 dark:text-gray-400">Loading archived referrals...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -269,7 +268,7 @@ const Patients = () => {
     return (
       <DashboardLayout>
         <div className="text-center py-12">
-          <div className="text-red-500 mb-2">Error loading patients</div>
+          <div className="text-red-500 mb-2">Error loading archived referrals</div>
           <div className="text-gray-600 dark:text-gray-400 text-sm mb-4">{error}</div>
           <Button 
             className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -286,9 +285,9 @@ const Patients = () => {
     <DashboardLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Patients</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Archived Referrals</h1>
           <p className="text-gray-500 dark:text-gray-400">
-            {user?.role_display} - Manage patient information and referral history
+            {user?.role_display} - View archived referral information and patient history
           </p>
         </div>
         
@@ -298,7 +297,7 @@ const Patients = () => {
             <div className="flex items-center gap-3">
               <User className="w-8 h-8 text-blue-600" />
               <div>
-                <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-400 mb-1">Total Patients</h3>
+                <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-400 mb-1">Total Archived</h3>
                 <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.total_patients}</p>
               </div>
             </div>
@@ -323,7 +322,7 @@ const Patients = () => {
           </div>
         </div>
         
-        {/* Patients List */}
+        {/* Archived Referrals List */}
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg transition-colors duration-300">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-4">
@@ -331,14 +330,14 @@ const Patients = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search patients by name, HRN, or referral ID..."
+                  placeholder="Search archived referrals by patient name, HRN, or referral ID..."
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <Badge variant="outline" className="text-xs">
-                {filteredPatients.length} patients
+                {filteredPatients.length} archived referrals
               </Badge>
             </div>
           </div>
@@ -348,12 +347,12 @@ const Patients = () => {
               <div className="text-center py-12">
                 <User className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  {searchTerm ? 'No patients found' : 'No patients yet'}
+                  {searchTerm ? 'No archived referrals found' : 'No archived referrals yet'}
                 </h3>
                 <p className="text-gray-500 dark:text-gray-400">
                   {searchTerm 
                     ? 'Try adjusting your search terms' 
-                    : 'Patients will appear here when referrals are submitted'
+                    : 'Archived referrals will appear here when referrals are completed'
                   }
                 </p>
               </div>
