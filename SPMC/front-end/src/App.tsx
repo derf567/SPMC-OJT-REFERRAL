@@ -12,6 +12,7 @@ import ReferrerRegister from "./pages/ReferrerRegister";
 import ActiveReferrals from "./pages/ActiveReferrals";
 import Outpatient from "./pages/Outpatient";
 import Patients from "./pages/Patients";
+import Facilities from "./pages/Facilities";
 import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,11 @@ const App = () => (
             <Route path="/patients" element={
               <ProtectedRoute>
                 <Patients />
+              </ProtectedRoute>
+            } />
+            <Route path="/facilities" element={
+              <ProtectedRoute>
+                <Facilities />
               </ProtectedRoute>
             } />
             <Route path="/reports" element={
