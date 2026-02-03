@@ -8,6 +8,7 @@ import {
   Home,
   FileText,
   Users,
+  Building2,
   BarChart3,
   Calendar,
   Settings,
@@ -34,8 +35,8 @@ const notifications = [
   },
   {
     id: 2,
-    title: "Referral Completed",
-    message: "Patient Maria Santos successfully transferred",
+    title: "Bed Available",
+    message: "ICU bed now available at SPMC Emergency",
     time: "5 mins ago",
     type: "success"
   },
@@ -69,6 +70,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Active Referrals", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
     { name: "Patients", href: "/patients", icon: Users },
+    { name: "Facilities", href: "/facilities", icon: Building2 },
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
