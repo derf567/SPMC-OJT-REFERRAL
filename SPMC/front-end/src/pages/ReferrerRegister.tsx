@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react'
 import { Button } from '@/components/ui/button'
+import { Eye, EyeOff } from 'lucide-react'
 
 const ReferrerRegister: React.FC = () => {
 	const [specialties, setSpecialties] = useState<any[]>([])
@@ -31,6 +32,7 @@ const ReferrerRegister: React.FC = () => {
 	})
 	const [files, setFiles] = useState<FileList | null>(null)
 	const [message, setMessage] = useState<string | null>(null)
+	const [showPassword, setShowPassword] = useState(false)
 
 	useEffect(()=>{
 		fetch('/api/specialties/').then(r=>{ if(r.ok) return r.json(); return []}).then(d=>setSpecialties(Array.isArray(d) ? d : []))
@@ -139,7 +141,7 @@ const ReferrerRegister: React.FC = () => {
 		<div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
 			<div className="max-w-xl w-full space-y-8">
 				<div className="text-center">
-					<div className="mx-auto h-16 w-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
+					<div className="mx-auto h-16 w-16 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center mb-4">
 						<span className="text-white font-bold text-2xl">S</span>
 					</div>
 					<h2 className="text-3xl font-bold text-gray-900 dark:text-white">Referrer Registration</h2>
@@ -184,8 +186,13 @@ const ReferrerRegister: React.FC = () => {
 
 									<div>
 										<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password</label>
-										<input name="password" placeholder="Password" type="password" onChange={handleChange} value={form.password} required
-											className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300" />
+										<div className="relative">
+											<input name="password" placeholder="Password" type={showPassword ? "text" : "password"} onChange={handleChange} value={form.password} required
+												className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300" />
+											<button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+												{showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+											</button>
+										</div>
 									</div>
 
 									{/* Hospital Address Separator */}
@@ -237,8 +244,8 @@ const ReferrerRegister: React.FC = () => {
 									<div>
 										<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upload Legal Documents</label>
 										<input type="file" multiple onChange={handleFiles} required
-											className="w-full text-sm text-gray-700 dark:text-gray-300" />
-										<p className="text-xs text-gray-500 mt-1">Please upload any legal documents proving hospital validity.</p>
+											className="w-full text-sm text-gray-700 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/30" />
+										<p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Please upload any legal documents proving hospital validity.</p>
 									</div>
 								</>
 							) : (
@@ -258,8 +265,13 @@ const ReferrerRegister: React.FC = () => {
 
 									<div>
 										<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password</label>
-										<input name="password" placeholder="Password" type="password" onChange={handleChange} value={form.password} required
-											className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300" />
+										<div className="relative">
+											<input name="password" placeholder="Password" type={showPassword ? "text" : "password"} onChange={handleChange} value={form.password} required
+												className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300" />
+											<button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+												{showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+											</button>
+										</div>
 									</div>
 
 									<div>
@@ -377,8 +389,8 @@ const ReferrerRegister: React.FC = () => {
 							<div>
 								<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upload Official ID</label>
 								<input type="file" multiple onChange={handleFiles} required
-									className="w-full text-sm text-gray-700 dark:text-gray-300" />
-								<p className="text-xs text-gray-500 mt-1">Upload your official registered or Legal ID for verification.</p>
+									className="w-full text-sm text-gray-700 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/30" />
+								<p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Upload your official registered or Legal ID for verification.</p>
 							</div>
 						</>
 						)}
@@ -386,7 +398,7 @@ const ReferrerRegister: React.FC = () => {
 
 						<div className="flex items-start">
 							<input type="checkbox" name="agreeToPrivacy" checked={form.agreeToPrivacy} onChange={handleChange} required
-								className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
+								className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:focus:ring-blue-400" />
 							<label className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
 								Data Privacy Acknowledgment
 I acknowledge that all data obtained during the verification process are protected under Republic Act No. 10173, also known as the Data Privacy Act of 2012. I understand that such data shall be handled with utmost confidentiality and shall be collected, processed, stored, and used strictly in accordance with the provisions of the Act and its implementing rules and regulations.
