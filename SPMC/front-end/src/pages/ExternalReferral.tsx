@@ -34,7 +34,10 @@ interface ReferralFormData {
   // Patient Information
   patientCategory: string;
   hrn: string;
-  patientFullName: string;
+  patientFirstName: string;
+  patientMiddleName: string;
+  patientLastName: string;
+  patientSuffix: string;
   currentAddress: string;
   birthday: string;
   age: string;
@@ -91,7 +94,10 @@ const initialFormData: ReferralFormData = {
   
   patientCategory: "",
   hrn: "",
-  patientFullName: "",
+  patientFirstName: "",
+  patientMiddleName: "",
+  patientLastName: "",
+  patientSuffix: "",
   currentAddress: "",
   birthday: "",
   age: "",
@@ -144,8 +150,8 @@ const ExternalReferral = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const steps = [
-    { id: 1, name: "Patient Status", icon: Activity },
-    { id: 2, name: "Patient Information", icon: User },
+    { id: 1, name: "Patient Information", icon: User },
+    { id: 2, name: "Patient Status", icon: Activity },
     { id: 3, name: "Specialty Needed", icon: FileText },
     { id: 4, name: "Referring Hospital", icon: MapPin },
     { id: 5, name: "Transit & Consent", icon: Truck }
@@ -189,6 +195,32 @@ const ExternalReferral = () => {
     }));
   };
 
+  const calculateAge = (birthDate: string): string => {
+    if (!birthDate) return '';
+    
+    const today = new Date();
+    const birth = new Date(birthDate);
+    
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    // If birthday hasn't occurred this year yet, subtract 1 from age
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    
+    return age.toString();
+  };
+
+  const handleBirthdayChange = (birthDate: string) => {
+    // Update birthday
+    updateFormData('birthday', birthDate);
+    
+    // Automatically calculate and update age
+    const calculatedAge = calculateAge(birthDate);
+    updateFormData('age', calculatedAge);
+  };
+
   const nextStep = () => {
     if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
@@ -205,6 +237,19 @@ const ExternalReferral = () => {
     const errors = [];
     
     // Step 1 - Patient Status validation
+
+    
+    // Step 2 - Patient Information validation
+    if (!formData.patientCategory) errors.push("Patient Category is required");
+    if (!formData.patientFirstName.trim()) errors.push("Patient First Name is required");
+    if (!formData.patientMiddleName.trim()) errors.push("Patient Middle Name is required");
+    if (!formData.patientLastName.trim()) errors.push("Patient Last Name is required");
+    if (!formData.currentAddress.trim()) errors.push("Current Address is required");
+    if (!formData.birthday) errors.push("Birthday is required");
+    if (!formData.age.trim()) errors.push("Age is required");
+    if (!formData.gender) errors.push("Gender is required");
+    
+
     if (!formData.chiefComplaint.trim()) errors.push("Chief Complaint is required");
     if (!formData.pertinentHistory.trim()) errors.push("Pertinent History is required");
     if (!formData.pertinentPhysicalExam.trim()) errors.push("Pertinent Physical Exam is required");
@@ -217,15 +262,7 @@ const ExternalReferral = () => {
     if (!formData.o2Support.trim()) errors.push("O2 Support is required");
     if (!formData.admissionStatus) errors.push("Admission Status is required");
     if (!formData.rtpcrResult) errors.push("RTPCR Result is required");
-    
-    // Step 2 - Patient Information validation
-    if (!formData.patientCategory) errors.push("Patient Category is required");
-    if (!formData.patientFullName.trim()) errors.push("Patient Full Name is required");
-    if (!formData.currentAddress.trim()) errors.push("Current Address is required");
-    if (!formData.birthday) errors.push("Birthday is required");
-    if (!formData.age.trim()) errors.push("Age is required");
-    if (!formData.gender) errors.push("Gender is required");
-    
+
     // Step 3 - Specialty validation
     if (!formData.specialtyNeeded) errors.push("Specialty Needed is required");
     if (!formData.reasonForReferral.trim()) errors.push("Reason for Referral is required");
@@ -287,7 +324,7 @@ const ExternalReferral = () => {
         // Patient Information
         patient_category: formData.patientCategory,
         hrn: formData.hrn || null,
-        patient_full_name: formData.patientFullName,
+        patient_full_name: `${formData.patientLastName}, ${formData.patientFirstName} ${formData.patientMiddleName}${formData.patientSuffix ? ' ' + formData.patientSuffix : ''}`.trim(),
         current_address: formData.currentAddress,
         birthday: formData.birthday,
         age: parseInt(formData.age) || 0,
@@ -395,6 +432,152 @@ const ExternalReferral = () => {
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
+        return (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Patient's Name *
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      First Name *
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                      placeholder="First Name"
+                      value={formData.patientFirstName}
+                      onChange={(e) => updateFormData('patientFirstName', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Middle Name *
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                      placeholder="Middle Name"
+                      value={formData.patientMiddleName}
+                      onChange={(e) => updateFormData('patientMiddleName', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Last Name *
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                      placeholder="Last Name"
+                      value={formData.patientLastName}
+                      onChange={(e) => updateFormData('patientLastName', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Suffix (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                      placeholder="Jr., Sr., III"
+                      value={formData.patientSuffix}
+                      onChange={(e) => updateFormData('patientSuffix', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Patient Category *
+                </label>
+                <select 
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  value={formData.patientCategory}
+                  onChange={(e) => updateFormData('patientCategory', e.target.value)}
+                >
+                  <option value="">Select category</option>
+                  <option value="new_patient">New Patient of SPMC</option>
+                  <option value="known_patient">Old or Known Patient of SPMC</option>
+                </select>
+              </div>
+
+              {formData.patientCategory === "known_patient" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Hospital Record Number (HRN)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    placeholder="SPMC-YYYY-XXXXXX or N/A"
+                    value={formData.hrn}
+                    onChange={(e) => updateFormData('hrn', e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Birthday *
+                </label>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  value={formData.birthday}
+                  onChange={(e) => handleBirthdayChange(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Age * <span className="text-xs text-gray-500 dark:text-gray-400">(Auto-calculated from birthday)</span>
+                </label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  placeholder="Age in years"
+                  value={formData.age}
+                  onChange={(e) => updateFormData('age', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Gender *
+                </label>
+                <select 
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  value={formData.gender}
+                  onChange={(e) => updateFormData('gender', e.target.value)}
+                >
+                  <option value="">Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Patient Current Complete Address *
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  rows={3}
+                  placeholder="Complete address including barangay, city, province"
+                  value={formData.currentAddress}
+                  onChange={(e) => updateFormData('currentAddress', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 2:
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -589,109 +772,6 @@ const ExternalReferral = () => {
                   placeholder="Treatments, medications given..."
                   value={formData.managementDone}
                   onChange={(e) => updateFormData('managementDone', e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient Category *
-                </label>
-                <select 
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  value={formData.patientCategory}
-                  onChange={(e) => updateFormData('patientCategory', e.target.value)}
-                >
-                  <option value="">Select category</option>
-                  <option value="new_patient">New Patient of SPMC</option>
-                  <option value="known_patient">Old or Known Patient of SPMC</option>
-                </select>
-              </div>
-
-              {formData.patientCategory === "known_patient" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Hospital Record Number (HRN)
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                    placeholder="SPMC-YYYY-XXXXXX or N/A"
-                    value={formData.hrn}
-                    onChange={(e) => updateFormData('hrn', e.target.value)}
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient's Full Name *
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  placeholder="Last Name, First Name Middle Name"
-                  value={formData.patientFullName}
-                  onChange={(e) => updateFormData('patientFullName', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Birthday *
-                </label>
-                <input
-                  type="date"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  value={formData.birthday}
-                  onChange={(e) => updateFormData('birthday', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Age *
-                </label>
-                <input
-                  type="number"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  placeholder="Age in years"
-                  value={formData.age}
-                  onChange={(e) => updateFormData('age', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Gender *
-                </label>
-                <select 
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  value={formData.gender}
-                  onChange={(e) => updateFormData('gender', e.target.value)}
-                >
-                  <option value="">Select gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient Current Complete Address *
-                </label>
-                <textarea
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  rows={3}
-                  placeholder="Complete address including barangay, city, province"
-                  value={formData.currentAddress}
-                  onChange={(e) => updateFormData('currentAddress', e.target.value)}
                 />
               </div>
             </div>
