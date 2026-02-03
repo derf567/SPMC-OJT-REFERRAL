@@ -269,3 +269,50 @@ class ReferralDocument(models.Model):
     
     def __str__(self):
         return f"{self.referral.referral_id} - {self.document_type}"
+
+
+class ReferrerAccount(models.Model):
+    """Model for external referrers (doctors, hospital accounts, authorized employees)"""
+    REFERRER_TYPE_CHOICES = [
+        ('doctor', 'Doctor / Medical Professional'),
+        ('hospital_employee', 'Authorized Hospital Employee'),
+        ('hospital_account', 'Hospital Account'),
+        ('other', 'Other'),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='referrer_profile')
+    first_name = models.CharField(max_length=100)
+    middle_name = models.CharField(max_length=100, blank=True, null=True)
+    last_name = models.CharField(max_length=100)
+    referrer_type = models.CharField(max_length=30, choices=REFERRER_TYPE_CHOICES)
+
+    # Doctor-specific
+    specialties = models.ManyToManyField(Specialty, blank=True, related_name='referrers')
+    affiliate_hospitals = models.ManyToManyField(ReferringHospital, blank=True, related_name='affiliated_referrers')
+
+    # Hospital employee-specific
+    position = models.CharField(max_length=150, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} ({self.get_referrer_type_display()})"
+
+
+class ReferrerDocument(models.Model):
+    """Documents uploaded by referrers for identity / legal proof"""
+    DOCUMENT_TYPE_CHOICES = [
+        ('official_id', 'Official Registered ID'),
+        ('legal_document', 'Legal Document (Hospital)'),
+        ('other', 'Other'),
+    ]
+
+    referrer = models.ForeignKey(ReferrerAccount, on_delete=models.CASCADE, related_name='documents')
+    document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPE_CHOICES)
+    file = models.FileField(upload_to='referrer_documents/')
+    description = models.CharField(max_length=200, blank=True, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"{self.referrer} - {self.document_type}"
