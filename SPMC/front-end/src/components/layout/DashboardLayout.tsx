@@ -69,7 +69,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Dashboard", href: "/", icon: Home },
     { name: "Active Referrals", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
-    { name: "Patients", href: "/patients", icon: Users },
+    { name: "Archived Referrals", href: "/patients", icon: Users },
     { name: "Facilities", href: "/facilities", icon: Building2 },
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
