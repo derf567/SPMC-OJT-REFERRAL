@@ -33,10 +33,10 @@ const ReferrerRegister: React.FC = () => {
 	const [message, setMessage] = useState<string | null>(null)
 
 	useEffect(()=>{
-		fetch('/api/specialties/').then(r=>r.json()).then(d=>setSpecialties(d))
-		fetch('/api/hospitals/').then(r=>r.json()).then(d=>setHospitals(d))
+		fetch('/api/specialties/').then(r=>{ if(r.ok) return r.json(); return []}).then(d=>setSpecialties(Array.isArray(d) ? d : []))
+		fetch('/api/hospitals/').then(r=>{ if(r.ok) return r.json(); return []}).then(d=>setHospitals(Array.isArray(d) ? d : []))
 		// try to fetch regions list; endpoints may be absent in backend
-		fetch('/api/regions/').then(r=>{ if(r.ok) return r.json(); return []}).then(d=>setRegions(d || []))
+		fetch('/api/regions/').then(r=>{ if(r.ok) return r.json(); return []}).then(d=>setRegions(Array.isArray(d) ? d : []))
 	},[])
 
 	useEffect(()=>{
