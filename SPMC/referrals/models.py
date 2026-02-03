@@ -286,6 +286,17 @@ class ReferrerAccount(models.Model):
     last_name = models.CharField(max_length=100)
     referrer_type = models.CharField(max_length=30, choices=REFERRER_TYPE_CHOICES)
 
+    # Common fields
+    GENDER_CHOICES = [
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+    ]
+
+    age = models.IntegerField(blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
+
     # Doctor-specific
     specialties = models.ManyToManyField(Specialty, blank=True, related_name='referrers')
     affiliate_hospitals = models.ManyToManyField(ReferringHospital, blank=True, related_name='affiliated_referrers')
