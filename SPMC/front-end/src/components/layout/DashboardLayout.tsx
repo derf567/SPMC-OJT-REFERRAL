@@ -11,7 +11,6 @@ import {
   Building2,
   BarChart3,
   Calendar,
-  Settings,
   Search,
   Bell,
   Moon,
@@ -238,21 +237,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 );
               })}
             </nav>
-            
-            <div className="absolute bottom-4 left-4 right-4">
-              <Button
-                variant="ghost"
-                className={cn(
-                  "w-full justify-start",
-                  isDarkMode 
-                    ? "text-gray-400 hover:text-white hover:bg-gray-700" 
-                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
-                )}
-              >
-                <Settings className="w-5 h-5 mr-3" />
-                Settings
-              </Button>
-            </div>
           </div>
 
           {/* Main Content Area */}
@@ -411,18 +395,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       >
                         <User className="w-4 h-4 mr-2" />
                         Profile
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className={cn(
-                          "w-full justify-start px-4 py-2 transition-colors duration-300",
-                          isDarkMode 
-                            ? "text-gray-300 hover:text-white hover:bg-gray-700" 
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                        )}
-                      >
-                        <Settings className="w-4 h-4 mr-2" />
-                        Settings
                       </Button>
                       <hr className={cn(
                         "my-2 transition-colors duration-300",
