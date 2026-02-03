@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import ExternalReferral from "./pages/ExternalReferral";
+import ReferrerRegister from "./pages/ReferrerRegister";
 import ActiveReferrals from "./pages/ActiveReferrals";
 import Outpatient from "./pages/Outpatient";
 import Patients from "./pages/Patients";
@@ -26,6 +27,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/referral" element={<ExternalReferral />} />
+            <Route path="/referrer/register" element={<ReferrerRegister />} />
             <Route path="/" element={
               <ProtectedRoute>
                 <Index />
