@@ -12,6 +12,8 @@ from .serializers import (
     ReferralDetailSerializer, ReferralCreateSerializer, ReferralUpdateSerializer,
     StatusUpdateSerializer, TransitInfoSerializer
 )
+from .models import ReferrerAccount
+from .serializers import ReferrerAccountSerializer, ReferrerRegistrationSerializer
 
 class ReferringHospitalViewSet(viewsets.ModelViewSet):
     queryset = ReferringHospital.objects.all()
@@ -575,3 +577,29 @@ class TransitInfoViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['referral__referral_id', 'watcher_name', 'escort_nurse']
     filterset_fields = ['referral']
+
+
+class ReferrerAccountViewSet(viewsets.ModelViewSet):
+    """Manage referrer profiles and allow public registration"""
+    queryset = ReferrerAccount.objects.select_related('user').prefetch_related('specialties', 'affiliate_hospitals', 'documents')
+    serializer_class = ReferrerAccountSerializer
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    search_fields = ['first_name', 'last_name', 'user__username']
+
+    def get_permissions(self):
+        # Allow anyone to create/register; other actions require authentication
+        if self.action == 'create':
+            permission_classes = [AllowAny]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [p() for p in permission_classes]
+
+    def create(self, request, *args, **kwargs):
+        # Use the registration serializer to handle user creation and file uploads
+        serializer = ReferrerRegistrationSerializer(data=request.data)
+        serializer.context['request'] = request
+        if serializer.is_valid():
+            referrer = serializer.save()
+            out = ReferrerAccountSerializer(referrer, context={'request': request})
+            return Response(out.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
