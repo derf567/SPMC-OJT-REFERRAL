@@ -6,8 +6,6 @@ import { authAPI } from "@/lib/api";
 import { Eye, EyeOff, User } from "lucide-react";
 
 const Register = () => {
-  const [specialties, setSpecialties] = useState<any[]>([]);
-  const [hospitals, setHospitals] = useState<any[]>([]);
   const [provinces, setProvinces] = useState<any[]>([]);
   const [cities, setCities] = useState<any[]>([]);
   const [barangays, setBarangays] = useState<any[]>([]);
@@ -304,13 +302,7 @@ const Register = () => {
 
   // Fetch initial data
   useEffect(() => {
-    fetch('/api/specialties/')
-      .then(r => { if(r.ok) return r.json(); return [] })
-      .then(d => setSpecialties(Array.isArray(d) ? d : []));
-    
-    fetch('/api/hospitals/')
-      .then(r => { if(r.ok) return r.json(); return [] })
-      .then(d => setHospitals(Array.isArray(d) ? d : []));
+    // No need to fetch hospitals anymore since we use predefined list
   }, []);
 
   // Load provinces when region changes
@@ -353,17 +345,10 @@ const Register = () => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
     
-    if (type === 'select-multiple') return;
-    
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-  };
-
-  const handleMultiSelect = (e: React.ChangeEvent<HTMLSelectElement>, key: string) => {
-    const options = Array.from(e.target.selectedOptions).map(o => Number(o.value));
-    setFormData(prev => ({ ...prev, [key]: options }));
   };
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -379,6 +364,16 @@ const Register = () => {
         variant: "destructive",
         title: "Privacy Agreement Required",
         description: "You must agree to the Data Privacy Act to proceed.",
+      });
+      return;
+    }
+
+    // Specialty validation for doctors
+    if (formData.referrerType === 'doctor' && formData.specialties.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Specialty Required",
+        description: "Please select at least one medical specialty.",
       });
       return;
     }
@@ -432,13 +427,51 @@ const Register = () => {
       fd.append('address', formData.exactAddress || '');
       
       // Specialties and hospitals
-      formData.specialties?.forEach((id: number) => fd.append('specialties', String(id)));
+      if (formData.referrerType === 'doctor') {
+        const specialtyNames = [
+          'Internal Medicine',
+          'Pediatrics',
+          'Obstetrics and Gynecology (OB-GYN)',
+          'Surgery (General)',
+          'Orthopedics',
+          'Cardiology',
+          'Ophthalmology (Eye Care)',
+          'Otolaryngology (ENT-Head and Neck Surgery)',
+          'Urology',
+          'Neurology',
+          'Oncology (Cancer Care)',
+          'Pulmonology (Lung Care)',
+          'Nephrology (Renal Care)',
+          'Infectious Disease',
+          'Rehabilitation Medicine'
+        ];
+        
+        formData.specialties?.forEach((index: number) => {
+          if (specialtyNames[index]) {
+            fd.append('specialties', specialtyNames[index]);
+          }
+        });
+      }
       
       // Hospital information
       if (formData.hospitalName) {
         fd.append('hospital_name', formData.hospitalName);
-      } else {
-        formData.affiliateHospitals?.forEach((id: number) => fd.append('affiliate_hospitals', String(id)));
+      } else if (formData.referrerType === 'doctor' && formData.affiliateHospitals.length > 0) {
+        const hospitalNames = [
+          'Gig Oca Robles Seamen\'s Hospital',
+          'Davao Doctors Hospital',
+          'San Pedro Hospital',
+          'Metro Davao Medical and Research Center (MDMRC)',
+          'United Davao Specialists Hospital',
+          'DMSFI Hospital',
+          'Our Lady of Lourdes Hospital'
+        ];
+        
+        formData.affiliateHospitals?.forEach((index: number) => {
+          if (hospitalNames[index]) {
+            fd.append('affiliate_hospitals', hospitalNames[index]);
+          }
+        });
       }
       
       // Files
@@ -447,10 +480,10 @@ const Register = () => {
       }
 
       // Try the comprehensive registration endpoint first
-      let response = await fetch('/api/referrers/', { method: 'POST', body: fd });
-      
-      if (!response.ok) {
-        // Fallback to simple registration
+      try {
+        await authAPI.registerComprehensive(fd);
+      } catch (error: any) {
+        // Fallback to simple registration if comprehensive fails
         const simpleData = {
           username: formData.referrerType === 'hospital_account' ? formData.hospitalName : formData.username,
           email: formData.email,
@@ -726,32 +759,201 @@ const Register = () => {
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Specialties
+                        Medical Specialties *
                       </label>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                        Select a specialty from the dropdown to add it to your list. You can add multiple specialties.
+                      </p>
+                      
+                      {/* Single Select Dropdown */}
                       <select
-                        multiple
-                        onChange={(e) => handleMultiSelect(e, 'specialties')}
+                        onChange={(e) => {
+                          const selectedIndex = Number(e.target.value);
+                          if (selectedIndex >= 0 && !formData.specialties.includes(selectedIndex)) {
+                            setFormData(prev => ({
+                              ...prev,
+                              specialties: [...prev.specialties, selectedIndex]
+                            }));
+                          }
+                          // Reset dropdown to placeholder
+                          e.target.value = '';
+                        }}
                         className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        defaultValue=""
                       >
-                        {specialties.map(s => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
+                        <option value="" disabled>Select specialty</option>
+                        {[
+                          'Internal Medicine',
+                          'Pediatrics',
+                          'Obstetrics and Gynecology (OB-GYN)',
+                          'Surgery (General)',
+                          'Orthopedics',
+                          'Cardiology',
+                          'Ophthalmology (Eye Care)',
+                          'Otolaryngology (ENT-Head and Neck Surgery)',
+                          'Urology',
+                          'Neurology',
+                          'Oncology (Cancer Care)',
+                          'Pulmonology (Lung Care)',
+                          'Nephrology (Renal Care)',
+                          'Infectious Disease',
+                          'Rehabilitation Medicine'
+                        ].map((specialty, index) => (
+                          <option 
+                            key={index} 
+                            value={index}
+                            disabled={formData.specialties.includes(index)}
+                            className={formData.specialties.includes(index) ? 'text-gray-400' : ''}
+                          >
+                            {specialty} {formData.specialties.includes(index) ? '(Added)' : ''}
+                          </option>
                         ))}
                       </select>
+                      
+                      {/* Selected Specialties Display */}
+                      {formData.specialties.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Selected Specialties ({formData.specialties.length}):
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {formData.specialties.map((specialtyIndex) => {
+                              const specialtyNames = [
+                                'Internal Medicine',
+                                'Pediatrics',
+                                'Obstetrics and Gynecology (OB-GYN)',
+                                'Surgery (General)',
+                                'Orthopedics',
+                                'Cardiology',
+                                'Ophthalmology (Eye Care)',
+                                'Otolaryngology (ENT-Head and Neck Surgery)',
+                                'Urology',
+                                'Neurology',
+                                'Oncology (Cancer Care)',
+                                'Pulmonology (Lung Care)',
+                                'Nephrology (Renal Care)',
+                                'Infectious Disease',
+                                'Rehabilitation Medicine'
+                              ];
+                              return (
+                                <span
+                                  key={specialtyIndex}
+                                  className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                                >
+                                  {specialtyNames[specialtyIndex]}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        specialties: prev.specialties.filter(id => id !== specialtyIndex)
+                                      }));
+                                    }}
+                                    className="ml-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Validation message */}
+                      {formData.specialties.length === 0 && (
+                        <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+                          Please select at least one specialty.
+                        </p>
+                      )}
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Affiliate Hospitals
                       </label>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                        Select a hospital from the dropdown to add it to your list. You can add multiple hospitals.
+                      </p>
+                      
+                      {/* Single Select Dropdown for Hospitals */}
                       <select
-                        multiple
-                        onChange={(e) => handleMultiSelect(e, 'affiliateHospitals')}
+                        onChange={(e) => {
+                          const selectedIndex = Number(e.target.value);
+                          if (selectedIndex >= 0 && !formData.affiliateHospitals.includes(selectedIndex)) {
+                            setFormData(prev => ({
+                              ...prev,
+                              affiliateHospitals: [...prev.affiliateHospitals, selectedIndex]
+                            }));
+                          }
+                          // Reset dropdown to placeholder
+                          e.target.value = '';
+                        }}
                         className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        defaultValue=""
                       >
-                        {hospitals.map(h => (
-                          <option key={h.id} value={h.id}>{h.name}</option>
+                        <option value="" disabled>Select hospital</option>
+                        {[
+                          'Gig Oca Robles Seamen\'s Hospital',
+                          'Davao Doctors Hospital',
+                          'San Pedro Hospital',
+                          'Metro Davao Medical and Research Center (MDMRC)',
+                          'United Davao Specialists Hospital',
+                          'DMSFI Hospital',
+                          'Our Lady of Lourdes Hospital'
+                        ].map((hospital, index) => (
+                          <option 
+                            key={index} 
+                            value={index}
+                            disabled={formData.affiliateHospitals.includes(index)}
+                            className={formData.affiliateHospitals.includes(index) ? 'text-gray-400' : ''}
+                          >
+                            {hospital} {formData.affiliateHospitals.includes(index) ? '(Added)' : ''}
+                          </option>
                         ))}
                       </select>
+                      
+                      {/* Selected Hospitals Display */}
+                      {formData.affiliateHospitals.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Selected Hospitals ({formData.affiliateHospitals.length}):
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {formData.affiliateHospitals.map((hospitalIndex) => {
+                              const hospitalNames = [
+                                'Gig Oca Robles Seamen\'s Hospital',
+                                'Davao Doctors Hospital',
+                                'San Pedro Hospital',
+                                'Metro Davao Medical and Research Center (MDMRC)',
+                                'United Davao Specialists Hospital',
+                                'DMSFI Hospital',
+                                'Our Lady of Lourdes Hospital'
+                              ];
+                              return (
+                                <span
+                                  key={hospitalIndex}
+                                  className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                >
+                                  {hospitalNames[hospitalIndex]}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        affiliateHospitals: prev.affiliateHospitals.filter(id => id !== hospitalIndex)
+                                      }));
+                                    }}
+                                    className="ml-2 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

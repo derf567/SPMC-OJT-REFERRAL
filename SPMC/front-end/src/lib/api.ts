@@ -106,6 +106,21 @@ export const authAPI = {
     }
   },
 
+  registerComprehensive: async (formData: FormData) => {
+    const response = await fetch(`${API_BASE_URL}/auth/register-comprehensive/`, {
+      method: 'POST',
+      body: formData, // Don't set Content-Type header for FormData
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      return data;
+    } else {
+      throw new Error(data.error || 'Registration failed');
+    }
+  },
+
   logout: async () => {
     try {
       await apiRequest('/auth/logout/', { method: 'POST' });
@@ -264,15 +279,30 @@ export const referralsAPI = {
 
 // Hospitals API
 export const hospitalsAPI = {
+  // Get all hospitals
   getAll: async () => {
     return apiRequestAnonymous('/hospitals/');
   },
 
+  // Get hospital by ID
+  getById: async (id: string) => {
+    return apiRequestAnonymous(`/hospitals/${id}/`);
+  },
+
+  // Create new hospital
   create: async (hospitalData: any) => {
     return apiRequest('/hospitals/', {
       method: 'POST',
       body: JSON.stringify(hospitalData),
     });
+  },
+};
+
+// Referrer API
+export const referrerAPI = {
+  // Get current referrer's profile for auto-filling forms
+  getMyProfile: async () => {
+    return apiRequest('/referrers/my_profile/');
   },
 };
 
