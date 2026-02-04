@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import { externalReferralsAPI } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { 
   User, 
   Activity, 
@@ -9,7 +12,8 @@ import {
   Truck, 
   CheckCircle,
   Phone,
-  Building2
+  Building2,
+  Info
 } from "lucide-react";
 
 interface ReferralFormData {
@@ -148,6 +152,9 @@ const ExternalReferral = () => {
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   const steps = [
     { id: 1, name: "Patient Information", icon: User },
@@ -374,15 +381,46 @@ const ExternalReferral = () => {
       
       let successMessage = `Referral submitted successfully! Reference ID: ${response.referral_id}\n\nYour referral has been sent to SPMC Emergency Dispatch and Communication Center for review.`;
       
+      // Add tracking message for logged-in referrer users
+      if (user && user.role === 'referrer') {
+        successMessage += `\n\n✅ This referral is now tracked in your referrer dashboard. You can monitor its progress by visiting your dashboard.`;
+      }
+      
       if (formData.laboratoryFiles.length > 0) {
         successMessage += `\n\nNote: ${formData.laboratoryFiles.length} laboratory file(s) were selected. Please ensure all medical documents are properly attached for review.`;
       }
       
-      alert(successMessage);
-      
-      // Reset form
-      setFormData(initialFormData);
-      setCurrentStep(1);
+      // Show success message
+      if (user && user.role === 'referrer') {
+        // For referrer users, show toast and redirect to dashboard
+        toast({
+          title: "Referral Submitted Successfully! 🎉",
+          description: `Reference ID: ${response.referral_id}. Redirecting to your dashboard...`,
+          className: "bg-green-50 border-green-200 text-green-800",
+        });
+        
+        // Reset form
+        setFormData(initialFormData);
+        setCurrentStep(1);
+        
+        // Redirect to referrer dashboard
+        setTimeout(() => {
+          navigate('/referrer');
+        }, 1500);
+      } else {
+        // For anonymous users, show alert and stay on page
+        let successMessage = `Referral submitted successfully! Reference ID: ${response.referral_id}\n\nYour referral has been sent to SPMC Emergency Dispatch and Communication Center for review.`;
+        
+        if (formData.laboratoryFiles.length > 0) {
+          successMessage += `\n\nNote: ${formData.laboratoryFiles.length} laboratory file(s) were selected. Please ensure all medical documents are properly attached for review.`;
+        }
+        
+        alert(successMessage);
+        
+        // Reset form
+        setFormData(initialFormData);
+        setCurrentStep(1);
+      }
       
     } catch (error: any) {
       console.error('Error creating referral:', error);
@@ -1264,6 +1302,19 @@ const ExternalReferral = () => {
             <p className="text-gray-500 dark:text-gray-400 mt-1">
               Submit a referral request to Southern Philippines Medical Center
             </p>
+            
+            {/* Message for logged-in referrer users */}
+            {user && user.role === 'referrer' && (
+              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Info className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-green-800 dark:text-green-200">
+                    <p className="font-medium">Logged in as: {user.full_name || user.username}</p>
+                    <p>After submission, you'll be redirected to your dashboard where you can track this referral's progress.</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Progress Steps */}
