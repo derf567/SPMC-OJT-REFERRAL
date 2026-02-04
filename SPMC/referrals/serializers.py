@@ -155,6 +155,8 @@ class ReferralListSerializer(serializers.ModelSerializer):
     referring_hospital_name = serializers.CharField(source='referring_hospital.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
+    transferred_by_user = serializers.CharField(source='transferred_by.get_full_name', read_only=True)
+    triaged_by_user = serializers.CharField(source='triaged_by.get_full_name', read_only=True)
     
     class Meta:
         model = Referral
@@ -182,6 +184,9 @@ class ReferralListSerializer(serializers.ModelSerializer):
             # System fields
             'created_by_name', 'assigned_to_name', 'consent_secured',
             
+            # User action tracking
+            'transferred_by_user', 'transferred_at', 'triaged_by_user', 'triaged_at',
+            
             # Triage decision (if available)
             'triage_decision', 'triage_notes', 'scheduled_date', 'scheduled_time',
             
@@ -197,6 +202,8 @@ class ReferralDetailSerializer(serializers.ModelSerializer):
     referring_hospital_is_inside_davao = serializers.BooleanField(source='referring_hospital.is_inside_davao_city', read_only=True)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
+    transferred_by_user = serializers.CharField(source='transferred_by.get_full_name', read_only=True)
+    triaged_by_user = serializers.CharField(source='triaged_by.get_full_name', read_only=True)
     
     transit_info = TransitInfoSerializer(read_only=True)
     status_history = ReferralStatusHistorySerializer(many=True, read_only=True)
