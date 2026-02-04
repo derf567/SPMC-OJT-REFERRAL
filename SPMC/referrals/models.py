@@ -193,6 +193,12 @@ class Referral(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_referrals')
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_referrals')
     
+    # User action tracking fields
+    transferred_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='transferred_referrals')
+    transferred_at = models.DateTimeField(null=True, blank=True, help_text="When referral was transferred to triage")
+    triaged_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='triaged_referrals')
+    triaged_at = models.DateTimeField(null=True, blank=True, help_text="When triage decision was made")
+    
     # Triage decision (set when triage accepts the referral)
     triage_decision = models.CharField(max_length=20, choices=TRIAGE_DECISION_CHOICES, blank=True, null=True)
     triage_notes = models.TextField(blank=True, null=True, help_text="Additional notes from triage team")
