@@ -412,6 +412,19 @@ class ReferralViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
+    def my_submitted_referrals(self, request):
+        """Get referrals submitted by current user (for referrers)"""
+        queryset = self.get_queryset().filter(created_by=request.user)
+        page = self.paginate_queryset(queryset)
+        
+        if page is not None:
+            serializer = ReferralListSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = ReferralListSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
     def patients(self, request):
         """Get unique patients from referrals"""
         # Get unique patients with their latest referral info
