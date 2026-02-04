@@ -18,6 +18,7 @@ import {
   Check,
   X,
   User,
+  MapPin,
 } from "lucide-react";
 import {
   Dialog,
@@ -221,51 +222,71 @@ const ReferrerDashboard = () => {
         date: referral.transferred_at || referral.created_at,
         user: referral.transferred_by_user || 'EDCC Staff',
         action: 'Forwarded to EDMAR Triage'
-      },
-      {
-        status: 'in_transit',
-        label: 'In Transit',
-        description: 'Patient is being transported to the facility',
-        icon: AlertTriangle,
-        color: 'purple',
-        completed: ['in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-        date: referral.status === 'in_transit' ? referral.updated_at : null,
-        user: referral.triaged_by_user || 'EDMAR Staff',
-        action: 'Initiated patient transport'
-      },
-      {
-        status: 'emergent',
-        label: 'Emergent Care',
-        description: 'Patient requires immediate emergency care',
-        icon: AlertTriangle,
-        color: 'red',
-        completed: ['emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-        date: referral.status === 'emergent' ? referral.triaged_at || referral.updated_at : null,
-        user: referral.triaged_by_user || 'EDMAR Staff',
-        action: 'Marked as emergent case'
-      },
-      {
-        status: 'urgent',
-        label: 'Urgent Care',
-        description: 'Patient requires urgent medical attention',
-        icon: AlertTriangle,
-        color: 'orange',
-        completed: ['urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-        date: referral.status === 'urgent' ? referral.triaged_at || referral.updated_at : null,
-        user: referral.triaged_by_user || 'EDMAR Staff',
-        action: 'Marked as urgent case'
-      },
-      {
-        status: 'schedule_opd',
-        label: 'Scheduled OPD',
-        description: 'Patient appointment scheduled for outpatient department',
-        icon: Calendar,
-        color: 'green',
-        completed: ['schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-        date: referral.status === 'schedule_opd' ? referral.triaged_at || referral.updated_at : null,
-        user: referral.triaged_by_user || 'EDMAR Staff',
-        action: 'Scheduled OPD appointment'
-      },
+      }
+    ];
+
+    // Add the actual triage decision made by EDMAR staff (only if a decision was made)
+    if (referral.triage_decision) {
+      let triageStep;
+      
+      if (referral.triage_decision === 'critical') {
+        triageStep = {
+          status: 'emergent',
+          label: 'Emergent Care',
+          description: 'Patient requires immediate emergency care',
+          icon: AlertTriangle,
+          color: 'red',
+          completed: ['emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
+          date: referral.triaged_at || referral.updated_at,
+          user: referral.triaged_by_user || 'EDMAR Staff',
+          action: 'Marked as emergent case'
+        };
+      } else if (referral.triage_decision === 'urgent') {
+        triageStep = {
+          status: 'urgent',
+          label: 'Urgent Care',
+          description: 'Patient requires urgent medical attention',
+          icon: AlertTriangle,
+          color: 'orange',
+          completed: ['urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
+          date: referral.triaged_at || referral.updated_at,
+          user: referral.triaged_by_user || 'EDMAR Staff',
+          action: 'Marked as urgent case'
+        };
+      } else if (referral.triage_decision === 'schedule_opd') {
+        triageStep = {
+          status: 'schedule_opd',
+          label: 'Scheduled OPD',
+          description: 'Patient appointment scheduled for outpatient department',
+          icon: Calendar,
+          color: 'green',
+          completed: ['schedule_opd', 'completed', 'cancelled'].includes(referral.status),
+          date: referral.triaged_at || referral.updated_at,
+          user: referral.triaged_by_user || 'EDMAR Staff',
+          action: 'Scheduled OPD appointment'
+        };
+      }
+
+      if (triageStep) {
+        steps.push(triageStep);
+      }
+    }
+
+    // Add In Transit step after triage decision
+    steps.push({
+      status: 'in_transit',
+      label: 'In Transit',
+      description: 'Patient is being transported to the facility',
+      icon: MapPin,
+      color: 'purple',
+      completed: ['in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
+      date: referral.status === 'in_transit' ? referral.updated_at : null,
+      user: referral.triaged_by_user || 'EDMAR Staff',
+      action: 'Initiated patient transport'
+    });
+
+    // Add final status steps
+    steps.push(
       {
         status: 'completed',
         label: 'Completed',
@@ -288,7 +309,7 @@ const ReferrerDashboard = () => {
         user: referral.triaged_by_user || referral.transferred_by_user || 'Staff',
         action: 'Cancelled referral'
       }
-    ];
+    );
 
     return steps;
   };
