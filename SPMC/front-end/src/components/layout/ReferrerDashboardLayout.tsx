@@ -6,79 +6,77 @@ import { useAuth } from "@/contexts/AuthContext";
 import { referralsAPI } from "@/lib/api";
 import {
   Home,
-  Users,
-  Building2,
+  FileText,
+  Archive,
   BarChart3,
-  Calendar,
+  Settings,
   Bell,
   Moon,
   Sun,
   ChevronDown,
   LogOut,
   User,
+  Plus,
 } from "lucide-react";
 
-interface DashboardLayoutProps {
+interface ReferrerDashboardLayoutProps {
   children: ReactNode;
 }
 
 const notifications = [
   {
     id: 1,
-    title: "New Critical Referral",
-    message: "Patient Juan Dela Cruz requires immediate attention",
+    title: "Referral Accepted",
+    message: "Your referral for Maria Santos has been accepted by SPMC",
     time: "2 mins ago",
-    type: "critical"
-  },
-  {
-    id: 2,
-    title: "Bed Available",
-    message: "ICU bed now available at SPMC Emergency",
-    time: "5 mins ago",
     type: "success"
   },
   {
-    id: 3,
-    title: "Department Assignment",
-    message: "New referral assigned to Cardiology",
-    time: "10 mins ago",
+    id: 2,
+    title: "Referral Update",
+    message: "Patient Juan Dela Cruz has been scheduled for OPD",
+    time: "1 hour ago",
     type: "info"
+  },
+  {
+    id: 3,
+    title: "Referral Completed",
+    message: "Treatment completed for patient Anna Garcia",
+    time: "3 hours ago",
+    type: "success"
   }
 ];
 
-export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Initialize from localStorage or default to true
     const saved = localStorage.getItem('darkMode');
     return saved !== null ? JSON.parse(saved) : true;
   });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [activeReferralsCount, setActiveReferralsCount] = useState(0);
+  const [myReferralsCount, setMyReferralsCount] = useState(0);
   
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
   const navigation = [
-    { name: "Dashboard", href: "/dashboard", icon: Home },
-    { name: "Active Referrals", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
-    { name: "Outpatient", href: "/outpatient", icon: Calendar },
-    { name: "Archived Referrals", href: "/patients", icon: Users },
-    { name: "Facilities", href: "/facilities", icon: Building2 },
-    { name: "Reports", href: "/reports", icon: BarChart3 },
+    { name: "Dashboard", href: "/referrer", icon: Home },
+    { name: "My Referrals", href: "/referrer/referred", icon: FileText, badge: myReferralsCount > 0 ? myReferralsCount.toString() : undefined },
+    { name: "Archived", href: "/referrer/archived", icon: Archive },
+    { name: "Reports", href: "/referrer/reports", icon: BarChart3 },
+    { name: "New Referral", href: "/referral", icon: Plus, highlight: true },
   ];
 
-  // Apply dark mode to document on mount and when isDarkMode changes
+  // Apply dark mode
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-    // Save to localStorage
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
   }, [isDarkMode]);
 
@@ -99,43 +97,28 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     };
   }, []);
 
-  // Fetch active referrals count
+  // Fetch my referrals count
   useEffect(() => {
-    const fetchActiveReferralsCount = async () => {
+    const fetchMyReferralsCount = async () => {
       try {
-        const response = await referralsAPI.getAll();
+        const response = await referralsAPI.getMyReferrals();
         const referrals = response.results || response;
         
-        // Filter based on user role
-        let activeReferrals = [];
-        if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
-          // EDCC Personnel: Count only pending referrals
-          activeReferrals = Array.isArray(referrals) 
-            ? referrals.filter((ref: any) => ref.status === 'pending')
-            : [];
-        } else if (user?.permissions?.can_triage_referrals) {
-          // Triage Users: Count only waiting referrals
-          activeReferrals = Array.isArray(referrals) 
-            ? referrals.filter((ref: any) => ref.status === 'waiting')
-            : [];
-        } else {
-          // Other users: Count all non-completed/cancelled referrals
-          activeReferrals = Array.isArray(referrals) 
-            ? referrals.filter((ref: any) => !['completed', 'cancelled'].includes(ref.status))
-            : [];
-        }
+        // Count active referrals (not completed or cancelled)
+        const activeReferrals = Array.isArray(referrals) 
+          ? referrals.filter((ref: any) => !['completed', 'cancelled'].includes(ref.status))
+          : [];
         
-        setActiveReferralsCount(activeReferrals.length);
+        setMyReferralsCount(activeReferrals.length);
       } catch (error) {
-        console.error('Error fetching active referrals count:', error);
-        setActiveReferralsCount(0);
+        console.error('Error fetching my referrals count:', error);
+        setMyReferralsCount(0);
       }
     };
 
     if (user) {
-      fetchActiveReferralsCount();
-      // Refresh count every 30 seconds
-      const interval = setInterval(fetchActiveReferralsCount, 30000);
+      fetchMyReferralsCount();
+      const interval = setInterval(fetchMyReferralsCount, 30000);
       return () => clearInterval(interval);
     }
   }, [user]);
@@ -150,12 +133,10 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       navigate('/login');
     } catch (error) {
       console.error('Logout failed:', error);
-      // Navigate anyway in case of error
       navigate('/login');
     }
   };
 
-  // Get user initials for avatar
   const getUserInitials = () => {
     if (user?.first_name && user?.last_name) {
       return `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`;
@@ -170,7 +151,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
       )}>
         <div className="flex">
-          {/* Sidebar - Full Height */}
+          {/* Sidebar */}
           <div className={cn(
             "w-64 border-r min-h-screen fixed left-0 top-0 z-30",
             isDarkMode 
@@ -182,18 +163,18 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               "flex items-center gap-3 p-4 border-b h-16",
               isDarkMode ? "border-gray-700" : "border-gray-200"
             )}>
-              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-sm">S</span>
+              <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-sm">R</span>
               </div>
               <div>
                 <h1 className={cn(
                   "font-semibold transition-colors duration-300",
                   isDarkMode ? "text-white" : "text-gray-900"
-                )}>SPMC</h1>
+                )}>Referrer Portal</h1>
                 <p className={cn(
                   "text-xs transition-colors duration-300",
                   isDarkMode ? "text-gray-400" : "text-gray-500"
-                )}>Referral System</p>
+                )}>SPMC Referral System</p>
               </div>
             </div>
 
@@ -207,7 +188,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     className={cn(
                       "flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300",
                       isActive
-                        ? "bg-blue-600 text-white"
+                        ? "bg-green-600 text-white"
+                        : item.highlight
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
                         : isDarkMode
                           ? "text-gray-300 hover:text-white hover:bg-gray-700"
                           : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
@@ -221,7 +204,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       <span className={cn(
                         "px-2 py-0.5 text-xs rounded-full font-medium transition-all duration-300",
                         isActive 
-                          ? "bg-blue-500 text-white" 
+                          ? "bg-green-500 text-white" 
                           : item.badge === "New" 
                             ? "bg-green-500 text-white"
                             : isDarkMode
@@ -235,6 +218,21 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 );
               })}
             </nav>
+            
+            <div className="absolute bottom-4 left-4 right-4">
+              <Button
+                variant="ghost"
+                className={cn(
+                  "w-full justify-start",
+                  isDarkMode 
+                    ? "text-gray-400 hover:text-white hover:bg-gray-700" 
+                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                )}
+              >
+                <Settings className="w-5 h-5 mr-3" />
+                Settings
+              </Button>
+            </div>
           </div>
 
           {/* Main Content Area */}
@@ -246,9 +244,14 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 ? "bg-gray-800 border-gray-700" 
                 : "bg-white border-gray-200"
             )}>
-              {/* Search Bar - Aligned with sidebar logo */}
               <div className="flex items-center gap-6 flex-1">
-                <div className="relative flex items-center flex-1 max-w-md ml-0">
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "text-sm font-medium",
+                    isDarkMode ? "text-gray-300" : "text-gray-600"
+                  )}>
+                    Welcome back, {user?.first_name || user?.username}
+                  </span>
                 </div>
               </div>
 
@@ -314,7 +317,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                           )}>
                             <div className="flex items-start gap-3">
                               <div className={`w-2 h-2 rounded-full mt-2 ${
-                                notification.type === 'critical' ? 'bg-red-500' :
                                 notification.type === 'success' ? 'bg-green-500' : 'bg-blue-500'
                               }`}></div>
                               <div className="flex-1">
@@ -335,14 +337,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                           </div>
                         ))}
                       </div>
-                      <div className={cn(
-                        "px-4 py-2 border-t transition-colors duration-300",
-                        isDarkMode ? "border-gray-700" : "border-gray-200"
-                      )}>
-                        <Button variant="ghost" className="w-full text-blue-400 hover:text-blue-300 text-sm">
-                          View All Notifications
-                        </Button>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -359,7 +353,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                     )}
                   >
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
                       <span className="text-white text-sm font-medium">{getUserInitials()}</span>
                     </div>
                     <div className="text-left">
@@ -370,7 +364,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       <p className={cn(
                         "text-xs transition-colors duration-300",
                         isDarkMode ? "text-gray-400" : "text-gray-500"
-                      )}>{user?.is_staff ? 'Staff' : 'User'}</p>
+                      )}>Referrer</p>
                     </div>
                     <ChevronDown className="w-4 h-4" />
                   </Button>
@@ -393,6 +387,18 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       >
                         <User className="w-4 h-4 mr-2" />
                         Profile
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className={cn(
+                          "w-full justify-start px-4 py-2 transition-colors duration-300",
+                          isDarkMode 
+                            ? "text-gray-300 hover:text-white hover:bg-gray-700" 
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        )}
+                      >
+                        <Settings className="w-4 h-4 mr-2" />
+                        Settings
                       </Button>
                       <hr className={cn(
                         "my-2 transition-colors duration-300",

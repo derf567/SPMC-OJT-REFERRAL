@@ -107,6 +107,16 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
                                         first_name=validated_data.get('first_name', ''),
                                         last_name=validated_data.get('last_name', ''))
 
+        # Create UserProfile with referrer role
+        UserProfile.objects.create(
+            user=user,
+            role='referrer',
+            profession=validated_data.get('referrer_type', '').replace('_', ' ').title(),
+            hospital_name=validated_data.get('hospital_name', ''),
+            hospital_location=address,
+            is_inside_davao=True  # Default to True, can be updated later
+        )
+
         referrer = ReferrerAccount.objects.create(
             user=user,
             first_name=validated_data.get('first_name', ''),
