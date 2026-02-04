@@ -6,6 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Max
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.utils import timezone
 from .models import ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory
 from .serializers import (
     ReferringHospitalSerializer, SpecialtySerializer, ReferralListSerializer,
@@ -115,93 +116,6 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'new_status': referral.status
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    @action(detail=True, methods=['post'])
-    def accept_with_triage_decision(self, request, pk=None):
-        """Accept referral with triage decision (Triage user action)"""
-        referral = self.get_object()
-        
-        # Check if user has permission to triage referrals
-        if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
-            return Response({
-                'error': 'You do not have permission to make triage decisions'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        triage_decision = request.data.get('triage_decision')
-        triage_notes = request.data.get('triage_notes', '')
-        scheduled_date = request.data.get('scheduled_date')
-        scheduled_time = request.data.get('scheduled_time')
-        
-        if not triage_decision or triage_decision not in ['emergent', 'urgent', 'schedule_opd']:
-            return Response({
-                'error': 'Valid triage decision is required (emergent, urgent, or schedule_opd)'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate scheduled date and time for schedule_opd
-        if triage_decision == 'schedule_opd':
-            if not scheduled_date or not scheduled_time:
-                return Response({
-                    'error': 'Scheduled date and time are required for OPD appointments'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Validate date format and ensure it's in the future
-            try:
-                from datetime import datetime, date, time
-                appointment_date = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
-                appointment_time = datetime.strptime(scheduled_time, '%H:%M').time()
-                
-                # Check if the appointment is in the future
-                appointment_datetime = datetime.combine(appointment_date, appointment_time)
-                if appointment_datetime <= datetime.now():
-                    return Response({
-                        'error': 'Appointment must be scheduled for a future date and time'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                    
-            except ValueError:
-                return Response({
-                    'error': 'Invalid date or time format. Use YYYY-MM-DD for date and HH:MM for time'
-                }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Update referral - set status to the triage decision
-        old_status = referral.status
-        referral.status = triage_decision  # Set status to emergent/urgent/schedule_opd
-        referral.triage_decision = triage_decision
-        referral.triage_notes = triage_notes
-        referral.assigned_to = request.user
-        
-        # Set scheduled date and time for OPD appointments
-        if triage_decision == 'schedule_opd':
-            referral.scheduled_date = scheduled_date
-            referral.scheduled_time = scheduled_time
-        
-        referral.save()
-        
-        # Create status history record
-        history_notes = f'Triage decision: {triage_decision.replace("_", " ").title()}.'
-        if triage_decision == 'schedule_opd':
-            history_notes += f' Scheduled for {scheduled_date} at {scheduled_time}.'
-        if triage_notes:
-            history_notes += f' Notes: {triage_notes}'
-            
-        ReferralStatusHistory.objects.create(
-            referral=referral,
-            old_status=old_status,
-            new_status=triage_decision,  # Use triage decision as new status
-            changed_by=request.user,
-            notes=history_notes
-        )
-        
-        response_data = {
-            'message': f'Referral processed with triage decision: {triage_decision.replace("_", " ").title()}',
-            'new_status': referral.status,
-            'triage_decision': referral.triage_decision
-        }
-        
-        if triage_decision == 'schedule_opd':
-            response_data['scheduled_date'] = referral.scheduled_date
-            response_data['scheduled_time'] = referral.scheduled_time
-        
-        return Response(response_data)
     
     @action(detail=True, methods=['post'])
     def mark_appointment_completed(self, request, pk=None):
@@ -874,3 +788,53 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
             out = ReferrerAccountSerializer(referrer, context={'request': request})
             return Response(out.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def my_profile(self, request):
+        """Get current authenticated referrer's profile data for auto-filling forms"""
+        try:
+            referrer = ReferrerAccount.objects.select_related('user').prefetch_related(
+                'specialties', 'affiliate_hospitals'
+            ).get(user=request.user)
+            
+            # Get user profile for additional data
+            user_profile = getattr(request.user, 'profile', None)
+            
+            # Format specialties as a readable string
+            specialties_list = list(referrer.specialties.all())
+            specialties_text = ', '.join([specialty.name for specialty in specialties_list]) if specialties_list else ''
+            
+            # Prepare response data for form auto-filling
+            profile_data = {
+                'referrer_name': f"{referrer.first_name} {referrer.last_name}".strip(),
+                'referrer_profession': specialties_text or referrer.get_referrer_type_display(),  # Use specialties first, fallback to referrer type
+                'referrer_cellphone': user_profile.cellphone if user_profile else '',
+                'referrer_type': referrer.referrer_type,
+                'affiliate_hospitals': [
+                    {
+                        'id': hospital.id,
+                        'name': hospital.name,
+                        'location': hospital.location,
+                        'is_inside_davao_city': hospital.is_inside_davao_city
+                    }
+                    for hospital in referrer.affiliate_hospitals.all()
+                ],
+                'specialties': [
+                    {
+                        'id': specialty.id,
+                        'name': specialty.name
+                    }
+                    for specialty in referrer.specialties.all()
+                ],
+                'specialties_text': specialties_text,  # Formatted string for display
+                'hospital_name': user_profile.hospital_name if user_profile else '',
+                'hospital_location': user_profile.hospital_location if user_profile else '',
+                'is_inside_davao': user_profile.is_inside_davao if user_profile else True,
+            }
+            
+            return Response(profile_data)
+            
+        except ReferrerAccount.DoesNotExist:
+            return Response({
+                'error': 'Referrer profile not found'
+            }, status=status.HTTP_404_NOT_FOUND)
