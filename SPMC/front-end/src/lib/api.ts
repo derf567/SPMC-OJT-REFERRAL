@@ -279,15 +279,30 @@ export const referralsAPI = {
 
 // Hospitals API
 export const hospitalsAPI = {
+  // Get all hospitals
   getAll: async () => {
     return apiRequestAnonymous('/hospitals/');
   },
 
+  // Get hospital by ID
+  getById: async (id: string) => {
+    return apiRequestAnonymous(`/hospitals/${id}/`);
+  },
+
+  // Create new hospital
   create: async (hospitalData: any) => {
     return apiRequest('/hospitals/', {
       method: 'POST',
       body: JSON.stringify(hospitalData),
     });
+  },
+};
+
+// Referrer API
+export const referrerAPI = {
+  // Get current referrer's profile for auto-filling forms
+  getMyProfile: async () => {
+    return apiRequest('/referrers/my_profile/');
   },
 };
 
