@@ -1,10 +1,17 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Truck } from "lucide-react";
+import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Truck, AlertTriangle, Check, Calendar } from "lucide-react";
 import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 // Define the referral data structure from API
 interface ReferralData {
@@ -23,10 +30,17 @@ interface ReferralData {
   is_urgent: boolean;
   is_emergent?: boolean;
   created_at: string;
+  updated_at?: string;
   assigned_to_name?: string;
   triage_decision?: string;
   triage_notes?: string;
   assigned_department?: string;
+  // User tracking fields
+  created_by_user?: string;
+  transferred_by_user?: string;
+  transferred_at?: string;
+  triaged_by_user?: string;
+  triaged_at?: string;
   // Add other fields as needed for detail view
   pertinent_history?: string;
   pertinent_physical_exam?: string;
@@ -527,6 +541,8 @@ export const ReferralTable = () => {
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [dateError, setDateError] = useState("");
+  const [timelineModalOpen, setTimelineModalOpen] = useState(false);
+  const [selectedReferralForTimeline, setSelectedReferralForTimeline] = useState<ReferralData | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -810,6 +826,107 @@ export const ReferralTable = () => {
         description: `Failed to accept referral: ${errorMessage}`,
       });
     }
+  };
+
+  // Timeline modal functions
+  const openTimelineModal = (referral: ReferralData) => {
+    setSelectedReferralForTimeline(referral);
+    setTimelineModalOpen(true);
+  };
+
+  const getTimelineSteps = (referral: ReferralData) => {
+    const steps = [
+      {
+        status: 'pending',
+        label: 'Request Submitted',
+        description: 'Referral request submitted and awaiting review',
+        icon: FileText,
+        color: 'yellow',
+        completed: true,
+        date: referral.created_at,
+        user: referral.created_by_user || 'System',
+        action: 'Created referral'
+      },
+      {
+        status: 'waiting',
+        label: 'Under Triage',
+        description: 'Referral is being reviewed by EDCC staff',
+        icon: Clock,
+        color: 'blue',
+        completed: ['waiting', 'in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
+        date: referral.transferred_at || referral.created_at,
+        user: referral.transferred_by_user || 'EDCC Staff',
+        action: 'Forwarded to EDMAR Triage'
+      },
+      {
+        status: 'in_transit',
+        label: 'In Transit',
+        description: 'Patient is being transported to the facility',
+        icon: MapPin,
+        color: 'purple',
+        completed: ['in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
+        date: referral.status === 'in_transit' ? referral.updated_at : null,
+        user: referral.triaged_by_user || 'EDMAR Staff',
+        action: 'Initiated patient transport'
+      },
+      {
+        status: 'emergent',
+        label: 'Emergent Care',
+        description: 'Patient requires immediate emergency care',
+        icon: AlertTriangle,
+        color: 'red',
+        completed: ['emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
+        date: referral.status === 'emergent' ? referral.triaged_at || referral.updated_at : null,
+        user: referral.triaged_by_user || 'EDMAR Staff',
+        action: 'Marked as emergent case'
+      },
+      {
+        status: 'urgent',
+        label: 'Urgent Care',
+        description: 'Patient requires urgent medical attention',
+        icon: AlertTriangle,
+        color: 'orange',
+        completed: ['urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
+        date: referral.status === 'urgent' ? referral.triaged_at || referral.updated_at : null,
+        user: referral.triaged_by_user || 'EDMAR Staff',
+        action: 'Marked as urgent case'
+      },
+      {
+        status: 'schedule_opd',
+        label: 'Scheduled OPD',
+        description: 'Patient appointment scheduled for outpatient department',
+        icon: Calendar,
+        color: 'green',
+        completed: ['schedule_opd', 'completed', 'cancelled'].includes(referral.status),
+        date: referral.status === 'schedule_opd' ? referral.triaged_at || referral.updated_at : null,
+        user: referral.triaged_by_user || 'EDMAR Staff',
+        action: 'Scheduled OPD appointment'
+      },
+      {
+        status: 'completed',
+        label: 'Completed',
+        description: 'Referral process completed successfully',
+        icon: CheckCircle,
+        color: 'gray',
+        completed: referral.status === 'completed',
+        date: referral.status === 'completed' ? referral.updated_at : null,
+        user: referral.triaged_by_user || 'EDMAR Staff',
+        action: 'Marked as completed'
+      },
+      {
+        status: 'cancelled',
+        label: 'Cancelled',
+        description: 'Referral has been cancelled',
+        icon: X,
+        color: 'red',
+        completed: referral.status === 'cancelled',
+        date: referral.status === 'cancelled' ? referral.updated_at : null,
+        user: referral.triaged_by_user || referral.transferred_by_user || 'Staff',
+        action: 'Cancelled referral'
+      }
+    ];
+
+    return steps;
   };
 
   // Handle assign to me
@@ -1215,9 +1332,15 @@ export const ReferralTable = () => {
                       </td>
                     )}
                     <td className="p-4">
-                      <Badge className={getStatusColor(referral.status)}>
-                        {referral.status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </Badge>
+                      <div
+                        className="cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => openTimelineModal(referral)}
+                        title="Click to view timeline"
+                      >
+                        <Badge className={getStatusColor(referral.status)}>
+                          {referral.status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </Badge>
+                      </div>
                     </td>
                     <td className="p-4 text-gray-500 dark:text-gray-400 text-sm">
                       <div className="flex items-center gap-1">
@@ -1713,6 +1836,92 @@ export const ReferralTable = () => {
           </div>
         </div>
       )}
+
+      {/* Timeline Modal */}
+      <Dialog open={timelineModalOpen} onOpenChange={setTimelineModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Referral Timeline - {selectedReferralForTimeline?.referral_id}
+            </DialogTitle>
+            <DialogDescription>
+              Track the complete journey of this referral from submission to completion
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {selectedReferralForTimeline && getTimelineSteps(selectedReferralForTimeline).map((step, index) => {
+              const IconComponent = step.icon;
+              const isCompleted = step.completed;
+              const isCurrent = selectedReferralForTimeline.status === step.status;
+
+              return (
+                <div key={step.status} className="flex items-start gap-4">
+                  {/* Timeline connector */}
+                  {index < getTimelineSteps(selectedReferralForTimeline).length - 1 && (
+                    <div className="absolute left-6 top-12 w-0.5 h-16 bg-gray-200 dark:bg-gray-700"></div>
+                  )}
+
+                  {/* Status icon */}
+                  <div className={`relative flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
+                    isCompleted
+                      ? `bg-${step.color}-500 text-white`
+                      : isCurrent
+                        ? `bg-${step.color}-100 dark:bg-${step.color}-900/30 text-${step.color}-600 dark:text-${step.color}-400 border-2 border-${step.color}-500`
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-400'
+                  }`}>
+                    {isCompleted ? (
+                      <Check className="w-6 h-6" />
+                    ) : (
+                      <IconComponent className="w-6 h-6" />
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 pb-8">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className={`font-semibold ${
+                        isCompleted
+                          ? 'text-gray-900 dark:text-white'
+                          : isCurrent
+                            ? `text-${step.color}-600 dark:text-${step.color}-400`
+                            : 'text-gray-500 dark:text-gray-400'
+                      }`}>
+                        {step.label}
+                      </h4>
+                      {isCurrent && (
+                        <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded-full">
+                          Current
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      {step.description}
+                    </p>
+                    {step.date && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(step.date).toLocaleString()}
+                        </p>
+                        {step.user && step.action && (
+                          <p className="text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            <span className="font-medium">{step.user}</span>
+                            <span className="text-gray-400">•</span>
+                            <span>{step.action}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
