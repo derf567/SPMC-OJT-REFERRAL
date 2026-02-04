@@ -106,6 +106,21 @@ export const authAPI = {
     }
   },
 
+  registerComprehensive: async (formData: FormData) => {
+    const response = await fetch(`${API_BASE_URL}/auth/register-comprehensive/`, {
+      method: 'POST',
+      body: formData, // Don't set Content-Type header for FormData
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      return data;
+    } else {
+      throw new Error(data.error || 'Registration failed');
+    }
+  },
+
   logout: async () => {
     try {
       await apiRequest('/auth/logout/', { method: 'POST' });
