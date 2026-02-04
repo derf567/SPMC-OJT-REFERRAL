@@ -88,6 +88,24 @@ export const authAPI = {
     }
   },
 
+  register: async (userData: any) => {
+    const response = await fetch(`${API_BASE_URL}/auth/register/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      return data;
+    } else {
+      throw new Error(data.error || 'Registration failed');
+    }
+  },
+
   logout: async () => {
     try {
       await apiRequest('/auth/logout/', { method: 'POST' });
@@ -159,6 +177,11 @@ export const referralsAPI = {
   // Get my assigned referrals
   getMyReferrals: async () => {
     return apiRequest('/referrals/my_referrals/');
+  },
+
+  // Get my submitted referrals (for referrers)
+  getMySubmittedReferrals: async () => {
+    return apiRequest('/referrals/my_submitted_referrals/');
   },
 
   // Get patients list
@@ -268,13 +291,25 @@ export const specialtiesAPI = {
 };
 
 // External Referrals API (no auth required)
+// External Referrals API
 export const externalReferralsAPI = {
-  // Create new referral (anonymous)
+  // Create new referral (authenticated if user is logged in, anonymous otherwise)
   create: async (referralData: any) => {
-    return apiRequestAnonymous('/referrals/', {
-      method: 'POST',
-      body: JSON.stringify(referralData),
-    });
+    // Check if user is authenticated
+    const token = getAuthToken();
+    if (token) {
+      // Use authenticated request if user is logged in
+      return apiRequest('/referrals/', {
+        method: 'POST',
+        body: JSON.stringify(referralData),
+      });
+    } else {
+      // Use anonymous request for public submissions
+      return apiRequestAnonymous('/referrals/', {
+        method: 'POST',
+        body: JSON.stringify(referralData),
+      });
+    }
   },
 
   // Get hospitals for dropdown (anonymous)
