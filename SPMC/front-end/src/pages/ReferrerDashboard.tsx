@@ -19,6 +19,8 @@ import {
   X,
   User,
   MapPin,
+  Phone,
+  PhoneCall,
 } from "lucide-react";
 import {
   Dialog,
@@ -54,6 +56,10 @@ const ReferrerDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedReferral, setSelectedReferral] = useState<any>(null);
+  const [triageCallModalOpen, setTriageCallModalOpen] = useState(false);
+  const [triageCallReferral, setTriageCallReferral] = useState<any>(null);
+  const [transitDecisionModalOpen, setTransitDecisionModalOpen] = useState(false);
+  const [transitDecisionReferral, setTransitDecisionReferral] = useState<any>(null);
   const { user } = useAuth();
   const location = useLocation();
 
@@ -168,7 +174,16 @@ const ReferrerDashboard = () => {
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: string, referral?: any) => {
+    // Show transit decision status if available
+    if (referral?.transit_decision) {
+      if (referral.transit_decision === 'now') {
+        return "🚑 Transport Initiated";
+      } else if (referral.transit_decision === 'scheduled') {
+        return "📅 Transport Scheduled";
+      }
+    }
+
     switch (status) {
       case "pending":
         return "⏳ Pending Review";
@@ -197,6 +212,45 @@ const ReferrerDashboard = () => {
   const openTimelineModal = (referral: any) => {
     setSelectedReferral(referral);
     setTimelineModalOpen(true);
+  };
+
+  const handleTriageCall = (referral: any) => {
+    setTriageCallReferral(referral);
+    setTriageCallModalOpen(true);
+  };
+
+  const handleTransitDecision = async (decision: 'now' | 'scheduled', scheduledDate?: string, scheduledTime?: string) => {
+    if (!transitDecisionReferral) return;
+
+    try {
+      const response = await referralsAPI.respondToTriageCall(
+        transitDecisionReferral.id, 
+        decision,
+        scheduledDate,
+        scheduledTime
+      );
+
+      // Update the referral in the local state
+      const updatedReferrals = allReferrals.map(r => 
+        r.id === transitDecisionReferral.id 
+          ? { ...r, ...response }
+          : r
+      );
+      setAllReferrals(updatedReferrals);
+
+      // Update recent referrals if needed
+      const updatedRecentReferrals = recentReferrals.map(r => 
+        r.id === transitDecisionReferral.id 
+          ? { ...r, ...response }
+          : r
+      );
+      setRecentReferrals(updatedRecentReferrals);
+
+      setTransitDecisionModalOpen(false);
+      setTransitDecisionReferral(null);
+    } catch (error) {
+      console.error('Error responding to triage call:', error);
+    }
   };
 
   const getTimelineSteps = (referral: any) => {
@@ -348,6 +402,109 @@ const ReferrerDashboard = () => {
         </div>
       </div>
 
+      {/* Triage Call Notifications */}
+      {recentReferrals.some(r => r.status === 'urgent' && r.triage_decision === 'urgent' && !r.transit_decision) && (
+        <div className="bg-orange-100 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <PhoneCall className="w-6 h-6 text-orange-600 animate-pulse" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-orange-800 dark:text-orange-200">
+                🚨 Urgent Triage Call Required
+              </h3>
+              <p className="text-orange-700 dark:text-orange-300 mt-1">
+                You have {recentReferrals.filter(r => r.status === 'urgent' && r.triage_decision === 'urgent' && !r.transit_decision).length} referral(s) 
+                marked as urgent by EDMAR staff. Please respond to determine transport timing.
+              </p>
+            </div>
+            <div className="flex-shrink-0">
+              <button
+                onClick={() => {
+                  const urgentReferral = recentReferrals.find(r => r.status === 'urgent' && r.triage_decision === 'urgent' && !r.transit_decision);
+                  if (urgentReferral) {
+                    setTransitDecisionReferral(urgentReferral);
+                    setTransitDecisionModalOpen(true);
+                  }
+                }}
+                className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium"
+              >
+                Respond Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recent Referrals - Moved to top */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg transition-colors duration-300">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Referrals</h3>
+            <Link to="/referrer/referred" className="text-green-600 hover:text-green-800 text-sm font-medium">
+              View All →
+            </Link>
+          </div>
+        </div>
+        
+        <div className="p-6">
+          {recentReferrals.length === 0 ? (
+            <div className="text-center py-8">
+              <Archive className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 dark:text-gray-400">No referrals submitted yet</p>
+              <Link to="/referral">
+                <button className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
+                  Submit Your First Referral
+                </button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {recentReferrals.map((referral) => (
+                <div key={referral.id} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                        {referral.patient_full_name?.split(' ').map((n: string) => n[0]).join('') || 'N/A'}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          {referral.patient_full_name}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {referral.chief_complaint} • {referral.specialty_needed_name}
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">
+                          {new Date(referral.created_at).toLocaleDateString()} • ID: {referral.referral_id}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {/* Show triage call button if referral is marked as urgent by EDMAR */}
+                    {referral.status === 'urgent' && referral.triage_decision === 'urgent' && !referral.transit_decision && (
+                      <button
+                        onClick={() => {
+                          setTransitDecisionReferral(referral);
+                          setTransitDecisionModalOpen(true);
+                        }}
+                        className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-1 animate-pulse"
+                      >
+                        <PhoneCall className="w-3 h-3" />
+                        Triage Call
+                      </button>
+                    )}
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
+                      {getStatusLabel(referral.status, referral)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors duration-300">
@@ -478,62 +635,6 @@ const ReferrerDashboard = () => {
           </div>
         </Link>
       </div>
-
-      {/* Recent Referrals */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg transition-colors duration-300">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Referrals</h3>
-            <Link to="/referrer/referred" className="text-green-600 hover:text-green-800 text-sm font-medium">
-              View All →
-            </Link>
-          </div>
-        </div>
-        
-        <div className="p-6">
-          {recentReferrals.length === 0 ? (
-            <div className="text-center py-8">
-              <Archive className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">No referrals submitted yet</p>
-              <Link to="/referral">
-                <button className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
-                  Submit Your First Referral
-                </button>
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {recentReferrals.map((referral) => (
-                <div key={referral.id} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                        {referral.patient_full_name?.split(' ').map((n: string) => n[0]).join('') || 'N/A'}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {referral.patient_full_name}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {referral.chief_complaint} • {referral.specialty_needed_name}
-                        </p>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">
-                          {new Date(referral.created_at).toLocaleDateString()} • ID: {referral.referral_id}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
-                      {getStatusLabel(referral.status)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 
@@ -616,12 +717,25 @@ const ReferrerDashboard = () => {
                           <h4 className="font-semibold text-gray-900 dark:text-white">
                             {referral.patient_full_name}
                           </h4>
+                          {/* Show triage call button if referral is marked as urgent by EDMAR */}
+                          {referral.status === 'urgent' && referral.triage_decision === 'urgent' && !referral.transit_decision && (
+                            <button
+                              onClick={() => {
+                                setTransitDecisionReferral(referral);
+                                setTransitDecisionModalOpen(true);
+                              }}
+                              className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1 animate-pulse"
+                            >
+                              <PhoneCall className="w-3 h-3" />
+                              Triage Call
+                            </button>
+                          )}
                           <button
                             onClick={() => openTimelineModal(referral)}
                             className={`px-2 py-1 rounded-full text-xs font-medium border cursor-pointer hover:opacity-80 transition-opacity ${getStatusColor(referral.status)}`}
                             title="Click to view timeline"
                           >
-                            {getStatusLabel(referral.status)}
+                            {getStatusLabel(referral.status, referral)}
                           </button>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
@@ -699,7 +813,7 @@ const ReferrerDashboard = () => {
                               onClick={() => openTimelineModal(referral)}
                               className={`px-2 py-1 rounded-full text-xs font-medium border cursor-pointer hover:opacity-80 transition-opacity ${getStatusColor(referral.status)}`}
                             >
-                              {getStatusLabel(referral.status)}
+                              {getStatusLabel(referral.status, referral)}
                             </button>
                           </div>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
@@ -954,6 +1068,73 @@ const ReferrerDashboard = () => {
                   );
                 })}
               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Transit Decision Modal */}
+      <Dialog open={transitDecisionModalOpen} onOpenChange={setTransitDecisionModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PhoneCall className="w-5 h-5 text-orange-600" />
+              Triage Call - Transit Decision
+            </DialogTitle>
+            <DialogDescription>
+              EDMAR staff has marked this referral as urgent. Please decide when the patient should be transported.
+            </DialogDescription>
+          </DialogHeader>
+
+          {transitDecisionReferral && (
+            <div className="space-y-4">
+              {/* Patient Info */}
+              <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  {transitDecisionReferral.patient_full_name}
+                </h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <strong>Chief Complaint:</strong> {transitDecisionReferral.chief_complaint}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <strong>Referral ID:</strong> {transitDecisionReferral.referral_id}
+                </p>
+                <p className="text-sm text-orange-600 dark:text-orange-400 font-medium mt-2">
+                  ⚡ Marked as URGENT by EDMAR Triage
+                </p>
+              </div>
+
+              {/* Decision Buttons */}
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleTransitDecision('now')}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white p-4 rounded-lg font-medium flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle className="w-5 h-5" />
+                  Transport Now (Immediate)
+                </button>
+                
+                <button
+                  onClick={() => {
+                    // For scheduled transport, we'd need additional inputs for date/time
+                    // For now, let's handle immediate transport
+                    const scheduledDate = new Date();
+                    scheduledDate.setHours(scheduledDate.getHours() + 2); // 2 hours from now
+                    handleTransitDecision('scheduled', 
+                      scheduledDate.toISOString().split('T')[0], 
+                      scheduledDate.toTimeString().split(' ')[0].substring(0, 5)
+                    );
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg font-medium flex items-center justify-center gap-2"
+                >
+                  <Calendar className="w-5 h-5" />
+                  Schedule Transport (2 hours from now)
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                Both EDCC and EDMAR will be notified of your decision
+              </p>
             </div>
           )}
         </DialogContent>

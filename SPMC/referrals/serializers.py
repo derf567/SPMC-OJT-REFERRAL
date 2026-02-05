@@ -190,6 +190,9 @@ class ReferralListSerializer(serializers.ModelSerializer):
             # Triage decision (if available)
             'triage_decision', 'triage_notes', 'scheduled_date', 'scheduled_time',
             
+            # Transit decision fields
+            'transit_decision', 'transit_scheduled_date', 'transit_scheduled_time', 'transit_decision_at',
+            
             # Department assignment
             'assigned_department'
         ]
