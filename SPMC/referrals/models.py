@@ -216,6 +216,18 @@ class Referral(models.Model):
     scheduled_date = models.DateField(blank=True, null=True, help_text="Scheduled appointment date for OPD")
     scheduled_time = models.TimeField(blank=True, null=True, help_text="Scheduled appointment time for OPD")
     
+    # Transit decision fields (for referrer response to triage calls)
+    transit_decision = models.CharField(
+        max_length=20, 
+        choices=[('now', 'Transport Now'), ('scheduled', 'Scheduled Transport')],
+        blank=True, 
+        null=True,
+        help_text="Referrer's decision on when to transport patient"
+    )
+    transit_scheduled_date = models.DateField(blank=True, null=True, help_text="When referrer wants to schedule transport")
+    transit_scheduled_time = models.TimeField(blank=True, null=True, help_text="Time referrer wants to schedule transport")
+    transit_decision_at = models.DateTimeField(blank=True, null=True, help_text="When referrer made transit decision")
+    
     class Meta:
         ordering = ['-created_at']
     

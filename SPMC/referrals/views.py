@@ -392,6 +392,105 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         return Response(response_data)
     
+    @action(detail=True, methods=['post'])
+    def respond_to_triage_call(self, request, pk=None):
+        """Referrer responds to triage call with transit decision"""
+        referral = self.get_object()
+        
+        # Check if user is the referrer who created this referral
+        if referral.created_by != request.user:
+            return Response({
+                'error': 'You can only respond to triage calls for your own referrals'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Only allow response for urgent referrals that haven't been responded to yet
+        if referral.status != 'urgent' or referral.triage_decision != 'urgent':
+            return Response({
+                'error': 'This referral is not awaiting a triage call response'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if referral.transit_decision:
+            return Response({
+                'error': 'Transit decision has already been made for this referral'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get transit decision from request data
+        transit_decision = request.data.get('transit_decision')
+        scheduled_date = request.data.get('scheduled_date')
+        scheduled_time = request.data.get('scheduled_time')
+        
+        if not transit_decision or transit_decision not in ['now', 'scheduled']:
+            return Response({
+                'error': 'Valid transit decision is required (now or scheduled)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate scheduled date/time for scheduled transport
+        if transit_decision == 'scheduled':
+            if not scheduled_date or not scheduled_time:
+                return Response({
+                    'error': 'Scheduled date and time are required for scheduled transport'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate date is not in the past
+            from datetime import datetime
+            try:
+                scheduled_datetime = datetime.combine(
+                    datetime.strptime(scheduled_date, '%Y-%m-%d').date(),
+                    datetime.strptime(scheduled_time, '%H:%M').time()
+                )
+                if scheduled_datetime < timezone.now():
+                    return Response({
+                        'error': 'Cannot schedule transport in the past'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except ValueError:
+                return Response({
+                    'error': 'Invalid date or time format'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update referral with transit decision
+        old_status = referral.status
+        referral.transit_decision = transit_decision
+        referral.transit_decision_at = timezone.now()
+        
+        if transit_decision == 'now':
+            referral.status = 'in_transit'
+        elif transit_decision == 'scheduled':
+            referral.transit_scheduled_date = scheduled_date
+            referral.transit_scheduled_time = scheduled_time
+            # Keep status as urgent until scheduled time
+        
+        referral.save()
+        
+        # Create status history record
+        if transit_decision == 'now':
+            history_notes = 'Referrer decided to transport patient immediately'
+            new_status = 'in_transit'
+        else:
+            history_notes = f'Referrer scheduled transport for {scheduled_date} at {scheduled_time}'
+            new_status = referral.status
+        
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=old_status,
+            new_status=new_status,
+            changed_by=request.user,
+            notes=history_notes
+        )
+        
+        # Prepare response data
+        response_data = {
+            'message': f'Transit decision recorded: {transit_decision}',
+            'transit_decision': transit_decision,
+            'new_status': referral.status,
+            'decided_at': referral.transit_decision_at
+        }
+        
+        if transit_decision == 'scheduled':
+            response_data['transit_scheduled_date'] = referral.transit_scheduled_date
+            response_data['transit_scheduled_time'] = referral.transit_scheduled_time
+        
+        return Response(response_data)
+    
     @action(detail=False, methods=['get'])
     def dashboard_stats(self, request):
         """Get dashboard statistics"""

@@ -275,6 +275,25 @@ export const referralsAPI = {
       body: JSON.stringify({ department: newDepartment }),
     });
   },
+
+  // Respond to triage call (Referrer action)
+  respondToTriageCall: async (id: string, transitDecision: string, scheduledDate?: string, scheduledTime?: string) => {
+    const requestBody: any = {
+      transit_decision: transitDecision
+    };
+
+    if (scheduledDate) {
+      requestBody.scheduled_date = scheduledDate;
+    }
+    if (scheduledTime) {
+      requestBody.scheduled_time = scheduledTime;
+    }
+
+    return apiRequest(`/referrals/${id}/respond_to_triage_call/`, {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+  },
 };
 
 // Hospitals API
