@@ -16,6 +16,7 @@ import {
   ChevronDown,
   LogOut,
   User,
+  UserCheck,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -70,6 +71,15 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Facilities", href: "/facilities", icon: Building2 },
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
+
+  // Add Approval tab for Triage Users
+  const navigationWithApproval = user?.permissions?.can_triage_referrals
+    ? [
+        ...navigation.slice(0, 5), // Dashboard to Facilities
+        { name: "Account Approval", href: "/approval", icon: UserCheck },
+        ...navigation.slice(5), // Reports
+      ]
+    : navigation;
 
   // Apply dark mode to document on mount and when isDarkMode changes
   useEffect(() => {
@@ -194,7 +204,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </div>
 
             <nav className="p-4 space-y-2">
-              {navigation.map((item) => {
+              {navigationWithApproval.map((item) => {
                 const isActive = location.pathname === item.href;
                 return (
                   <Link

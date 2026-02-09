@@ -306,11 +306,18 @@ class ReferrerAccount(models.Model):
         ('other', 'Other'),
     ]
 
+    APPROVAL_STATUS_CHOICES = [
+        ('pending', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='referrer_profile')
     first_name = models.CharField(max_length=100)
     middle_name = models.CharField(max_length=100, blank=True, null=True)
     last_name = models.CharField(max_length=100)
     referrer_type = models.CharField(max_length=30, choices=REFERRER_TYPE_CHOICES)
+    approval_status = models.CharField(max_length=20, choices=APPROVAL_STATUS_CHOICES, default='pending')
 
     # Common fields
     GENDER_CHOICES = [
