@@ -358,6 +358,18 @@ export const referralsAPI = {
       method: 'POST',
     });
   },
+
+  // Get incoming referrals (for HIS Department)
+  getIncomingReferrals: async () => {
+    return apiRequest('/referrals/incoming_referrals/');
+  },
+
+  // Confirm referral arrival (HIS Department action)
+  confirmArrival: async (id: number) => {
+    return apiRequest(`/referrals/${id}/confirm_arrival/`, {
+      method: 'POST',
+    });
+  },
 };
 
 // Admin API

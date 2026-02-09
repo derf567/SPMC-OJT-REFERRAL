@@ -51,6 +51,8 @@ def login_view(request):
                         'can_view_referrals': profile.can_view_referrals,
                         'can_triage_referrals': profile.can_triage_referrals,
                         'can_transfer_referrals': profile.can_transfer_referrals,
+                        'is_his_department': profile.is_his_department,
+                        'can_confirm_arrivals': profile.can_confirm_arrivals,
                         'is_admin_user': profile.is_admin_user,
                     }
                 }
@@ -330,6 +332,8 @@ def user_profile(request):
                     'can_view_referrals': profile.can_view_referrals,
                     'can_triage_referrals': profile.can_triage_referrals,
                     'can_transfer_referrals': profile.can_transfer_referrals,
+                    'is_his_department': profile.is_his_department,
+                    'can_confirm_arrivals': profile.can_confirm_arrivals,
                     'is_admin_user': profile.is_admin_user,
                 }
             }
