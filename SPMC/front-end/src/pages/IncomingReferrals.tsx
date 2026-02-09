@@ -88,13 +88,43 @@ const IncomingReferrals = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    // Only in_transit status will be shown in this page
-    return (
-      <Badge className="bg-blue-500 text-white flex items-center gap-1">
-        <Clock className="w-3 h-3" />
-        In Transit
-      </Badge>
-    );
+    switch (status) {
+      case 'in_transit':
+        return (
+          <Badge className="bg-blue-500 text-white flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            In Transit
+          </Badge>
+        );
+      case 'urgent':
+        return (
+          <Badge className="bg-orange-500 text-white flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            Urgent
+          </Badge>
+        );
+      case 'emergent':
+        return (
+          <Badge className="bg-red-500 text-white flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            Emergent
+          </Badge>
+        );
+      case 'schedule_opd':
+        return (
+          <Badge className="bg-green-500 text-white flex items-center gap-1">
+            <Calendar className="w-3 h-3" />
+            Scheduled OPD
+          </Badge>
+        );
+      default:
+        return (
+          <Badge className="bg-gray-500 text-white flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {status.replace('_', ' ').toUpperCase()}
+          </Badge>
+        );
+    }
   };
 
   if (loading) {
@@ -120,11 +150,11 @@ const IncomingReferrals = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Incoming Referrals</h1>
-            <p className="text-gray-500 dark:text-gray-400">Confirm patient arrivals for referrals in transit</p>
+            <p className="text-gray-500 dark:text-gray-400">Confirm patient arrivals for urgent, emergent, scheduled OPD, and in-transit referrals</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className="text-sm text-gray-500 dark:text-gray-400">In Transit</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Incoming</p>
               <p className="text-2xl font-bold text-blue-600">{referrals.length}</p>
             </div>
           </div>
@@ -135,8 +165,8 @@ const IncomingReferrals = () => {
           {referrals.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-12 text-center">
               <CheckCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">No referrals in transit at the moment</p>
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">Referrals will appear here when they are on their way to SPMC</p>
+              <p className="text-gray-500 dark:text-gray-400">No incoming referrals at the moment</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">Referrals will appear here when they need arrival confirmation</p>
             </div>
           ) : (
             referrals.map((referral) => (

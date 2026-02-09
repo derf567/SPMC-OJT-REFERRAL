@@ -239,7 +239,7 @@ const Patients = () => {
         // Calculate stats
         const totalPatients = patientsData.length;
         const activeCases = patientsData.filter((p: Patient) => 
-          ['pending', 'in_transit', 'waiting'].includes(p.latest_status)
+          !['completed', 'cancelled'].includes(p.latest_status)
         ).length;
         const pendingCases = patientsData.filter((p: Patient) => 
           p.latest_status === 'pending'
