@@ -8,6 +8,7 @@ class UserProfile(models.Model):
         ('edcc_personnel', 'EDCC Personnel'),
         ('call_triage', 'EDMAR/EDHO (Call Triage)'),
         ('admin', 'Administrator'),
+        ('referrer', 'Referrer'),
     ]
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
@@ -15,17 +16,24 @@ class UserProfile(models.Model):
     department = models.CharField(max_length=100, blank=True, null=True)
     contact_number = models.CharField(max_length=20, blank=True, null=True)
     
+    # Additional fields for referrers
+    profession = models.CharField(max_length=100, blank=True, null=True)
+    cellphone = models.CharField(max_length=20, blank=True, null=True)
+    hospital_name = models.CharField(max_length=200, blank=True, null=True)
+    hospital_location = models.CharField(max_length=200, blank=True, null=True)
+    is_inside_davao = models.BooleanField(default=True)
+    
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.get_role_display()}"
     
     @property
     def can_create_referrals(self):
-        """Only external users (not SPMC staff) can create referrals"""
-        return False  # SPMC staff cannot create referrals
+        """Only external users (referrers) can create referrals"""
+        return self.role == 'referrer'
     
     @property
     def can_view_referrals(self):
-        """All SPMC staff can view referrals"""
+        """All users can view referrals (with different scopes)"""
         return True
     
     @property
@@ -185,6 +193,12 @@ class Referral(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_referrals')
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_referrals')
     
+    # User action tracking fields
+    transferred_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='transferred_referrals')
+    transferred_at = models.DateTimeField(null=True, blank=True, help_text="When referral was transferred to triage")
+    triaged_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='triaged_referrals')
+    triaged_at = models.DateTimeField(null=True, blank=True, help_text="When triage decision was made")
+    
     # Triage decision (set when triage accepts the referral)
     triage_decision = models.CharField(max_length=20, choices=TRIAGE_DECISION_CHOICES, blank=True, null=True)
     triage_notes = models.TextField(blank=True, null=True, help_text="Additional notes from triage team")
@@ -201,6 +215,18 @@ class Referral(models.Model):
     # Outpatient scheduling (for schedule_opd triage decisions)
     scheduled_date = models.DateField(blank=True, null=True, help_text="Scheduled appointment date for OPD")
     scheduled_time = models.TimeField(blank=True, null=True, help_text="Scheduled appointment time for OPD")
+    
+    # Transit decision fields (for referrer response to triage calls)
+    transit_decision = models.CharField(
+        max_length=20, 
+        choices=[('now', 'Transport Now'), ('scheduled', 'Scheduled Transport')],
+        blank=True, 
+        null=True,
+        help_text="Referrer's decision on when to transport patient"
+    )
+    transit_scheduled_date = models.DateField(blank=True, null=True, help_text="When referrer wants to schedule transport")
+    transit_scheduled_time = models.TimeField(blank=True, null=True, help_text="Time referrer wants to schedule transport")
+    transit_decision_at = models.DateTimeField(blank=True, null=True, help_text="When referrer made transit decision")
     
     class Meta:
         ordering = ['-created_at']
@@ -269,3 +295,67 @@ class ReferralDocument(models.Model):
     
     def __str__(self):
         return f"{self.referral.referral_id} - {self.document_type}"
+
+
+class ReferrerAccount(models.Model):
+    """Model for external referrers (doctors, hospital accounts, authorized employees)"""
+    REFERRER_TYPE_CHOICES = [
+        ('doctor', 'Doctor / Medical Professional'),
+        ('hospital_employee', 'Authorized Hospital Employee'),
+        ('other', 'Other'),
+    ]
+
+    APPROVAL_STATUS_CHOICES = [
+        ('pending', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='referrer_profile')
+    first_name = models.CharField(max_length=100)
+    middle_name = models.CharField(max_length=100, blank=True, null=True)
+    last_name = models.CharField(max_length=100)
+    referrer_type = models.CharField(max_length=30, choices=REFERRER_TYPE_CHOICES)
+    approval_status = models.CharField(max_length=20, choices=APPROVAL_STATUS_CHOICES, default='pending')
+
+    # Common fields
+    GENDER_CHOICES = [
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+    ]
+
+    age = models.IntegerField(blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
+
+    # Doctor-specific
+    specialties = models.ManyToManyField(Specialty, blank=True, related_name='referrers')
+    affiliate_hospitals = models.ManyToManyField(ReferringHospital, blank=True, related_name='affiliated_referrers')
+
+    # Hospital employee-specific
+    position = models.CharField(max_length=150, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} ({self.get_referrer_type_display()})"
+
+
+class ReferrerDocument(models.Model):
+    """Documents uploaded by referrers for identity / legal proof"""
+    DOCUMENT_TYPE_CHOICES = [
+        ('official_id', 'Official Registered ID'),
+        ('legal_document', 'Legal Document (Hospital)'),
+        ('other', 'Other'),
+    ]
+
+    referrer = models.ForeignKey(ReferrerAccount, on_delete=models.CASCADE, related_name='documents')
+    document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPE_CHOICES)
+    file = models.FileField(upload_to='referrer_documents/')
+    description = models.CharField(max_length=200, blank=True, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"{self.referrer} - {self.document_type}"

@@ -88,6 +88,39 @@ export const authAPI = {
     }
   },
 
+  register: async (userData: any) => {
+    const response = await fetch(`${API_BASE_URL}/auth/register/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      return data;
+    } else {
+      throw new Error(data.error || 'Registration failed');
+    }
+  },
+
+  registerComprehensive: async (formData: FormData) => {
+    const response = await fetch(`${API_BASE_URL}/auth/register-comprehensive/`, {
+      method: 'POST',
+      body: formData, // Don't set Content-Type header for FormData
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      return data;
+    } else {
+      throw new Error(data.error || 'Registration failed');
+    }
+  },
+
   logout: async () => {
     try {
       await apiRequest('/auth/logout/', { method: 'POST' });
@@ -161,6 +194,11 @@ export const referralsAPI = {
     return apiRequest('/referrals/my_referrals/');
   },
 
+  // Get my submitted referrals (for referrers)
+  getMySubmittedReferrals: async () => {
+    return apiRequest('/referrals/my_submitted_referrals/');
+  },
+
   // Get patients list
   getPatients: async (params?: Record<string, any>) => {
     const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -175,6 +213,65 @@ export const referralsAPI = {
   // Get reports and analytics data
   getReportsAnalytics: async () => {
     return apiRequest('/referrals/reports_analytics/');
+  },
+
+  // Get referrals by time period (week, month, year)
+  getReferralsByTimePeriod: async (filter: string, year?: number, month?: number, week?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
+    return apiRequest(`/referrals/referrals_by_time_period/?${params.toString()}`);
+  },
+
+  // Get department analytics for pie chart
+  getDepartmentAnalytics: async () => {
+    return apiRequest('/referrals/department_analytics/');
+  },
+
+  // Get filtered top hospitals
+  getTopHospitals: async (filter: string, year?: number, month?: number, week?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
+    return apiRequest(`/referrals/top_hospitals/?${params.toString()}`);
+  },
+
+  // Get filtered top departments
+  getTopDepartments: async (filter: string, year?: number, month?: number, week?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
+    return apiRequest(`/referrals/top_departments/?${params.toString()}`);
+  },
+
+  // Get filtered top specialties
+  getTopSpecialties: async (filter: string, year?: number, month?: number, week?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
+    return apiRequest(`/referrals/top_specialties/?${params.toString()}`);
+  },
+
+  // Get coordinated referrals (received by department)
+  getCoordinatedReferrals: async (filter: string, year?: number, month?: number, week?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
+    return apiRequest(`/referrals/coordinated_referrals/?${params.toString()}`);
+  },
+
+  // Get uncoordinated referrals (cancelled)
+  getUncoordinatedReferrals: async (filter: string, year?: number, month?: number, week?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
+    return apiRequest(`/referrals/uncoordinated_referrals/?${params.toString()}`);
   },
 
   // Transfer referral to triage (EDCC Personnel action)
@@ -223,19 +320,112 @@ export const referralsAPI = {
       body: JSON.stringify({ department: newDepartment }),
     });
   },
+
+  // Respond to triage call (Referrer action)
+  respondToTriageCall: async (id: string, transitDecision: string, scheduledDate?: string, scheduledTime?: string) => {
+    const requestBody: any = {
+      transit_decision: transitDecision
+    };
+
+    if (scheduledDate) {
+      requestBody.scheduled_date = scheduledDate;
+    }
+    if (scheduledTime) {
+      requestBody.scheduled_time = scheduledTime;
+    }
+
+    return apiRequest(`/referrals/${id}/respond_to_triage_call/`, {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+  },
+
+  // Get pending accounts for approval
+  getPendingAccounts: async () => {
+    return apiRequest('/referrers/pending_accounts/');
+  },
+
+  // Approve account
+  approveAccount: async (accountId: number) => {
+    return apiRequest(`/referrers/${accountId}/approve_account/`, {
+      method: 'POST',
+    });
+  },
+
+  // Reject account
+  rejectAccount: async (accountId: number) => {
+    return apiRequest(`/referrers/${accountId}/reject_account/`, {
+      method: 'POST',
+    });
+  },
+};
+
+// Admin API
+export const adminAPI = {
+  // Get admin dashboard stats
+  getDashboardStats: async () => {
+    return apiRequest('/admin/dashboard_stats/');
+  },
+
+  // Get all pending referrer registrations
+  getPendingReferrers: async () => {
+    return apiRequest('/referrers/pending_accounts/');
+  },
+
+  // Get all doctors with departments and specialties
+  getAllDoctors: async () => {
+    return apiRequest('/admin/doctors/');
+  },
+
+  // Update doctor specialties
+  updateDoctorSpecialties: async (userId: number, specialtyIds: number[]) => {
+    return apiRequest(`/admin/doctors/${userId}/update_specialties/`, {
+      method: 'POST',
+      body: JSON.stringify({ specialty_ids: specialtyIds }),
+    });
+  },
+
+  // Approve referrer account
+  approveReferrer: async (accountId: number) => {
+    return apiRequest(`/referrers/${accountId}/approve_account/`, {
+      method: 'POST',
+    });
+  },
+
+  // Reject referrer account
+  rejectReferrer: async (accountId: number) => {
+    return apiRequest(`/referrers/${accountId}/reject_account/`, {
+      method: 'POST',
+    });
+  },
 };
 
 // Hospitals API
 export const hospitalsAPI = {
+  // Get all hospitals
   getAll: async () => {
     return apiRequestAnonymous('/hospitals/');
   },
 
+  // Get hospital by ID
+  getById: async (id: string) => {
+    return apiRequestAnonymous(`/hospitals/${id}/`);
+  },
+
+  // Create new hospital
   create: async (hospitalData: any) => {
     return apiRequest('/hospitals/', {
       method: 'POST',
       body: JSON.stringify(hospitalData),
     });
+  },
+};
+
+// Referrer API
+export const referrerAPI = {
+  // Get current referrer's profile for auto-filling forms
+  getMyProfile: async () => {
+    return apiRequest('/referrers/my_profile/');
   },
 };
 
@@ -254,13 +444,25 @@ export const specialtiesAPI = {
 };
 
 // External Referrals API (no auth required)
+// External Referrals API
 export const externalReferralsAPI = {
-  // Create new referral (anonymous)
+  // Create new referral (authenticated if user is logged in, anonymous otherwise)
   create: async (referralData: any) => {
-    return apiRequestAnonymous('/referrals/', {
-      method: 'POST',
-      body: JSON.stringify(referralData),
-    });
+    // Check if user is authenticated
+    const token = getAuthToken();
+    if (token) {
+      // Use authenticated request if user is logged in
+      return apiRequest('/referrals/', {
+        method: 'POST',
+        body: JSON.stringify(referralData),
+      });
+    } else {
+      // Use anonymous request for public submissions
+      return apiRequestAnonymous('/referrals/', {
+        method: 'POST',
+        body: JSON.stringify(referralData),
+      });
+    }
   },
 
   // Get hospitals for dropdown (anonymous)

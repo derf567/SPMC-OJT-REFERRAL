@@ -90,6 +90,19 @@ const OutpatientDetailModal = ({
                 </p>
               </div>
               <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Referral Received</label>
+                <p className="text-sm text-gray-900 dark:text-white mt-1">
+                  📨 {new Date(outpatient.created_at).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })} at {new Date(outpatient.created_at).toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </p>
+              </div>
+              <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
                 <div className="mt-1">
                   {showCompleted ? (
@@ -378,12 +391,13 @@ const Outpatient = () => {
           </div>
           
           <div className="overflow-x-auto">
-            <div className="min-w-[1000px]">
+            <div className="min-w-[1200px]">
               <table className="w-full">
                 <thead className="border-b border-gray-200 dark:border-gray-700">
                   <tr>
                     <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Patient Info</th>
                     <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Appointment</th>
+                    <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Received</th>
                     <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Specialty</th>
                     <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Referring Hospital</th>
                     <th className="text-left p-4 font-medium text-gray-500 dark:text-gray-400 text-sm">Actions</th>
@@ -392,7 +406,7 @@ const Outpatient = () => {
                 <tbody>
                   {filteredOutpatients.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan={6} className="p-8 text-center text-gray-500 dark:text-gray-400">
                         {searchTerm 
                           ? 'No appointments match your search' 
                           : showCompleted 
@@ -439,6 +453,32 @@ const Outpatient = () => {
                               <span className="text-sm text-gray-600 dark:text-gray-400">
                                 {outpatient.scheduled_time}
                               </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="space-y-1">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {new Date(outpatient.created_at).toLocaleDateString()}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {new Date(outpatient.created_at).toLocaleTimeString([], { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}
+                            </div>
+                            <div className="text-xs text-gray-400 dark:text-gray-500">
+                              {(() => {
+                                const now = new Date();
+                                const created = new Date(outpatient.created_at);
+                                const diffInHours = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60));
+                                const diffInDays = Math.floor(diffInHours / 24);
+                                
+                                if (diffInHours < 1) return 'Just now';
+                                if (diffInHours < 24) return `${diffInHours}h ago`;
+                                if (diffInDays < 7) return `${diffInDays}d ago`;
+                                return `${Math.floor(diffInDays / 7)}w ago`;
+                              })()}
                             </div>
                           </div>
                         </td>

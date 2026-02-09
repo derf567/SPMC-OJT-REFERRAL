@@ -4,14 +4,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { referralsAPI } from "@/lib/api";
+import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import {
   Home,
-  FileText,
   Users,
+  Building2,
   BarChart3,
   Calendar,
-  Settings,
-  Search,
   Bell,
   Moon,
   Sun,
@@ -34,8 +33,8 @@ const notifications = [
   },
   {
     id: 2,
-    title: "Referral Completed",
-    message: "Patient Maria Santos successfully transferred",
+    title: "Bed Available",
+    message: "ICU bed now available at SPMC Emergency",
     time: "5 mins ago",
     type: "success"
   },
@@ -65,10 +64,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const notificationRef = useRef<HTMLDivElement>(null);
 
   const navigation = [
-    { name: "Dashboard", href: "/", icon: Home },
+    { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Active Referrals", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
-    { name: "Patients", href: "/patients", icon: Users },
+    { name: "Archived Referrals", href: "/patients", icon: Users },
+    { name: "Facilities", href: "/facilities", icon: Building2 },
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
@@ -180,22 +180,18 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           )}>
             {/* Logo Section */}
             <div className={cn(
-              "flex items-center gap-3 p-4 border-b h-16",
+              "flex flex-col items-center justify-center p-6 border-b",
               isDarkMode ? "border-gray-700" : "border-gray-200"
             )}>
-              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-sm">S</span>
-              </div>
-              <div>
-                <h1 className={cn(
-                  "font-semibold transition-colors duration-300",
-                  isDarkMode ? "text-white" : "text-gray-900"
-                )}>SPMC</h1>
-                <p className={cn(
-                  "text-xs transition-colors duration-300",
-                  isDarkMode ? "text-gray-400" : "text-gray-500"
-                )}>Referral System</p>
-              </div>
+              <img 
+                src="/SPMC-Logo.png" 
+                alt="SPMC Logo" 
+                className="w-20 h-20 mb-3 object-contain"
+              />
+              <h1 className={cn(
+                "text-sm font-semibold text-center transition-colors duration-300",
+                isDarkMode ? "text-white" : "text-gray-900"
+              )}>SPMC Referral System</h1>
             </div>
 
             <nav className="p-4 space-y-2">
@@ -236,21 +232,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 );
               })}
             </nav>
-            
-            <div className="absolute bottom-4 left-4 right-4">
-              <Button
-                variant="ghost"
-                className={cn(
-                  "w-full justify-start",
-                  isDarkMode 
-                    ? "text-gray-400 hover:text-white hover:bg-gray-700" 
-                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
-                )}
-              >
-                <Settings className="w-5 h-5 mr-3" />
-                Settings
-              </Button>
-            </div>
           </div>
 
           {/* Main Content Area */}
@@ -270,6 +251,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
               {/* Right side - Actions and User */}
               <div className="flex items-center gap-4">
+                {/* About Us Button */}
+                <AboutUsDialog isDarkMode={isDarkMode} />
+
                 {/* Dark Mode Toggle */}
                 <Button
                   variant="ghost"
@@ -409,18 +393,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       >
                         <User className="w-4 h-4 mr-2" />
                         Profile
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className={cn(
-                          "w-full justify-start px-4 py-2 transition-colors duration-300",
-                          isDarkMode 
-                            ? "text-gray-300 hover:text-white hover:bg-gray-700" 
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                        )}
-                      >
-                        <Settings className="w-4 h-4 mr-2" />
-                        Settings
                       </Button>
                       <hr className={cn(
                         "my-2 transition-colors duration-300",
