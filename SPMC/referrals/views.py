@@ -714,9 +714,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
         from datetime import timedelta, datetime
         from django.db.models import Count
+        import calendar
         
-        time_filter = request.query_params.get('filter', 'month')  # week, month, year
+        time_filter = request.query_params.get('filter', 'month')
         year = request.query_params.get('year', timezone.now().year)
+        month = request.query_params.get('month', None)
+        week = request.query_params.get('week', None)
         
         try:
             year = int(year)
@@ -726,46 +729,75 @@ class ReferralViewSet(viewsets.ModelViewSet):
         data = []
         
         if time_filter == 'week':
-            # Get last 12 weeks for the specified year
-            start_of_year = datetime(year, 1, 1)
-            end_of_year = datetime(year, 12, 31)
+            try:
+                week_num = int(week) if week else 0
+            except (ValueError, TypeError):
+                week_num = 0
             
-            # Get current date or end of specified year if in the past
-            current_date = min(timezone.now().date(), end_of_year.date())
-            
-            for i in range(11, -1, -1):  # Last 12 weeks
-                week_start = current_date - timedelta(days=current_date.weekday() + (i * 7))
+            if week_num == 0:
+                # Show all weeks of the year
+                jan_1 = datetime(year, 1, 1)
+                days_to_monday = (7 - jan_1.weekday()) % 7
+                if jan_1.weekday() != 0:
+                    days_to_monday = (7 - jan_1.weekday())
+                first_monday = jan_1 + timedelta(days=days_to_monday)
+                
+                for w in range(1, 53):
+                    week_start = first_monday + timedelta(weeks=w - 1)
+                    week_end = week_start + timedelta(days=6)
+                    
+                    # Stop if we've gone past the year
+                    if week_start.year > year:
+                        break
+                    
+                    count = Referral.objects.filter(
+                        created_at__date__gte=week_start.date(),
+                        created_at__date__lte=week_end.date()
+                    ).count()
+                    
+                    data.append({
+                        'period': f'Week {w}: {week_start.strftime("%b %d")} - {week_end.strftime("%b %d, %Y")}',
+                        'full_period': f'{week_start.strftime("%B %d")} - {week_end.strftime("%B %d, %Y")}',
+                        'count': count,
+                        'start_date': week_start.date().isoformat(),
+                        'end_date': week_end.date().isoformat()
+                    })
+            else:
+                # Show the selected week
+                jan_1 = datetime(year, 1, 1)
+                days_to_monday = (7 - jan_1.weekday()) % 7
+                if jan_1.weekday() != 0:
+                    days_to_monday = (7 - jan_1.weekday())
+                first_monday = jan_1 + timedelta(days=days_to_monday)
+                
+                week_start = first_monday + timedelta(weeks=week_num - 1)
                 week_end = week_start + timedelta(days=6)
                 
-                # Ensure we don't go beyond the year boundaries
-                week_start = max(week_start, start_of_year.date())
-                week_end = min(week_end, end_of_year.date())
-                
                 count = Referral.objects.filter(
-                    created_at__date__gte=week_start,
-                    created_at__date__lte=week_end
+                    created_at__date__gte=week_start.date(),
+                    created_at__date__lte=week_end.date()
                 ).count()
                 
                 data.append({
-                    'period': f'Week {12 - i}',
-                    'full_period': f'{week_start.strftime("%m/%d")} - {week_end.strftime("%m/%d")}',
+                    'period': f'Week {week_num}: {week_start.strftime("%b %d")} - {week_end.strftime("%b %d, %Y")}',
+                    'full_period': f'{week_start.strftime("%B %d")} - {week_end.strftime("%B %d, %Y")}',
                     'count': count,
-                    'start_date': week_start.isoformat(),
-                    'end_date': week_end.isoformat()
+                    'start_date': week_start.date().isoformat(),
+                    'end_date': week_end.date().isoformat()
                 })
         
         elif time_filter == 'month':
-            # Get 12 months for the specified year
-            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            try:
+                month_num = int(month) if month else 0
+            except (ValueError, TypeError):
+                month_num = 0
             
-            for month in range(1, 13):
-                try:
-                    month_start = datetime(year, month, 1).date()
-                    # Get last day of month
-                    if month == 12:
-                        month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
-                    else:
-                        month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+            if month_num == 0:
+                # Show all months of the year
+                for m in range(1, 13):
+                    month_start = datetime(year, m, 1).date()
+                    last_day = calendar.monthrange(year, m)[1]
+                    month_end = datetime(year, m, last_day).date()
                     
                     count = Referral.objects.filter(
                         created_at__date__gte=month_start,
@@ -773,36 +805,51 @@ class ReferralViewSet(viewsets.ModelViewSet):
                     ).count()
                     
                     data.append({
-                        'period': f'{months[month-1]} {year}',
-                        'full_period': f'{months[month-1]} {year}',
+                        'period': f'{month_start.strftime("%B %Y")}',
+                        'full_period': f'{month_start.strftime("%B %d")} - {month_end.strftime("%B %d, %Y")}',
                         'count': count,
                         'start_date': month_start.isoformat(),
                         'end_date': month_end.isoformat()
                     })
-                except ValueError:
-                    # Handle invalid dates
-                    continue
-        
-        else:  # year
-            # Get last 5 years
-            current_year = timezone.now().year
-            for i in range(4, -1, -1):
-                target_year = current_year - i
-                year_start = datetime(target_year, 1, 1).date()
-                year_end = datetime(target_year, 12, 31).date()
+            else:
+                # Show the selected month
+                month_num = max(1, min(12, month_num))
+                
+                month_start = datetime(year, month_num, 1).date()
+                last_day = calendar.monthrange(year, month_num)[1]
+                month_end = datetime(year, month_num, last_day).date()
                 
                 count = Referral.objects.filter(
-                    created_at__date__gte=year_start,
-                    created_at__date__lte=year_end
+                    created_at__date__gte=month_start,
+                    created_at__date__lte=month_end
                 ).count()
                 
                 data.append({
-                    'period': str(target_year),
-                    'full_period': str(target_year),
+                    'period': f'{month_start.strftime("%B %Y")}',
+                    'full_period': f'{month_start.strftime("%B %d")} - {month_end.strftime("%B %d, %Y")}',
                     'count': count,
-                    'start_date': year_start.isoformat(),
-                    'end_date': year_end.isoformat()
+                    'start_date': month_start.isoformat(),
+                    'end_date': month_end.isoformat()
                 })
+        
+        else:  # year
+            # Show the selected year
+            year_start = datetime(year, 1, 1).date()
+            year_end = datetime(year, 12, 31).date()
+            
+            count = Referral.objects.filter(
+                created_at__date__gte=year_start,
+                created_at__date__lte=year_end
+            ).count()
+            
+            # Format: "2026"
+            data.append({
+                'period': str(year),
+                'full_period': str(year),
+                'count': count,
+                'start_date': year_start.isoformat(),
+                'end_date': year_end.isoformat()
+            })
         
         return Response(data)
 
@@ -854,31 +901,74 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         return Response(result)
 
-    @action(detail=False, methods=['get'])
-    def top_hospitals(self, request):
-        """Get top referring hospitals with time filter"""
+    def _get_date_range_for_filter(self, time_filter, year, month=None, week=None):
+        """Helper method to calculate date range based on filter type"""
         from django.utils import timezone
         from datetime import timedelta, datetime
-        from django.db.models import Count
-        
-        time_filter = request.query_params.get('filter', 'month')
-        year = request.query_params.get('year', timezone.now().year)
+        import calendar
         
         try:
-            year = int(year)
+            year = int(year) if year else timezone.now().year
         except (ValueError, TypeError):
             year = timezone.now().year
         
-        # Calculate date range based on filter
         if time_filter == 'week':
-            start_date = timezone.now() - timedelta(weeks=12)
-            end_date = timezone.now()
+            # Get specific week of the year
+            try:
+                week_num = int(week) if week else 1
+            except (ValueError, TypeError):
+                week_num = 1
+            
+            # Calculate the start date of the week (Monday)
+            jan_1 = datetime(year, 1, 1)
+            # Find the first Monday of the year
+            days_to_monday = (7 - jan_1.weekday()) % 7
+            if jan_1.weekday() != 0:  # If Jan 1 is not Monday
+                days_to_monday = (7 - jan_1.weekday())
+            first_monday = jan_1 + timedelta(days=days_to_monday)
+            
+            # Calculate start of the requested week
+            start_of_week = first_monday + timedelta(weeks=week_num - 1)
+            end_of_week = start_of_week + timedelta(days=6)
+            
+            start_date = timezone.make_aware(datetime.combine(start_of_week.date(), datetime.min.time()))
+            end_date = timezone.make_aware(datetime.combine(end_of_week.date(), datetime.max.time()))
+            
         elif time_filter == 'month':
-            start_date = datetime(year, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
+            # Get specific month of the selected year
+            try:
+                month_num = int(month) if month else timezone.now().month
+            except (ValueError, TypeError):
+                month_num = timezone.now().month
+            
+            # Ensure month is valid (1-12)
+            month_num = max(1, min(12, month_num))
+            
+            # Start of the month
+            start_date = timezone.make_aware(datetime(year, month_num, 1, 0, 0, 0))
+            
+            # End of the month (last day)
+            last_day = calendar.monthrange(year, month_num)[1]
+            end_date = timezone.make_aware(datetime(year, month_num, last_day, 23, 59, 59))
+            
         else:  # year
-            start_date = datetime(year - 4, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
+            # Show the entire selected year
+            start_date = timezone.make_aware(datetime(year, 1, 1, 0, 0, 0))
+            end_date = timezone.make_aware(datetime(year, 12, 31, 23, 59, 59))
+        
+        return start_date, end_date
+
+    @action(detail=False, methods=['get'])
+    def top_hospitals(self, request):
+        """Get top referring hospitals with time filter"""
+        from django.db.models import Count
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = request.query_params.get('year', None)
+        month = request.query_params.get('month', None)
+        week = request.query_params.get('week', None)
+        
+        start_date, end_date = self._get_date_range_for_filter(time_filter, year, month, week)
         
         # Get referrals in date range
         referrals_in_range = Referral.objects.filter(
@@ -909,28 +999,14 @@ class ReferralViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def top_departments(self, request):
         """Get top referring departments with time filter"""
-        from django.utils import timezone
-        from datetime import timedelta, datetime
         from django.db.models import Count
         
         time_filter = request.query_params.get('filter', 'month')
-        year = request.query_params.get('year', timezone.now().year)
+        year = request.query_params.get('year', None)
+        month = request.query_params.get('month', None)
+        week = request.query_params.get('week', None)
         
-        try:
-            year = int(year)
-        except (ValueError, TypeError):
-            year = timezone.now().year
-        
-        # Calculate date range based on filter
-        if time_filter == 'week':
-            start_date = timezone.now() - timedelta(weeks=12)
-            end_date = timezone.now()
-        elif time_filter == 'month':
-            start_date = datetime(year, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
-        else:  # year
-            start_date = datetime(year - 4, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
+        start_date, end_date = self._get_date_range_for_filter(time_filter, year, month, week)
         
         # Get referrals in date range with assigned departments
         referrals_in_range = Referral.objects.filter(
@@ -969,28 +1045,14 @@ class ReferralViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def top_specialties(self, request):
         """Get top specialties with time filter"""
-        from django.utils import timezone
-        from datetime import timedelta, datetime
         from django.db.models import Count
         
         time_filter = request.query_params.get('filter', 'month')
-        year = request.query_params.get('year', timezone.now().year)
+        year = request.query_params.get('year', None)
+        month = request.query_params.get('month', None)
+        week = request.query_params.get('week', None)
         
-        try:
-            year = int(year)
-        except (ValueError, TypeError):
-            year = timezone.now().year
-        
-        # Calculate date range based on filter
-        if time_filter == 'week':
-            start_date = timezone.now() - timedelta(weeks=12)
-            end_date = timezone.now()
-        elif time_filter == 'month':
-            start_date = datetime(year, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
-        else:  # year
-            start_date = datetime(year - 4, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
+        start_date, end_date = self._get_date_range_for_filter(time_filter, year, month, week)
         
         # Get referrals in date range
         referrals_in_range = Referral.objects.filter(
@@ -1017,27 +1079,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def coordinated_referrals(self, request):
         """Get coordinated referrals (received by department)"""
-        from django.utils import timezone
-        from datetime import timedelta, datetime
-        
         time_filter = request.query_params.get('filter', 'month')
-        year = request.query_params.get('year', timezone.now().year)
+        year = request.query_params.get('year', None)
+        month = request.query_params.get('month', None)
+        week = request.query_params.get('week', None)
         
-        try:
-            year = int(year)
-        except (ValueError, TypeError):
-            year = timezone.now().year
-        
-        # Calculate date range based on filter
-        if time_filter == 'week':
-            start_date = timezone.now() - timedelta(weeks=12)
-            end_date = timezone.now()
-        elif time_filter == 'month':
-            start_date = datetime(year, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
-        else:  # year
-            start_date = datetime(year - 4, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
+        start_date, end_date = self._get_date_range_for_filter(time_filter, year, month, week)
         
         # Get coordinated referrals (status: completed, in_transit, waiting, emergent, urgent, schedule_opd)
         # These are referrals that have been received and are being processed by the department
@@ -1067,27 +1114,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def uncoordinated_referrals(self, request):
         """Get uncoordinated referrals (cancelled)"""
-        from django.utils import timezone
-        from datetime import timedelta, datetime
-        
         time_filter = request.query_params.get('filter', 'month')
-        year = request.query_params.get('year', timezone.now().year)
+        year = request.query_params.get('year', None)
+        month = request.query_params.get('month', None)
+        week = request.query_params.get('week', None)
         
-        try:
-            year = int(year)
-        except (ValueError, TypeError):
-            year = timezone.now().year
-        
-        # Calculate date range based on filter
-        if time_filter == 'week':
-            start_date = timezone.now() - timedelta(weeks=12)
-            end_date = timezone.now()
-        elif time_filter == 'month':
-            start_date = datetime(year, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
-        else:  # year
-            start_date = datetime(year - 4, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
+        start_date, end_date = self._get_date_range_for_filter(time_filter, year, month, week)
         
         # Get uncoordinated referrals (status: cancelled)
         uncoordinated = Referral.objects.filter(

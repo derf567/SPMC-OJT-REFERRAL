@@ -34,8 +34,12 @@ const Login = () => {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
-            <span className="text-white font-bold text-2xl">S</span>
+          <div className="mx-auto mb-4 flex items-center justify-center">
+            <img 
+              src="/SPMC-Logo.png" 
+              alt="SPMC Logo" 
+              className="h-40 w-40 object-contain"
+            />
           </div>
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
             SPMC Referral System

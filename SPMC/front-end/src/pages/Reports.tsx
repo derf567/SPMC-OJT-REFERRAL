@@ -57,6 +57,8 @@ const Reports = () => {
   // Global filter that controls all sections
   const [globalFilter, setGlobalFilter] = useState<TimeFilter>('month');
   const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
+  const [globalMonth, setGlobalMonth] = useState(0); // 0 = All, 1-12 = specific month
+  const [globalWeek, setGlobalWeek] = useState(0); // 0 = All, 1-52 = specific week
   
   const [referralsByTime, setReferralsByTime] = useState<any[]>([]);
   const [departmentData, setDepartmentData] = useState<any[]>([]);
@@ -97,12 +99,12 @@ const Reports = () => {
         coordinatedData,
         uncoordinatedData
       ] = await Promise.all([
-        referralsAPI.getReferralsByTimePeriod(globalFilter, globalYear),
-        referralsAPI.getTopDepartments(globalFilter, globalYear),
-        referralsAPI.getTopHospitals(globalFilter, globalYear),
-        referralsAPI.getTopSpecialties(globalFilter, globalYear),
-        referralsAPI.getCoordinatedReferrals(globalFilter, globalYear),
-        referralsAPI.getUncoordinatedReferrals(globalFilter, globalYear)
+        referralsAPI.getReferralsByTimePeriod(globalFilter, globalYear, globalMonth, globalWeek),
+        referralsAPI.getTopDepartments(globalFilter, globalYear, globalMonth, globalWeek),
+        referralsAPI.getTopHospitals(globalFilter, globalYear, globalMonth, globalWeek),
+        referralsAPI.getTopSpecialties(globalFilter, globalYear, globalMonth, globalWeek),
+        referralsAPI.getCoordinatedReferrals(globalFilter, globalYear, globalMonth, globalWeek),
+        referralsAPI.getUncoordinatedReferrals(globalFilter, globalYear, globalMonth, globalWeek)
       ]);
 
       setReferralsByTime(referralsByTimeData);
@@ -151,7 +153,7 @@ const Reports = () => {
   // Fetch all filtered data when global filter or year changes
   useEffect(() => {
     fetchAllFilteredData();
-  }, [globalFilter, globalYear]);
+  }, [globalFilter, globalYear, globalMonth, globalWeek]);
 
   if (loading) {
     return (
@@ -182,7 +184,7 @@ const Reports = () => {
     );
   }
 
-  const { summary, top_hospitals, specialty_distribution } = reportsData;
+  const { summary } = reportsData;
   const maxReferrals = Math.max(...referralsByTime.map(item => item.count), 1);
   const totalDepartmentReferrals = departmentData.reduce((sum, dept) => sum + dept.count, 0);
 
@@ -214,7 +216,59 @@ const Reports = () => {
                 </Button>
               ))}
             </div>
+            
+            {/* Year Selector */}
             {globalFilter !== 'year' && (
+              <select
+                value={globalYear}
+                onChange={(e) => setGlobalYear(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                {availableYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            )}
+            
+            {/* Month Selector */}
+            {globalFilter === 'month' && (
+              <select
+                value={globalMonth}
+                onChange={(e) => setGlobalMonth(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                <option value={0}>All Months</option>
+                <option value={1}>January</option>
+                <option value={2}>February</option>
+                <option value={3}>March</option>
+                <option value={4}>April</option>
+                <option value={5}>May</option>
+                <option value={6}>June</option>
+                <option value={7}>July</option>
+                <option value={8}>August</option>
+                <option value={9}>September</option>
+                <option value={10}>October</option>
+                <option value={11}>November</option>
+                <option value={12}>December</option>
+              </select>
+            )}
+            
+            {/* Week Selector */}
+            {globalFilter === 'week' && (
+              <select
+                value={globalWeek}
+                onChange={(e) => setGlobalWeek(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                <option value={0}>All Weeks</option>
+                {Array.from({ length: 52 }, (_, i) => i + 1).map(week => (
+                  <option key={week} value={week}>Week {week}</option>
+                ))}
+              </select>
+            )}
+            
+            {/* Year Selector for Year filter */}
+            {globalFilter === 'year' && (
               <select
                 value={globalYear}
                 onChange={(e) => setGlobalYear(Number(e.target.value))}
@@ -280,7 +334,7 @@ const Reports = () => {
                 <div key={index} className="flex items-center justify-between">
                   <div>
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{item.period}</span>
-                    {globalFilter === 'week' && item.full_period && (
+                    {(globalFilter === 'week' || globalFilter === 'month') && item.full_period && (
                       <p className="text-xs text-gray-500 dark:text-gray-400">{item.full_period}</p>
                     )}
                   </div>
