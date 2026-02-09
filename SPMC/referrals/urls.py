@@ -1,15 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-<<<<<<< HEAD
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 from .views import (
     ReferringHospitalViewSet, SpecialtyViewSet, ReferralViewSet, TransitInfoViewSet, ReferrerAccountViewSet,
     admin_dashboard_stats, get_all_doctors, update_doctor_specialties
 )
-=======
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from .views import ReferringHospitalViewSet, SpecialtyViewSet, ReferralViewSet, TransitInfoViewSet, ReferrerAccountViewSet
->>>>>>> 6b4c22954629d4ee2353e45cf05ad894f4239880
 from .authentication import login_view, logout_view, user_profile, register_view, comprehensive_register_view
 
 @api_view(['GET'])
