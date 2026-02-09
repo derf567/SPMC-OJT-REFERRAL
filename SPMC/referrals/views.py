@@ -1251,10 +1251,10 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def pending_accounts(self, request):
-        """Get all pending referrer accounts for approval (Triage Users only)"""
-        # Check if user has triage permissions
+        """Get all referrer accounts for approval (Admin only)"""
+        # Check if user is admin
         user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not user_profile.can_triage_referrals:
+        if not user_profile or not user_profile.is_admin_user:
             return Response({
                 'error': 'You do not have permission to view pending accounts'
             }, status=status.HTTP_403_FORBIDDEN)
@@ -1269,10 +1269,10 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def approve_account(self, request, pk=None):
-        """Approve a pending referrer account (Triage Users only)"""
-        # Check if user has triage permissions
+        """Approve a pending referrer account (Admin only)"""
+        # Check if user is admin
         user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not user_profile.can_triage_referrals:
+        if not user_profile or not user_profile.is_admin_user:
             return Response({
                 'error': 'You do not have permission to approve accounts'
             }, status=status.HTTP_403_FORBIDDEN)
@@ -1305,10 +1305,10 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def reject_account(self, request, pk=None):
-        """Reject a pending referrer account (Triage Users only)"""
-        # Check if user has triage permissions
+        """Reject a pending referrer account (Admin only)"""
+        # Check if user is admin
         user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not user_profile.can_triage_referrals:
+        if not user_profile or not user_profile.is_admin_user:
             return Response({
                 'error': 'You do not have permission to reject accounts'
             }, status=status.HTTP_403_FORBIDDEN)
@@ -1354,3 +1354,150 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
             })
         
         return Response(result)
+
+
+# Admin-specific views
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from .models import UserProfile
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_dashboard_stats(request):
+    """Get admin dashboard statistics"""
+    # Check if user is admin only
+    user_profile = getattr(request.user, 'profile', None)
+    if not user_profile or not user_profile.is_admin_user:
+        return Response({
+            'error': 'You do not have permission to access admin dashboard'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get pending referrer registrations count
+    pending_referrers = ReferrerAccount.objects.filter(approval_status='pending').count()
+    
+    # Get total referrers
+    total_referrers = ReferrerAccount.objects.count()
+    approved_referrers = ReferrerAccount.objects.filter(approval_status='approved').count()
+    rejected_referrers = ReferrerAccount.objects.filter(approval_status='rejected').count()
+    
+    # Get total doctors (users with referrer role)
+    total_doctors = UserProfile.objects.filter(role='referrer').count()
+    
+    # Get total referrals
+    total_referrals = Referral.objects.count()
+    
+    # Get recent activity (last 7 days)
+    from datetime import timedelta
+    week_ago = timezone.now() - timedelta(days=7)
+    recent_referrals = Referral.objects.filter(created_at__gte=week_ago).count()
+    recent_registrations = ReferrerAccount.objects.filter(created_at__gte=week_ago).count()
+    
+    return Response({
+        'pending_referrers': pending_referrers,
+        'total_referrers': total_referrers,
+        'approved_referrers': approved_referrers,
+        'rejected_referrers': rejected_referrers,
+        'total_doctors': total_doctors,
+        'total_referrals': total_referrals,
+        'recent_referrals': recent_referrals,
+        'recent_registrations': recent_registrations,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_all_doctors(request):
+    """Get all doctors with their departments and specialties"""
+    # Check if user is admin only
+    user_profile = getattr(request.user, 'profile', None)
+    if not user_profile or not user_profile.is_admin_user:
+        return Response({
+            'error': 'You do not have permission to view doctors'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get all users with UserProfile (SPMC staff)
+    doctors = UserProfile.objects.select_related('user').all()
+    
+    doctors_data = []
+    for profile in doctors:
+        # Get referrer account if exists (for specialties)
+        referrer_account = None
+        try:
+            referrer_account = ReferrerAccount.objects.prefetch_related('specialties').get(user=profile.user)
+        except ReferrerAccount.DoesNotExist:
+            pass
+        
+        specialties = []
+        if referrer_account:
+            specialties = [
+                {'id': s.id, 'name': s.name} 
+                for s in referrer_account.specialties.all()
+            ]
+        
+        doctors_data.append({
+            'id': profile.user.id,
+            'name': profile.user.get_full_name() or profile.user.username,
+            'username': profile.user.username,
+            'email': profile.user.email,
+            'role': profile.role,
+            'role_display': profile.get_role_display(),
+            'department': profile.department or 'Not Assigned',
+            'specialties': specialties,
+            'contact_number': profile.contact_number,
+        })
+    
+    return Response(doctors_data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_doctor_specialties(request, user_id):
+    """Update doctor's specialties"""
+    # Check if user is admin only
+    user_profile = getattr(request.user, 'profile', None)
+    if not user_profile or not user_profile.is_admin_user:
+        return Response({
+            'error': 'You do not have permission to update doctor specialties'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        from django.contrib.auth.models import User
+        doctor_user = User.objects.get(id=user_id)
+        
+        # Get or create referrer account for this user
+        referrer_account, created = ReferrerAccount.objects.get_or_create(
+            user=doctor_user,
+            defaults={
+                'first_name': doctor_user.first_name,
+                'last_name': doctor_user.last_name,
+                'referrer_type': 'doctor',
+                'approval_status': 'approved'
+            }
+        )
+        
+        # Get specialty IDs from request
+        specialty_ids = request.data.get('specialty_ids', [])
+        
+        # Update specialties
+        if specialty_ids:
+            specialties = Specialty.objects.filter(id__in=specialty_ids)
+            referrer_account.specialties.set(specialties)
+        else:
+            referrer_account.specialties.clear()
+        
+        # Return updated specialties
+        updated_specialties = [
+            {'id': s.id, 'name': s.name} 
+            for s in referrer_account.specialties.all()
+        ]
+        
+        return Response({
+            'success': True,
+            'message': 'Specialties updated successfully',
+            'specialties': updated_specialties
+        })
+        
+    except User.DoesNotExist:
+        return Response({
+            'error': 'Doctor not found'
+        }, status=status.HTTP_404_NOT_FOUND)

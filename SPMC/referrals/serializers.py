@@ -90,15 +90,7 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
         docs = validated_data.pop('documents', [])
         specialties = validated_data.pop('specialties', [])
         referrer_type = validated_data.get('referrer_type')
-        if referrer_type == 'hospital_account':
-            hospital_name = validated_data.pop('hospital_name', '')
-            if hospital_name:
-                hospital, created = ReferringHospital.objects.get_or_create(name=hospital_name)
-                affiliate_hospitals = [hospital.id]
-            else:
-                affiliate_hospitals = []
-        else:
-            affiliate_hospitals = validated_data.pop('affiliate_hospitals', [])
+        affiliate_hospitals = validated_data.pop('affiliate_hospitals', [])
         age = validated_data.pop('age', None)
         region = validated_data.pop('region', '')
         province = validated_data.pop('province', '')
@@ -148,7 +140,7 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
 
         # create documents
         for f in docs:
-            doc_type = 'official_id' if referrer_type in ['doctor', 'hospital_employee'] else 'legal_document' if referrer_type == 'hospital_account' else 'other'
+            doc_type = 'official_id' if referrer_type in ['doctor', 'hospital_employee'] else 'other'
             ReferrerDocument.objects.create(
                 referrer=referrer,
                 document_type=doc_type,

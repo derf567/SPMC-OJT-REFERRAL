@@ -1,0 +1,218 @@
+import { ReactNode, useState, useEffect, useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  Home,
+  UserCheck,
+  Users,
+  BarChart3,
+  Moon,
+  Sun,
+  ChevronDown,
+  LogOut,
+} from "lucide-react";
+
+interface AdminDashboardLayoutProps {
+  children: ReactNode;
+}
+
+export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [pendingApprovals] = useState(0);
+  
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const navigation = [
+    { name: "Dashboard", href: "/admin/dashboard", icon: Home },
+    { name: "Account Approval", href: "/admin/approvals", icon: UserCheck, badge: pendingApprovals > 0 ? pendingApprovals.toString() : undefined },
+    { name: "Heads Up", href: "/admin/headsup", icon: Users },
+    { name: "Reports", href: "/reports", icon: BarChart3 },
+  ];
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      navigate('/login');
+    }
+  };
+
+  const getUserInitials = () => {
+    if (user?.first_name && user?.last_name) {
+      return `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`;
+    }
+    return user?.username?.substring(0, 2).toUpperCase() || 'A';
+  };
+
+  return (
+    <div className={cn("min-h-screen", isDarkMode ? "dark" : "")}>
+      <div className={cn(
+        "min-h-screen transition-colors duration-300",
+        isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
+      )}>
+        <div className="flex">
+          {/* Sidebar */}
+          <div className={cn(
+            "w-64 border-r min-h-screen fixed left-0 top-0 z-30",
+            isDarkMode 
+              ? "bg-gray-800 border-gray-700" 
+              : "bg-white border-gray-200"
+          )}>
+            {/* Logo Section */}
+            <div className={cn(
+              "flex flex-col items-center justify-center p-6 border-b",
+              isDarkMode ? "border-gray-700" : "border-gray-200"
+            )}>
+              <img 
+                src="/SPMC-Logo.png" 
+                alt="SPMC Logo" 
+                className="w-20 h-20 mb-3 object-contain"
+              />
+              <h1 className={cn(
+                "text-sm font-semibold text-center transition-colors duration-300",
+                isDarkMode ? "text-white" : "text-gray-900"
+              )}>SPMC Admin Portal</h1>
+            </div>
+
+            <nav className="p-4 space-y-2">
+              {navigation.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={cn(
+                      "flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300",
+                      isActive
+                        ? "bg-purple-600 text-white"
+                        : isDarkMode
+                          ? "text-gray-300 hover:text-white hover:bg-gray-700"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      <span>{item.name}</span>
+                    </div>
+                    {item.badge && (
+                      <span className={cn(
+                        "px-2 py-0.5 text-xs rounded-full font-medium transition-all duration-300",
+                        isActive 
+                          ? "bg-purple-500 text-white" 
+                          : "bg-red-500 text-white animate-pulse"
+                      )}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-1 ml-64">
+            {/* Top Header */}
+            <header className={cn(
+              "h-16 border-b flex items-center justify-between px-6 sticky top-0 z-20 transition-colors duration-300",
+              isDarkMode 
+                ? "bg-gray-800 border-gray-700" 
+                : "bg-white border-gray-200"
+            )}>
+              <div className="flex items-center gap-6 flex-1">
+                <h2 className="text-lg font-semibold">Administrator</h2>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleDarkMode}
+                  className="rounded-full"
+                >
+                  {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </Button>
+
+                <div className="relative" ref={userMenuRef}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="flex items-center gap-2"
+                  >
+                    <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      {getUserInitials()}
+                    </div>
+                    <span className="text-sm font-medium">{user?.username}</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+
+                  {showUserMenu && (
+                    <div className={cn(
+                      "absolute right-0 mt-2 w-48 rounded-lg shadow-lg border overflow-hidden",
+                      isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+                    )}>
+                      <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+                        <p className="text-sm font-medium">{user?.username}</p>
+                        <p className="text-xs text-gray-500">Administrator</p>
+                      </div>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </header>
+
+            {/* Page Content */}
+            <main className="p-6">
+              {children}
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

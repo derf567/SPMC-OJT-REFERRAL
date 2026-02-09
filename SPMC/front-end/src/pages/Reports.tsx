@@ -1,4 +1,6 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { AdminDashboardLayout } from "@/components/layout/AdminDashboardLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { referralsAPI } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -51,6 +53,7 @@ interface ReportsData {
 type TimeFilter = 'week' | 'month' | 'year';
 
 const Reports = () => {
+  const { user } = useAuth();
   const [reportsData, setReportsData] = useState<ReportsData | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -161,9 +164,12 @@ const Reports = () => {
     fetchAllFilteredData();
   }, [globalFilter, globalYear, globalMonth, globalWeek, weekFilterMonth]);
 
+  // Determine which layout to use based on user role
+  const Layout = user?.permissions?.is_admin_user ? AdminDashboardLayout : DashboardLayout;
+
   if (loading) {
     return (
-      <DashboardLayout>
+      <Layout>
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports & Analytics</h1>
@@ -173,29 +179,30 @@ const Reports = () => {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         </div>
-      </DashboardLayout>
+      </Layout>
     );
   }
 
   if (!reportsData) {
     return (
-      <DashboardLayout>
+      <Layout>
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports & Analytics</h1>
             <p className="text-gray-500 dark:text-gray-400">Failed to load reports data</p>
           </div>
         </div>
-      </DashboardLayout>
+      </Layout>
     );
   }
 
+  // Destructure data after null checks
   const { summary } = reportsData;
   const maxReferrals = Math.max(...referralsByTime.map(item => item.count), 1);
   const totalDepartmentReferrals = departmentData.reduce((sum, dept) => sum + dept.count, 0);
 
   return (
-    <DashboardLayout>
+    <Layout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -765,7 +772,7 @@ const Reports = () => {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </Layout>
   );
 };
 

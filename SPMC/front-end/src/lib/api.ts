@@ -360,6 +360,46 @@ export const referralsAPI = {
   },
 };
 
+// Admin API
+export const adminAPI = {
+  // Get admin dashboard stats
+  getDashboardStats: async () => {
+    return apiRequest('/admin/dashboard_stats/');
+  },
+
+  // Get all pending referrer registrations
+  getPendingReferrers: async () => {
+    return apiRequest('/referrers/pending_accounts/');
+  },
+
+  // Get all doctors with departments and specialties
+  getAllDoctors: async () => {
+    return apiRequest('/admin/doctors/');
+  },
+
+  // Update doctor specialties
+  updateDoctorSpecialties: async (userId: number, specialtyIds: number[]) => {
+    return apiRequest(`/admin/doctors/${userId}/update_specialties/`, {
+      method: 'POST',
+      body: JSON.stringify({ specialty_ids: specialtyIds }),
+    });
+  },
+
+  // Approve referrer account
+  approveReferrer: async (accountId: number) => {
+    return apiRequest(`/referrers/${accountId}/approve_account/`, {
+      method: 'POST',
+    });
+  },
+
+  // Reject referrer account
+  rejectReferrer: async (accountId: number) => {
+    return apiRequest(`/referrers/${accountId}/reject_account/`, {
+      method: 'POST',
+    });
+  },
+};
+
 // Hospitals API
 export const hospitalsAPI = {
   // Get all hospitals

@@ -1,5 +1,7 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { referralsAPI } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -49,12 +51,26 @@ interface PendingAccount {
 }
 
 const Approval = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [pendingAccounts, setPendingAccounts] = useState<PendingAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState<PendingAccount | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const { toast } = useToast();
+
+  // Redirect non-admin users
+  useEffect(() => {
+    if (user && !user.permissions?.is_admin_user) {
+      toast({
+        title: "Access Denied",
+        description: "Only administrators can access account approval.",
+        variant: "destructive",
+      });
+      navigate('/dashboard');
+    }
+  }, [user, navigate, toast]);
 
   const fetchPendingAccounts = async () => {
     try {
@@ -132,7 +148,6 @@ const Approval = () => {
     const types: { [key: string]: string } = {
       'doctor': 'Doctor / Medical Professional',
       'hospital_employee': 'Authorized Hospital Employee',
-      'hospital_account': 'Hospital Account',
       'other': 'Other'
     };
     return types[type] || type;
