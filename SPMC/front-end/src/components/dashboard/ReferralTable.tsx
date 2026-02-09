@@ -492,7 +492,7 @@ const ReferralDetailModal = ({
               Transfer to EDMAR/EDHO Triage
             </Button>
           )}
-          {user?.permissions?.can_triage_referrals && referral.assigned_department && (
+          {user?.permissions?.can_triage_referrals && referral.assigned_department && referral.status === 'waiting' && (
             <Button 
               className="bg-orange-600 hover:bg-orange-700 text-white"
               onClick={() => {
@@ -503,7 +503,7 @@ const ReferralDetailModal = ({
               Change Department
             </Button>
           )}
-          {user?.permissions?.can_triage_referrals && (
+          {user?.permissions?.can_triage_referrals && referral.status === 'waiting' && (
             <Button 
               className="bg-green-600 hover:bg-green-700 text-white"
               onClick={() => {
@@ -864,9 +864,9 @@ export const ReferralTable = () => {
       setDateError("");
       
       // Success notification with triage decision
-      const decisionEmoji = triageDecision === 'critical' ? '🚨' : 
+      const decisionEmoji = triageDecision === 'emergent' ? '🚨' : 
                            triageDecision === 'urgent' ? '⚡' : '📅';
-      const decisionText = triageDecision === 'critical' ? 'EMERGENT' :
+      const decisionText = triageDecision === 'emergent' ? 'EMERGENT' :
                           triageDecision === 'urgent' ? 'URGENT' :
                           triageDecision.replace('_', ' ').toUpperCase();
       
@@ -934,7 +934,7 @@ export const ReferralTable = () => {
     if (referral.triage_decision) {
       let triageStep;
       
-      if (referral.triage_decision === 'critical') {
+      if (referral.triage_decision === 'emergent') {
         triageStep = {
           status: 'emergent',
           label: 'Emergent Care',
@@ -1472,7 +1472,7 @@ export const ReferralTable = () => {
                             <Truck className="w-4 h-4" />
                           </Button>
                         )}
-                        {user?.permissions?.can_triage_referrals && (
+                        {user?.permissions?.can_triage_referrals && referral.status === 'waiting' && (
                           <Button 
                             variant="ghost" 
                             size="sm" 
@@ -1569,7 +1569,7 @@ export const ReferralTable = () => {
                   required
                 >
                   <option value="">Select triage decision...</option>
-                  <option value="critical">🚨 Emergent - Immediate attention required (RED)</option>
+                  <option value="emergent">🚨 Emergent - Immediate attention required (RED)</option>
                   <option value="urgent">⚡ Urgent - Needs prompt care (AMBER)</option>
                   <option value="schedule_opd">📅 Schedule for OPD - Outpatient follow-up</option>
                 </select>
@@ -1669,12 +1669,12 @@ export const ReferralTable = () => {
               {triageDecision && (
                 <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    <strong>Selected:</strong> {triageDecision === 'critical' ? '🚨 Emergent' : 
+                    <strong>Selected:</strong> {triageDecision === 'emergent' ? '🚨 Emergent' : 
                                                 triageDecision === 'urgent' ? '⚡ Urgent' : 
                                                 '📅 Schedule for OPD'}
                   </p>
                   <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
-                    {triageDecision === 'critical' ? 'Patient will be prioritized for immediate care' : 
+                    {triageDecision === 'emergent' ? 'Patient will be prioritized for immediate care' : 
                      triageDecision === 'urgent' ? 'Patient will receive prompt attention' : 
                      'Patient will be scheduled for outpatient follow-up'}
                   </p>

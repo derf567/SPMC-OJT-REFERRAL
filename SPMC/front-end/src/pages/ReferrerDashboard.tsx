@@ -244,7 +244,7 @@ const ReferrerDashboard = () => {
     if (referral.triage_decision) {
       let triageStep;
       
-      if (referral.triage_decision === 'critical') {
+      if (referral.triage_decision === 'emergent') {
         triageStep = {
           status: 'emergent',
           label: 'Emergent Care',

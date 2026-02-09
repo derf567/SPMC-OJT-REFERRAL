@@ -36,7 +36,17 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
       removeAuthToken();
       window.location.href = '/login';
     }
-    throw new Error(`HTTP error! status: ${response.status}`);
+    // Try to get error details from response
+    let errorMessage = `HTTP error! status: ${response.status}`;
+    try {
+      const errorData = await response.json();
+      console.error('API Error Details:', errorData);
+      errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+    } catch (e) {
+      // If response is not JSON, use status text
+      errorMessage = `HTTP error! status: ${response.status} - ${response.statusText}`;
+    }
+    throw new Error(errorMessage);
   }
   
   return response.json();
