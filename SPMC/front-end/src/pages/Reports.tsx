@@ -346,10 +346,10 @@ const Reports = () => {
           </div>
           
           <div className="bg-red-50 dark:bg-gray-800 border border-red-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
-            <h3 className="text-lg font-semibold text-red-800 dark:text-red-400 mb-2">Cancelled</h3>
+            <h3 className="text-lg font-semibold text-red-800 dark:text-red-400 mb-2">Uncoordinated</h3>
             <p className="text-3xl font-bold text-red-600 dark:text-red-400">{summary.cancelled_referrals.toLocaleString()}</p>
             <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-              {summary.cancellation_rate}% cancellation rate
+              {summary.cancellation_rate}% uncoordinated rate
             </p>
           </div>
         </div>
@@ -678,7 +678,7 @@ const Reports = () => {
               <Calendar className="w-5 h-5 text-red-600" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Uncoordinated Referrals</h3>
               <Badge variant="outline" className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
-                Cancelled
+                Uncoordinated
               </Badge>
             </div>
             
