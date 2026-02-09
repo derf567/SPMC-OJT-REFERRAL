@@ -19,7 +19,6 @@ import {
   X,
   User,
   MapPin,
-  Phone,
   PhoneCall,
 } from "lucide-react";
 import {
@@ -56,8 +55,6 @@ const ReferrerDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedReferral, setSelectedReferral] = useState<any>(null);
-  const [triageCallModalOpen, setTriageCallModalOpen] = useState(false);
-  const [triageCallReferral, setTriageCallReferral] = useState<any>(null);
   const [transitDecisionModalOpen, setTransitDecisionModalOpen] = useState(false);
   const [transitDecisionReferral, setTransitDecisionReferral] = useState<any>(null);
   const { user } = useAuth();
@@ -212,11 +209,6 @@ const ReferrerDashboard = () => {
   const openTimelineModal = (referral: any) => {
     setSelectedReferral(referral);
     setTimelineModalOpen(true);
-  };
-
-  const handleTriageCall = (referral: any) => {
-    setTriageCallReferral(referral);
-    setTriageCallModalOpen(true);
   };
 
   const handleTransitDecision = async (decision: 'now' | 'scheduled', scheduledDate?: string, scheduledTime?: string) => {
@@ -467,7 +459,7 @@ const ReferrerDashboard = () => {
                       <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
                         {referral.patient_full_name?.split(' ').map((n: string) => n[0]).join('') || 'N/A'}
                       </div>
-                      <div>
+                      <div className="flex-1">
                         <p className="font-semibold text-gray-900 dark:text-white">
                           {referral.patient_full_name}
                         </p>
@@ -497,6 +489,14 @@ const ReferrerDashboard = () => {
                     <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
                       {getStatusLabel(referral.status, referral)}
                     </span>
+                    <button
+                      onClick={() => openTimelineModal(referral)}
+                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline whitespace-nowrap"
+                      title="View referral timeline"
+                    >
+                      <Clock className="w-3 h-3" />
+                      Timeline
+                    </button>
                   </div>
                 </div>
               ))}
@@ -713,30 +713,38 @@ const ReferrerDashboard = () => {
                         {referral.patient_full_name?.split(' ').map((n: string) => n[0]).join('') || 'N/A'}
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-semibold text-gray-900 dark:text-white">
-                            {referral.patient_full_name}
-                          </h4>
-                          {/* Show triage call button if referral is marked as urgent by EDMAR */}
-                          {referral.status === 'urgent' && referral.triage_decision === 'urgent' && !referral.transit_decision && (
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-gray-900 dark:text-white">
+                              {referral.patient_full_name}
+                            </h4>
+                            {/* Show triage call button if referral is marked as urgent by EDMAR */}
+                            {referral.status === 'urgent' && referral.triage_decision === 'urgent' && !referral.transit_decision && (
+                              <button
+                                onClick={() => {
+                                  setTransitDecisionReferral(referral);
+                                  setTransitDecisionModalOpen(true);
+                                }}
+                                className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1 animate-pulse"
+                              >
+                                <PhoneCall className="w-3 h-3" />
+                                Triage Call
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
+                              {getStatusLabel(referral.status, referral)}
+                            </span>
                             <button
-                              onClick={() => {
-                                setTransitDecisionReferral(referral);
-                                setTransitDecisionModalOpen(true);
-                              }}
-                              className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1 animate-pulse"
+                              onClick={() => openTimelineModal(referral)}
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline"
+                              title="View referral timeline"
                             >
-                              <PhoneCall className="w-3 h-3" />
-                              Triage Call
+                              <Clock className="w-3 h-3" />
+                              View Timeline
                             </button>
-                          )}
-                          <button
-                            onClick={() => openTimelineModal(referral)}
-                            className={`px-2 py-1 rounded-full text-xs font-medium border cursor-pointer hover:opacity-80 transition-opacity ${getStatusColor(referral.status)}`}
-                            title="Click to view timeline"
-                          >
-                            {getStatusLabel(referral.status, referral)}
-                          </button>
+                          </div>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                           <strong>Chief Complaint:</strong> {referral.chief_complaint}
@@ -805,16 +813,23 @@ const ReferrerDashboard = () => {
                           {referral.patient_full_name?.split(' ').map((n: string) => n[0]).join('') || 'N/A'}
                         </div>
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-start justify-between mb-2">
                             <h4 className="font-semibold text-gray-900 dark:text-white">
                               {referral.patient_full_name}
                             </h4>
-                            <button
-                              onClick={() => openTimelineModal(referral)}
-                              className={`px-2 py-1 rounded-full text-xs font-medium border cursor-pointer hover:opacity-80 transition-opacity ${getStatusColor(referral.status)}`}
-                            >
-                              {getStatusLabel(referral.status, referral)}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
+                                {getStatusLabel(referral.status, referral)}
+                              </span>
+                              <button
+                                onClick={() => openTimelineModal(referral)}
+                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline"
+                                title="View referral timeline"
+                              >
+                                <Clock className="w-3 h-3" />
+                                View Timeline
+                              </button>
+                            </div>
                           </div>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                             <strong>Chief Complaint:</strong> {referral.chief_complaint}
@@ -1135,7 +1150,7 @@ const ReferrerDashboard = () => {
               <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                 Both EDCC and EDMAR will be notified of your decision
               </p>
-            </div>
+                                          </div>
           )}
         </DialogContent>
       </Dialog>
