@@ -70,6 +70,227 @@ def login_view(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
+def register_view(request):
+    """Registration endpoint for referrers"""
+    try:
+        data = json.loads(request.body)
+        
+        # Required fields
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        first_name = data.get('firstName')
+        last_name = data.get('lastName')
+        profession = data.get('profession')
+        cellphone = data.get('cellphone')
+        hospital_name = data.get('hospitalName')
+        hospital_location = data.get('hospitalLocation')
+        is_inside_davao = data.get('isInsideDavao', True)
+        
+        # Validation
+        if not all([username, email, password, first_name, last_name, profession, cellphone, hospital_name, hospital_location]):
+            return Response({
+                'error': 'All fields are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if username already exists
+        if User.objects.filter(username=username).exists():
+            return Response({
+                'error': 'Username already exists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if email already exists
+        if User.objects.filter(email=email).exists():
+            return Response({
+                'error': 'Email already exists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create user
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name
+        )
+        
+        # Create user profile for referrer
+        profile = UserProfile.objects.create(
+            user=user,
+            role='referrer',  # Set role as referrer
+            profession=profession,
+            cellphone=cellphone,
+            hospital_name=hospital_name,
+            hospital_location=hospital_location,
+            is_inside_davao=is_inside_davao,
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Account created successfully. You can now login.',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'full_name': user.get_full_name(),
+                'role': profile.role,
+                'role_display': profile.get_role_display(),
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return Response({
+            'error': 'Invalid JSON'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def comprehensive_register_view(request):
+    """Comprehensive registration endpoint for all referrer types with full form data"""
+    try:
+        from .models import ReferrerAccount, ReferrerDocument, Specialty, ReferringHospital
+        
+        # Handle both JSON and FormData
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            data = request.POST
+            files = request.FILES
+        else:
+            data = json.loads(request.body)
+            files = None
+        
+        # Basic required fields
+        username = data.get('username')
+        email = data.get('email', '')
+        password = data.get('password')
+        first_name = data.get('first_name')
+        middle_name = data.get('middle_name', '')
+        last_name = data.get('last_name')
+        referrer_type = data.get('referrer_type', 'doctor')
+        
+        # Validation
+        if not all([username, password, first_name, last_name]):
+            return Response({
+                'error': 'Username, password, first name, and last name are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if username already exists
+        if User.objects.filter(username=username).exists():
+            return Response({
+                'error': 'Username already exists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if email already exists (if provided)
+        if email and User.objects.filter(email=email).exists():
+            return Response({
+                'error': 'Email already exists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create user
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name
+        )
+        
+        # Create user profile for referrer
+        profile = UserProfile.objects.create(
+            user=user,
+            role='referrer',
+            profession=referrer_type.replace('_', ' ').title(),
+            cellphone=data.get('cellphone', ''),
+            hospital_name=data.get('hospital_name', ''),
+            hospital_location=data.get('address', ''),
+            is_inside_davao=True,  # Default to True
+        )
+        
+        # Create comprehensive referrer account
+        referrer_account = ReferrerAccount.objects.create(
+            user=user,
+            first_name=first_name,
+            middle_name=middle_name,
+            last_name=last_name,
+            referrer_type=referrer_type,
+            age=int(data.get('age', 0)) if data.get('age') else None,
+            gender=data.get('gender', ''),
+            address=data.get('address', ''),
+            position=data.get('position', ''),
+        )
+        
+        # Handle specialties for doctors
+        if referrer_type == 'doctor':
+            specialties_data = data.getlist('specialties') if hasattr(data, 'getlist') else data.get('specialties', [])
+            if isinstance(specialties_data, str):
+                specialties_data = [specialties_data]
+            
+            for specialty_name in specialties_data:
+                if specialty_name:
+                    specialty, created = Specialty.objects.get_or_create(name=specialty_name)
+                    referrer_account.specialties.add(specialty)
+        
+        # Handle affiliate hospitals for doctors
+        if referrer_type == 'doctor':
+            hospitals_data = data.getlist('affiliate_hospitals') if hasattr(data, 'getlist') else data.get('affiliate_hospitals', [])
+            if isinstance(hospitals_data, str):
+                hospitals_data = [hospitals_data]
+            
+            for hospital_name in hospitals_data:
+                if hospital_name:
+                    hospital, created = ReferringHospital.objects.get_or_create(
+                        name=hospital_name,
+                        defaults={'is_inside_davao_city': True}
+                    )
+                    referrer_account.affiliate_hospitals.add(hospital)
+        
+        # Handle file uploads
+        if files:
+            for file_key, file_obj in files.items():
+                if file_key == 'documents':
+                    # Determine document type based on referrer type
+                    doc_type = 'official_id'
+                    
+                    ReferrerDocument.objects.create(
+                        referrer=referrer_account,
+                        document_type=doc_type,
+                        file=file_obj,
+                        description=f"Registration document for {referrer_type}",
+                        uploaded_by=user
+                    )
+        
+        return Response({
+            'success': True,
+            'message': 'Account created successfully. You can now login.',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'full_name': user.get_full_name(),
+                'role': profile.role,
+                'role_display': profile.get_role_display(),
+                'referrer_type': referrer_account.referrer_type,
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return Response({
+            'error': 'Invalid JSON'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
 def logout_view(request):
     """Logout endpoint"""
     try:

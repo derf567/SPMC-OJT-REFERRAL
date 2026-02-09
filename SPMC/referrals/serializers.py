@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory, ReferralDocument
+from .models import ReferrerAccount, ReferrerDocument
 
 class ReferringHospitalSerializer(serializers.ModelSerializer):
     class Meta:
@@ -30,12 +31,136 @@ class ReferralDocumentSerializer(serializers.ModelSerializer):
         model = ReferralDocument
         fields = '__all__'
 
+
+class ReferrerDocumentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+
+    class Meta:
+        model = ReferrerDocument
+        fields = '__all__'
+
+
+class ReferrerAccountSerializer(serializers.ModelSerializer):
+    documents = ReferrerDocumentSerializer(many=True, read_only=True)
+    specialties = serializers.PrimaryKeyRelatedField(queryset=Specialty.objects.all(), many=True, required=False)
+    affiliate_hospitals = serializers.PrimaryKeyRelatedField(queryset=ReferringHospital.objects.all(), many=True, required=False)
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReferrerAccount
+        fields = ['id', 'user', 'first_name', 'middle_name', 'last_name', 'referrer_type',
+                  'specialties', 'affiliate_hospitals', 'position', 'age', 'address', 'gender', 
+                  'approval_status', 'created_at', 'documents']
+    
+    def get_user(self, obj):
+        return {
+            'id': obj.user.id,
+            'username': obj.user.username,
+            'email': obj.user.email,
+            'date_joined': obj.user.date_joined.isoformat() if obj.user.date_joined else None
+        }
+
+
+class ReferrerRegistrationSerializer(serializers.Serializer):
+    """Handles registration of a user + referrer profile and optional document uploads"""
+    username = serializers.CharField()
+    email = serializers.EmailField(required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True)
+    first_name = serializers.CharField()
+    middle_name = serializers.CharField(required=False, allow_blank=True)
+    last_name = serializers.CharField()
+    referrer_type = serializers.ChoiceField(choices=ReferrerAccount.REFERRER_TYPE_CHOICES)
+    specialties = serializers.ListField(child=serializers.IntegerField(), required=False)
+    affiliate_hospitals = serializers.ListField(child=serializers.IntegerField(), required=False)
+    hospital_name = serializers.CharField(required=False, allow_blank=True)
+    position = serializers.CharField(required=False, allow_blank=True)
+    age = serializers.IntegerField(required=False)
+    # address pieces from cascading dropdowns
+    region = serializers.CharField(required=False, allow_blank=True)
+    province = serializers.CharField(required=False, allow_blank=True)
+    city = serializers.CharField(required=False, allow_blank=True)
+    barangay = serializers.CharField(required=False, allow_blank=True)
+    exact_address = serializers.CharField(required=False, allow_blank=True)
+    gender = serializers.ChoiceField(choices=ReferrerAccount.GENDER_CHOICES, required=False)
+    documents = serializers.ListField(child=serializers.FileField(), required=False)
+
+    def create(self, validated_data):
+        from django.contrib.auth.models import User
+
+        docs = validated_data.pop('documents', [])
+        specialties = validated_data.pop('specialties', [])
+        referrer_type = validated_data.get('referrer_type')
+        affiliate_hospitals = validated_data.pop('affiliate_hospitals', [])
+        age = validated_data.pop('age', None)
+        region = validated_data.pop('region', '')
+        province = validated_data.pop('province', '')
+        city = validated_data.pop('city', '')
+        barangay = validated_data.pop('barangay', '')
+        exact_address = validated_data.pop('exact_address', '')
+        # build a single address string
+        address = ', '.join([part for part in [exact_address, barangay, city, province, region] if part])
+        gender = validated_data.pop('gender', None)
+
+        username = validated_data.pop('username')
+        password = validated_data.pop('password')
+        email = validated_data.pop('email', '')
+
+        # Create user as inactive until approved
+        user = User.objects.create_user(username=username, password=password, email=email,
+                                        first_name=validated_data.get('first_name', ''),
+                                        last_name=validated_data.get('last_name', ''),
+                                        is_active=False)  # Set inactive until approved
+
+        # Create UserProfile with referrer role
+        UserProfile.objects.create(
+            user=user,
+            role='referrer',
+            profession=validated_data.get('referrer_type', '').replace('_', ' ').title(),
+            hospital_name=validated_data.get('hospital_name', ''),
+            hospital_location=address,
+            is_inside_davao=True  # Default to True, can be updated later
+        )
+
+        referrer = ReferrerAccount.objects.create(
+            user=user,
+            first_name=validated_data.get('first_name', ''),
+            middle_name=validated_data.get('middle_name', ''),
+            last_name=validated_data.get('last_name', ''),
+            referrer_type=referrer_type,
+            position=validated_data.get('position', ''),
+            age=age,
+            address=address,
+            gender=gender
+        )
+
+        if specialties:
+            referrer.specialties.set(Specialty.objects.filter(id__in=specialties))
+        if affiliate_hospitals:
+            referrer.affiliate_hospitals.set(ReferringHospital.objects.filter(id__in=affiliate_hospitals))
+
+        # create documents
+        for f in docs:
+            doc_type = 'official_id' if referrer_type in ['doctor', 'hospital_employee'] else 'other'
+            ReferrerDocument.objects.create(
+                referrer=referrer,
+                document_type=doc_type,
+                file=f,
+                uploaded_by=user
+            )
+
+        return referrer
+
+    def to_representation(self, instance):
+        return ReferrerAccountSerializer(instance).data
+
 class ReferralListSerializer(serializers.ModelSerializer):
     """Serializer for listing referrals (includes all data needed for enhanced table view)"""
     specialty_needed_name = serializers.CharField(source='specialty_needed.name', read_only=True)
     referring_hospital_name = serializers.CharField(source='referring_hospital.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
+    transferred_by_user = serializers.CharField(source='transferred_by.get_full_name', read_only=True)
+    triaged_by_user = serializers.CharField(source='triaged_by.get_full_name', read_only=True)
     
     class Meta:
         model = Referral
@@ -63,8 +188,14 @@ class ReferralListSerializer(serializers.ModelSerializer):
             # System fields
             'created_by_name', 'assigned_to_name', 'consent_secured',
             
+            # User action tracking
+            'transferred_by_user', 'transferred_at', 'triaged_by_user', 'triaged_at',
+            
             # Triage decision (if available)
             'triage_decision', 'triage_notes', 'scheduled_date', 'scheduled_time',
+            
+            # Transit decision fields
+            'transit_decision', 'transit_scheduled_date', 'transit_scheduled_time', 'transit_decision_at',
             
             # Department assignment
             'assigned_department'
@@ -78,6 +209,8 @@ class ReferralDetailSerializer(serializers.ModelSerializer):
     referring_hospital_is_inside_davao = serializers.BooleanField(source='referring_hospital.is_inside_davao_city', read_only=True)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
+    transferred_by_user = serializers.CharField(source='transferred_by.get_full_name', read_only=True)
+    triaged_by_user = serializers.CharField(source='triaged_by.get_full_name', read_only=True)
     
     transit_info = TransitInfoSerializer(read_only=True)
     status_history = ReferralStatusHistorySerializer(many=True, read_only=True)

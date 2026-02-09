@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { externalReferralsAPI } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
+import { externalReferralsAPI, referrerAPI } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { 
   User, 
   Activity, 
@@ -9,7 +13,8 @@ import {
   Truck, 
   CheckCircle,
   Phone,
-  Building2
+  Building2,
+  Info
 } from "lucide-react";
 
 interface ReferralFormData {
@@ -146,8 +151,71 @@ const ExternalReferral = () => {
   const [formData, setFormData] = useState<ReferralFormData>(initialFormData);
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [specialties, setSpecialties] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [referrerProfile, setReferrerProfile] = useState<any>(null);
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Load hospitals, specialties, and referrer profile on component mount
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        // Load hospitals and specialties (always needed)
+        const [hospitalsData, specialtiesData] = await Promise.all([
+          externalReferralsAPI.getHospitals(),
+          externalReferralsAPI.getSpecialties()
+        ]);
+        
+        setHospitals(hospitalsData.results || hospitalsData);
+        setSpecialties(specialtiesData.results || specialtiesData);
+
+        // Load referrer profile if user is authenticated and is a referrer
+        if (user && user.role === 'referrer') {
+          try {
+            const profileData = await referrerAPI.getMyProfile();
+            setReferrerProfile(profileData);
+            
+            // Auto-fill referrer information
+            setFormData(prev => ({
+              ...prev,
+              referrerName: profileData.referrer_name || '',
+              referrerProfession: profileData.specialties_text || profileData.referrer_profession || '',
+              referrerCellphone: profileData.referrer_cellphone || '',
+              // For doctors, set the first affiliate hospital as default if available
+              ...(profileData.referrer_type === 'doctor' && profileData.affiliate_hospitals?.length > 0 && {
+                referringFacilityName: profileData.affiliate_hospitals[0].id.toString(),
+                isInsideDavaoCity: profileData.affiliate_hospitals[0].is_inside_davao_city,
+                hospitalLocation: profileData.affiliate_hospitals[0].location || ''
+              }),
+              // For non-doctors, use hospital info from profile
+              ...(profileData.referrer_type !== 'doctor' && profileData.hospital_name && {
+                // Find hospital by name or use the name directly
+                referringFacilityName: profileData.hospital_name,
+                isInsideDavaoCity: profileData.is_inside_davao,
+                hospitalLocation: profileData.hospital_location || ''
+              })
+            }));
+          } catch (error) {
+            console.warn('Could not load referrer profile:', error);
+            // Continue without auto-filling - user can still fill manually
+          }
+        }
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load form data. Please refresh the page.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, [user, toast]);
 
   const steps = [
     { id: 1, name: "Patient Information", icon: User },
@@ -156,27 +224,6 @@ const ExternalReferral = () => {
     { id: 4, name: "Referring Hospital", icon: MapPin },
     { id: 5, name: "Transit & Consent", icon: Truck }
   ];
-
-  // Fetch hospitals and specialties on component mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [hospitalsResponse, specialtiesResponse] = await Promise.all([
-          externalReferralsAPI.getHospitals(),
-          externalReferralsAPI.getSpecialties()
-        ]);
-        
-        setHospitals(hospitalsResponse.results || hospitalsResponse);
-        setSpecialties(specialtiesResponse.results || specialtiesResponse);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
 
   const updateFormData = (field: string, value: any) => {
     setFormData(prev => ({
@@ -293,13 +340,13 @@ const ExternalReferral = () => {
 
   const handleSubmit = async () => {
     try {
-      setSubmitting(true);
+      setIsSubmitting(true);
       
       // Validate form first
       const validationErrors = validateForm();
       if (validationErrors.length > 0) {
         alert('Please fix the following errors:\n\n' + validationErrors.join('\n'));
-        setSubmitting(false);
+        setIsSubmitting(false);
         return;
       }
       
@@ -374,15 +421,46 @@ const ExternalReferral = () => {
       
       let successMessage = `Referral submitted successfully! Reference ID: ${response.referral_id}\n\nYour referral has been sent to SPMC Emergency Dispatch and Communication Center for review.`;
       
+      // Add tracking message for logged-in referrer users
+      if (user && user.role === 'referrer') {
+        successMessage += `\n\n✅ This referral is now tracked in your referrer dashboard. You can monitor its progress by visiting your dashboard.`;
+      }
+      
       if (formData.laboratoryFiles.length > 0) {
         successMessage += `\n\nNote: ${formData.laboratoryFiles.length} laboratory file(s) were selected. Please ensure all medical documents are properly attached for review.`;
       }
       
-      alert(successMessage);
-      
-      // Reset form
-      setFormData(initialFormData);
-      setCurrentStep(1);
+      // Show success message
+      if (user && user.role === 'referrer') {
+        // For referrer users, show toast and redirect to dashboard
+        toast({
+          title: "Referral Submitted Successfully! 🎉",
+          description: `Reference ID: ${response.referral_id}. Redirecting to your dashboard...`,
+          className: "bg-green-50 border-green-200 text-green-800",
+        });
+        
+        // Reset form
+        setFormData(initialFormData);
+        setCurrentStep(1);
+        
+        // Redirect to referrer dashboard
+        setTimeout(() => {
+          navigate('/referrer');
+        }, 1500);
+      } else {
+        // For anonymous users, show alert and stay on page
+        let successMessage = `Referral submitted successfully! Reference ID: ${response.referral_id}\n\nYour referral has been sent to SPMC Emergency Dispatch and Communication Center for review.`;
+        
+        if (formData.laboratoryFiles.length > 0) {
+          successMessage += `\n\nNote: ${formData.laboratoryFiles.length} laboratory file(s) were selected. Please ensure all medical documents are properly attached for review.`;
+        }
+        
+        alert(successMessage);
+        
+        // Reset form
+        setFormData(initialFormData);
+        setCurrentStep(1);
+      }
       
     } catch (error: any) {
       console.error('Error creating referral:', error);
@@ -425,7 +503,7 @@ const ExternalReferral = () => {
       
       alert(errorMessage);
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -946,22 +1024,55 @@ const ExternalReferral = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Complete Name of Referring Facility *
+                  {user && user.role === 'referrer' && referrerProfile && (
+                    <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
+                      (Auto-filled from your profile)
+                    </span>
+                  )}
                 </label>
-                <select 
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  value={formData.referringFacilityName}
-                  onChange={(e) => updateFormData('referringFacilityName', e.target.value)}
-                >
-                  <option value="">Select hospital</option>
-                  {hospitals.map((hospital) => (
-                    <option key={hospital.id} value={hospital.id}>{hospital.name}</option>
-                  ))}
-                </select>
+                {user && user.role === 'referrer' && referrerProfile?.referrer_type === 'doctor' && referrerProfile?.affiliate_hospitals?.length > 0 ? (
+                  // For doctors: Show dropdown of affiliate hospitals
+                  <select 
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    value={formData.referringFacilityName}
+                    onChange={(e) => {
+                      updateFormData('referringFacilityName', e.target.value);
+                      // Update location info when hospital changes
+                      const selectedHospital = referrerProfile.affiliate_hospitals.find(h => h.id.toString() === e.target.value);
+                      if (selectedHospital) {
+                        updateFormData('isInsideDavaoCity', selectedHospital.is_inside_davao_city);
+                        updateFormData('hospitalLocation', selectedHospital.location || '');
+                      }
+                    }}
+                  >
+                    <option value="">Select from your affiliate hospitals</option>
+                    {referrerProfile.affiliate_hospitals.map((hospital) => (
+                      <option key={hospital.id} value={hospital.id}>{hospital.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  // For non-doctors or anonymous users: Show all hospitals
+                  <select 
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    value={formData.referringFacilityName}
+                    onChange={(e) => updateFormData('referringFacilityName', e.target.value)}
+                  >
+                    <option value="">Select hospital</option>
+                    {hospitals.map((hospital) => (
+                      <option key={hospital.id} value={hospital.id}>{hospital.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Name of the Referrer *
+                  {user && user.role === 'referrer' && referrerProfile && (
+                    <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
+                      (Auto-filled from your profile - editable)
+                    </span>
+                  )}
                 </label>
                 <input
                   type="text"
@@ -975,6 +1086,11 @@ const ExternalReferral = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Profession of the Referrer *
+                  {user && user.role === 'referrer' && referrerProfile && (
+                    <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
+                      (Auto-filled from your profile - editable)
+                    </span>
+                  )}
                 </label>
                 <input
                   type="text"
@@ -988,6 +1104,11 @@ const ExternalReferral = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Cellphone Number of the Referrer *
+                  {user && user.role === 'referrer' && referrerProfile && (
+                    <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
+                      (Auto-filled from your profile - editable)
+                    </span>
+                  )}
                 </label>
                 <input
                   type="tel"
@@ -1234,6 +1355,11 @@ const ExternalReferral = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      {/* About Us Button - Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <AboutUsDialog isDarkMode={false} />
+      </div>
+
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1264,6 +1390,40 @@ const ExternalReferral = () => {
             <p className="text-gray-500 dark:text-gray-400 mt-1">
               Submit a referral request to Southern Philippines Medical Center
             </p>
+            
+            {/* Message for logged-in referrer users */}
+            {user && user.role === 'referrer' && (
+              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Info className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-green-800 dark:text-green-200">
+                    <p className="font-medium">Logged in as: {user.full_name || user.username}</p>
+                    <p>After submission, you'll be redirected to your dashboard where you can track this referral's progress.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Auto-fill notification for referrers */}
+            {user && user.role === 'referrer' && referrerProfile && (
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-blue-800 dark:text-blue-200">
+                    <p className="font-medium">Auto-filled Information</p>
+                    <p>Your referrer details have been automatically filled from your profile. 
+                    {referrerProfile.referrer_type === 'doctor' && referrerProfile.affiliate_hospitals?.length > 0 
+                      ? ' You can select from your affiliate hospitals.' 
+                      : ' All fields are editable if you need to make changes.'
+                    }
+                    {referrerProfile.specialties_text && (
+                      <span> Your medical specialties ({referrerProfile.specialties_text}) are shown in the profession field.</span>
+                    )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Progress Steps */}
@@ -1332,10 +1492,10 @@ const ExternalReferral = () => {
                 ) : (
                   <Button
                     onClick={handleSubmit}
-                    disabled={submitting}
+                    disabled={isSubmitting}
                     className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
                   >
-                    {submitting ? (
+                    {isSubmitting ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                         Submitting...

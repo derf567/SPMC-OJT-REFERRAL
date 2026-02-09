@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { AboutUsDialog } from '@/components/ui/AboutUsDialog';
 import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const Login = () => {
@@ -31,11 +32,20 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      {/* About Us Button - Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <AboutUsDialog isDarkMode={false} />
+      </div>
+
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
-            <span className="text-white font-bold text-2xl">S</span>
+          <div className="mx-auto mb-4 flex items-center justify-center">
+            <img 
+              src="/SPMC-Logo.png" 
+              alt="SPMC Logo" 
+              className="h-40 w-40 object-contain"
+            />
           </div>
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
             SPMC Referral System
@@ -134,6 +144,16 @@ const Login = () => {
               <p><strong>Username:</strong> admin</p>
               <p><strong>Password:</strong> admin123</p>
             </div>
+          </div>
+
+          {/* Registration Link */}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Don't have an account?{" "}
+              <Link to="/register" className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
+                Register as Referrer
+              </Link>
+            </p>
           </div>
         </div>
 
