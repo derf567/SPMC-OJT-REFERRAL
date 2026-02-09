@@ -53,50 +53,77 @@ type TimeFilter = 'week' | 'month' | 'year';
 const Reports = () => {
   const [reportsData, setReportsData] = useState<ReportsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('month');
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  
+  // Global filter that controls all sections
+  const [globalFilter, setGlobalFilter] = useState<TimeFilter>('month');
+  const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
+  
   const [referralsByTime, setReferralsByTime] = useState<any[]>([]);
   const [departmentData, setDepartmentData] = useState<any[]>([]);
   const [loadingTimeData, setLoadingTimeData] = useState(false);
   const [loadingDepartmentData, setLoadingDepartmentData] = useState(false);
+  
+  // Data states
+  const [hospitalsData, setHospitalsData] = useState<any[]>([]);
+  const [loadingHospitals, setLoadingHospitals] = useState(false);
+  
+  const [specialtiesData, setSpecialtiesData] = useState<any[]>([]);
+  const [loadingSpecialties, setLoadingSpecialties] = useState(false);
+  
+  // Coordinated/Uncoordinated data
+  const [coordinatedData, setCoordinatedData] = useState<any[]>([]);
+  const [uncoordinatedData, setUncoordinatedData] = useState<any[]>([]);
+  const [loadingCoordinated, setLoadingCoordinated] = useState(false);
+  
   const { toast } = useToast();
 
   // Generate years for dropdown (current year and 4 years back)
   const availableYears = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
-  // Fetch referrals by time period from API
-  const fetchReferralsByTimePeriod = async () => {
+  // Fetch all filtered data using global filter
+  const fetchAllFilteredData = async () => {
     try {
       setLoadingTimeData(true);
-      const data = await referralsAPI.getReferralsByTimePeriod(timeFilter, selectedYear);
-      setReferralsByTime(data);
+      setLoadingDepartmentData(true);
+      setLoadingHospitals(true);
+      setLoadingSpecialties(true);
+      setLoadingCoordinated(true);
+
+      const [
+        referralsByTimeData,
+        departmentsData,
+        hospitalsData,
+        specialtiesData,
+        coordinatedData,
+        uncoordinatedData
+      ] = await Promise.all([
+        referralsAPI.getReferralsByTimePeriod(globalFilter, globalYear),
+        referralsAPI.getTopDepartments(globalFilter, globalYear),
+        referralsAPI.getTopHospitals(globalFilter, globalYear),
+        referralsAPI.getTopSpecialties(globalFilter, globalYear),
+        referralsAPI.getCoordinatedReferrals(globalFilter, globalYear),
+        referralsAPI.getUncoordinatedReferrals(globalFilter, globalYear)
+      ]);
+
+      setReferralsByTime(referralsByTimeData);
+      setDepartmentData(departmentsData);
+      setHospitalsData(hospitalsData);
+      setSpecialtiesData(specialtiesData);
+      setCoordinatedData(coordinatedData);
+      setUncoordinatedData(uncoordinatedData);
     } catch (error) {
-      console.error('Error fetching referrals by time period:', error);
+      console.error('Error fetching filtered data:', error);
       toast({
         title: "Error",
-        description: "Failed to load time period data. Please try again.",
+        description: "Failed to load filtered data. Please try again.",
         variant: "destructive",
       });
     } finally {
       setLoadingTimeData(false);
-    }
-  };
-
-  // Fetch department data from API
-  const fetchDepartmentData = async () => {
-    try {
-      setLoadingDepartmentData(true);
-      const data = await referralsAPI.getDepartmentAnalytics();
-      setDepartmentData(data);
-    } catch (error) {
-      console.error('Error fetching department data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load department data. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
       setLoadingDepartmentData(false);
+      setLoadingHospitals(false);
+      setLoadingSpecialties(false);
+      setLoadingCoordinated(false);
     }
   };
 
@@ -119,13 +146,12 @@ const Reports = () => {
     };
 
     fetchReportsData();
-    fetchDepartmentData();
   }, [toast]);
 
-  // Fetch referrals by time period when filter or year changes
+  // Fetch all filtered data when global filter or year changes
   useEffect(() => {
-    fetchReferralsByTimePeriod();
-  }, [timeFilter, selectedYear]);
+    fetchAllFilteredData();
+  }, [globalFilter, globalYear]);
 
   if (loading) {
     return (
@@ -163,9 +189,43 @@ const Reports = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports & Analytics</h1>
-          <p className="text-gray-500 dark:text-gray-400">Comprehensive referral system analytics and insights</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports & Analytics</h1>
+            <p className="text-gray-500 dark:text-gray-400">Comprehensive referral system analytics and insights</p>
+          </div>
+          
+          {/* Global Filter */}
+          <div className="flex items-center gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Filter className="w-5 h-5 text-blue-600" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Global Filter:</span>
+            </div>
+            <div className="flex gap-2">
+              {(['week', 'month', 'year'] as TimeFilter[]).map((filter) => (
+                <Button
+                  key={filter}
+                  variant={globalFilter === filter ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setGlobalFilter(filter)}
+                  className="text-sm"
+                >
+                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                </Button>
+              ))}
+            </div>
+            {globalFilter !== 'year' && (
+              <select
+                value={globalYear}
+                onChange={(e) => setGlobalYear(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                {availableYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
         
         {/* Summary Cards */}
@@ -203,43 +263,11 @@ const Reports = () => {
           </div>
         </div>
         
-        {/* Referrals by Time Period with Filters */}
+        {/* Referrals by Time Period */}
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Referrals by {timeFilter.charAt(0).toUpperCase() + timeFilter.slice(1)}</h3>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Filter:</span>
-              </div>
-              <div className="flex gap-2">
-                {(['week', 'month', 'year'] as TimeFilter[]).map((filter) => (
-                  <Button
-                    key={filter}
-                    variant={timeFilter === filter ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setTimeFilter(filter)}
-                    className="text-xs"
-                  >
-                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                  </Button>
-                ))}
-              </div>
-              {timeFilter !== 'year' && (
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              )}
-            </div>
+          <div className="flex items-center gap-2 mb-6">
+            <TrendingUp className="w-5 h-5 text-blue-600" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Referrals by {globalFilter.charAt(0).toUpperCase() + globalFilter.slice(1)}</h3>
           </div>
           
           <div className="space-y-3">
@@ -252,7 +280,7 @@ const Reports = () => {
                 <div key={index} className="flex items-center justify-between">
                   <div>
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{item.period}</span>
-                    {timeFilter === 'week' && item.full_period && (
+                    {globalFilter === 'week' && item.full_period && (
                       <p className="text-xs text-gray-500 dark:text-gray-400">{item.full_period}</p>
                     )}
                   </div>
@@ -284,8 +312,12 @@ const Reports = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Top Referring Hospitals</h3>
             </div>
             <div className="space-y-4">
-              {top_hospitals.length > 0 ? (
-                top_hospitals.slice(0, 8).map((hospital, index) => (
+              {loadingHospitals ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                </div>
+              ) : hospitalsData.length > 0 ? (
+                hospitalsData.slice(0, 8).map((hospital, index) => (
                   <div key={index} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -413,9 +445,14 @@ const Reports = () => {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Top Specialties</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {specialty_distribution.length > 0 ? (
-              specialty_distribution.slice(0, 8).map((specialty, index) => {
-                const percentage = (specialty.count / summary.total_referrals * 100).toFixed(1);
+            {loadingSpecialties ? (
+              <div className="col-span-full flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : specialtiesData.length > 0 ? (
+              specialtiesData.slice(0, 8).map((specialty, index) => {
+                const total = specialtiesData.reduce((sum, s) => sum + s.count, 0);
+                const percentage = (specialty.count / total * 100).toFixed(1);
                 return (
                   <div key={index} className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
                     <h4 className="font-medium text-gray-900 dark:text-white text-sm mb-2 truncate">
@@ -437,6 +474,210 @@ const Reports = () => {
                 <p className="text-gray-500 dark:text-gray-400 text-center py-8">No specialty data available</p>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Coordinated and Uncoordinated Referrals - Graphs and Tables */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Coordinated Referrals */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
+            <div className="flex items-center gap-2 mb-6">
+              <Calendar className="w-5 h-5 text-green-600" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Coordinated Referrals</h3>
+              <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
+                Received by Department
+              </Badge>
+            </div>
+            
+            {/* Graph Section */}
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Trend Overview</h4>
+              {loadingCoordinated ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                </div>
+              ) : coordinatedData.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Total Coordinated</span>
+                    <span className="font-bold text-green-600 dark:text-green-400 text-2xl">{coordinatedData.length}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4">
+                    <div 
+                      className="bg-green-600 dark:bg-green-400 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2" 
+                      style={{ width: '100%' }}
+                    >
+                      <span className="text-xs text-white font-medium">100%</span>
+                    </div>
+                  </div>
+                  
+                  {/* Status breakdown */}
+                  <div className="mt-4 space-y-2">
+                    {(() => {
+                      const statusCounts = coordinatedData.reduce((acc: any, ref: any) => {
+                        acc[ref.status] = (acc[ref.status] || 0) + 1;
+                        return acc;
+                      }, {});
+                      const total = coordinatedData.length;
+                      
+                      return Object.entries(statusCounts).map(([status, count]: [string, any]) => {
+                        const percentage = (count / total * 100).toFixed(1);
+                        return (
+                          <div key={status} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                              <span className="text-xs text-gray-700 dark:text-gray-300">{status}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-gray-900 dark:text-white">{count}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">({percentage}%)</span>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>
+              )}
+            </div>
+
+            {/* Table Section */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Recent Records (Top 10)</h4>
+              <div className="overflow-x-auto max-h-96">
+                {loadingCoordinated ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                  </div>
+                ) : coordinatedData.length > 0 ? (
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700">
+                      <tr className="border-b border-gray-200 dark:border-gray-600">
+                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">ID</th>
+                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Patient</th>
+                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {coordinatedData.slice(0, 10).map((referral, index) => (
+                        <tr key={index} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                          <td className="py-2 px-2 text-blue-600 dark:text-blue-400 font-medium">{referral.referral_id}</td>
+                          <td className="py-2 px-2 text-gray-900 dark:text-white truncate max-w-[120px]">{referral.patient_name}</td>
+                          <td className="py-2 px-2">
+                            <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
+                              {referral.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-gray-500 dark:text-gray-400 text-center py-8">No coordinated referrals for the selected period</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Uncoordinated Referrals */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
+            <div className="flex items-center gap-2 mb-6">
+              <Calendar className="w-5 h-5 text-red-600" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Uncoordinated Referrals</h3>
+              <Badge variant="outline" className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
+                Cancelled
+              </Badge>
+            </div>
+            
+            {/* Graph Section */}
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Trend Overview</h4>
+              {loadingCoordinated ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                </div>
+              ) : uncoordinatedData.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Total Uncoordinated</span>
+                    <span className="font-bold text-red-600 dark:text-red-400 text-2xl">{uncoordinatedData.length}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4">
+                    <div 
+                      className="bg-red-600 dark:bg-red-400 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2" 
+                      style={{ width: '100%' }}
+                    >
+                      <span className="text-xs text-white font-medium">100%</span>
+                    </div>
+                  </div>
+                  
+                  {/* Top cancellation reasons */}
+                  <div className="mt-4 space-y-2">
+                    {(() => {
+                      const reasonCounts = uncoordinatedData.reduce((acc: any, ref: any) => {
+                        const reason = ref.reason.substring(0, 30) + (ref.reason.length > 30 ? '...' : '');
+                        acc[reason] = (acc[reason] || 0) + 1;
+                        return acc;
+                      }, {});
+                      const total = uncoordinatedData.length;
+                      
+                      return Object.entries(reasonCounts).slice(0, 5).map(([reason, count]: [string, any]) => {
+                        const percentage = (count / total * 100).toFixed(1);
+                        return (
+                          <div key={reason} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                              <span className="text-xs text-gray-700 dark:text-gray-300 truncate max-w-[150px]" title={reason}>{reason}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-gray-900 dark:text-white">{count}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">({percentage}%)</span>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>
+              )}
+            </div>
+
+            {/* Table Section */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Recent Records (Top 10)</h4>
+              <div className="overflow-x-auto max-h-96">
+                {loadingCoordinated ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                  </div>
+                ) : uncoordinatedData.length > 0 ? (
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700">
+                      <tr className="border-b border-gray-200 dark:border-gray-600">
+                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">ID</th>
+                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Patient</th>
+                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uncoordinatedData.slice(0, 10).map((referral, index) => (
+                        <tr key={index} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                          <td className="py-2 px-2 text-red-600 dark:text-red-400 font-medium">{referral.referral_id}</td>
+                          <td className="py-2 px-2 text-gray-900 dark:text-white truncate max-w-[120px]">{referral.patient_name}</td>
+                          <td className="py-2 px-2 text-gray-700 dark:text-gray-300 truncate max-w-[150px]" title={referral.reason}>{referral.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-gray-500 dark:text-gray-400 text-center py-8">No uncoordinated referrals for the selected period</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
