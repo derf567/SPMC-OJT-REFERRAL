@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { authAPI } from "@/lib/api";
+import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { Eye, EyeOff, User } from "lucide-react";
 
 const Register = () => {
@@ -520,6 +521,11 @@ const Register = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      {/* About Us Button - Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <AboutUsDialog isDarkMode={false} />
+      </div>
+
       <div className="max-w-2xl w-full">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           {/* Header */}

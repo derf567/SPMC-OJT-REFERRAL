@@ -4,6 +4,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { externalReferralsAPI, referrerAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { 
   User, 
   Activity, 
@@ -1354,6 +1355,11 @@ const ExternalReferral = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      {/* About Us Button - Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <AboutUsDialog isDarkMode={false} />
+      </div>
+
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

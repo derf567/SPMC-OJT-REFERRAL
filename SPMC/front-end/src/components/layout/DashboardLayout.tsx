@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { referralsAPI } from "@/lib/api";
+import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import {
   Home,
   Users,
@@ -250,6 +251,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
               {/* Right side - Actions and User */}
               <div className="flex items-center gap-4">
+                {/* About Us Button */}
+                <AboutUsDialog isDarkMode={isDarkMode} />
+
                 {/* Dark Mode Toggle */}
                 <Button
                   variant="ghost"
