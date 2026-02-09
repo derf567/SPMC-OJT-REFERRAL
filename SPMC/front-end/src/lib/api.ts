@@ -216,11 +216,11 @@ export const referralsAPI = {
   },
 
   // Get referrals by time period (week, month, year)
-  getReferralsByTimePeriod: async (filter: string, year?: number) => {
+  getReferralsByTimePeriod: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) {
-      params.append('year', year.toString());
-    }
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
     return apiRequest(`/referrals/referrals_by_time_period/?${params.toString()}`);
   },
 
@@ -230,47 +230,47 @@ export const referralsAPI = {
   },
 
   // Get filtered top hospitals
-  getTopHospitals: async (filter: string, year?: number) => {
+  getTopHospitals: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) {
-      params.append('year', year.toString());
-    }
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
     return apiRequest(`/referrals/top_hospitals/?${params.toString()}`);
   },
 
   // Get filtered top departments
-  getTopDepartments: async (filter: string, year?: number) => {
+  getTopDepartments: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) {
-      params.append('year', year.toString());
-    }
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
     return apiRequest(`/referrals/top_departments/?${params.toString()}`);
   },
 
   // Get filtered top specialties
-  getTopSpecialties: async (filter: string, year?: number) => {
+  getTopSpecialties: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) {
-      params.append('year', year.toString());
-    }
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
     return apiRequest(`/referrals/top_specialties/?${params.toString()}`);
   },
 
   // Get coordinated referrals (received by department)
-  getCoordinatedReferrals: async (filter: string, year?: number) => {
+  getCoordinatedReferrals: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) {
-      params.append('year', year.toString());
-    }
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
     return apiRequest(`/referrals/coordinated_referrals/?${params.toString()}`);
   },
 
   // Get uncoordinated referrals (cancelled)
-  getUncoordinatedReferrals: async (filter: string, year?: number) => {
+  getUncoordinatedReferrals: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) {
-      params.append('year', year.toString());
-    }
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    if (week) params.append('week', week.toString());
     return apiRequest(`/referrals/uncoordinated_referrals/?${params.toString()}`);
   },
 
