@@ -52,6 +52,36 @@ interface ArchivedReferral {
   triaged_at?: string;
 }
 
+interface Patient {
+  patient_full_name: string;
+  age: number;
+  gender: string;
+  hrn?: string;
+  patient_category: string;
+  current_address: string;
+  birthday: string;
+  total_referrals: number;
+  latest_referral_date: string;
+  latest_referral_id: string;
+  latest_status: string;
+  latest_specialty?: string;
+  latest_hospital?: string;
+}
+
+interface PatientHistory {
+  id: string;
+  referral_id: string;
+  patient_full_name: string;
+  age: number;
+  gender: string;
+  chief_complaint: string;
+  working_impression: string;
+  specialty_needed_name: string;
+  referring_hospital_name: string;
+  status: string;
+  created_at: string;
+}
+
 const getStatusColor = (status: string) => {
   switch (status) {
     case "completed":
@@ -237,18 +267,16 @@ const Patients = () => {
         
         // Filter to only show completed or uncoordinated referrals
         const archivedReferrals = allReferrals.filter((r: any) => 
-          r.status === 'completed' || r.status === 'uncoordinated'
+          r.status === 'completed' || r.status === 'uncoordinated' || r.status === 'cancelled'
         );
         
         setReferrals(archivedReferrals);
         
-        // Calculate stats
-        const totalPatients = patientsData.length;
-        const activeCases = patientsData.filter((p: Patient) => 
-          !['completed', 'cancelled'].includes(p.latest_status)
-        ).length;
-        const pendingCases = patientsData.filter((p: Patient) => 
-          p.latest_status === 'pending'
+        // Calculate stats from the filtered referrals
+        const totalArchived = archivedReferrals.length;
+        const completed = archivedReferrals.filter((r: any) => r.status === 'completed').length;
+        const uncoordinated = archivedReferrals.filter((r: any) => 
+          r.status === 'uncoordinated' || r.status === 'cancelled'
         ).length;
         
         setStats({
@@ -312,7 +340,7 @@ const Patients = () => {
     if (referral.triage_decision) {
       let triageStep;
       
-      if (referral.triage_decision === 'critical') {
+      if (referral.triage_decision === 'emergent') {
         triageStep = {
           status: 'emergent',
           label: 'Emergent Care',
