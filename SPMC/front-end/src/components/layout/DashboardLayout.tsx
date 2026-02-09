@@ -134,9 +134,18 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             ? referrals.filter((ref: any) => ref.status === 'pending')
             : [];
         } else if (user?.permissions?.can_triage_referrals) {
-          // Triage Users: Count only waiting referrals
+          // Triage Users: Count waiting and triaged referrals (not yet completed)
           activeReferrals = Array.isArray(referrals) 
-            ? referrals.filter((ref: any) => ref.status === 'waiting')
+            ? referrals.filter((ref: any) => 
+                ['waiting', 'urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
+              )
+            : [];
+        } else if (user?.permissions?.is_his_department) {
+          // HIS Department: Count referrals that need arrival confirmation
+          activeReferrals = Array.isArray(referrals) 
+            ? referrals.filter((ref: any) => 
+                ['urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
+              )
             : [];
         } else {
           // Other users: Count all non-completed/cancelled referrals
