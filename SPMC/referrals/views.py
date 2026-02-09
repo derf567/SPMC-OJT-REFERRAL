@@ -854,6 +854,268 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         return Response(result)
 
+    @action(detail=False, methods=['get'])
+    def top_hospitals(self, request):
+        """Get top referring hospitals with time filter"""
+        from django.utils import timezone
+        from datetime import timedelta, datetime
+        from django.db.models import Count
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = request.query_params.get('year', timezone.now().year)
+        
+        try:
+            year = int(year)
+        except (ValueError, TypeError):
+            year = timezone.now().year
+        
+        # Calculate date range based on filter
+        if time_filter == 'week':
+            start_date = timezone.now() - timedelta(weeks=12)
+            end_date = timezone.now()
+        elif time_filter == 'month':
+            start_date = datetime(year, 1, 1)
+            end_date = datetime(year, 12, 31, 23, 59, 59)
+        else:  # year
+            start_date = datetime(year - 4, 1, 1)
+            end_date = datetime(year, 12, 31, 23, 59, 59)
+        
+        # Get referrals in date range
+        referrals_in_range = Referral.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        )
+        
+        total_referrals = referrals_in_range.count()
+        
+        # Get top hospitals
+        top_hospitals = ReferringHospital.objects.filter(
+            referral__in=referrals_in_range
+        ).annotate(
+            referral_count=Count('referral')
+        ).filter(referral_count__gt=0).order_by('-referral_count')[:10]
+        
+        hospital_data = []
+        for hospital in top_hospitals:
+            percentage = (hospital.referral_count / total_referrals * 100) if total_referrals > 0 else 0
+            hospital_data.append({
+                'name': hospital.name,
+                'count': hospital.referral_count,
+                'percentage': round(percentage, 1)
+            })
+        
+        return Response(hospital_data)
+
+    @action(detail=False, methods=['get'])
+    def top_departments(self, request):
+        """Get top referring departments with time filter"""
+        from django.utils import timezone
+        from datetime import timedelta, datetime
+        from django.db.models import Count
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = request.query_params.get('year', timezone.now().year)
+        
+        try:
+            year = int(year)
+        except (ValueError, TypeError):
+            year = timezone.now().year
+        
+        # Calculate date range based on filter
+        if time_filter == 'week':
+            start_date = timezone.now() - timedelta(weeks=12)
+            end_date = timezone.now()
+        elif time_filter == 'month':
+            start_date = datetime(year, 1, 1)
+            end_date = datetime(year, 12, 31, 23, 59, 59)
+        else:  # year
+            start_date = datetime(year - 4, 1, 1)
+            end_date = datetime(year, 12, 31, 23, 59, 59)
+        
+        # Get referrals in date range with assigned departments
+        referrals_in_range = Referral.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        ).exclude(assigned_department__isnull=True).exclude(assigned_department='')
+        
+        total_referrals = referrals_in_range.count()
+        
+        # Get department distribution
+        department_data = referrals_in_range.values('assigned_department').annotate(
+            count=Count('assigned_department')
+        ).order_by('-count')[:10]
+        
+        # Assign colors to departments
+        colors = [
+            '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+            '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16'
+        ]
+        
+        # Get department display names
+        department_choices_dict = dict(Referral.DEPARTMENT_CHOICES)
+        
+        result = []
+        for idx, dept in enumerate(department_data):
+            dept_key = dept['assigned_department']
+            dept_name = department_choices_dict.get(dept_key, dept_key.replace('_', ' ').title())
+            result.append({
+                'name': dept_name,
+                'count': dept['count'],
+                'color': colors[idx % len(colors)]
+            })
+        
+        return Response(result)
+
+    @action(detail=False, methods=['get'])
+    def top_specialties(self, request):
+        """Get top specialties with time filter"""
+        from django.utils import timezone
+        from datetime import timedelta, datetime
+        from django.db.models import Count
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = request.query_params.get('year', timezone.now().year)
+        
+        try:
+            year = int(year)
+        except (ValueError, TypeError):
+            year = timezone.now().year
+        
+        # Calculate date range based on filter
+        if time_filter == 'week':
+            start_date = timezone.now() - timedelta(weeks=12)
+            end_date = timezone.now()
+        elif time_filter == 'month':
+            start_date = datetime(year, 1, 1)
+            end_date = datetime(year, 12, 31, 23, 59, 59)
+        else:  # year
+            start_date = datetime(year - 4, 1, 1)
+            end_date = datetime(year, 12, 31, 23, 59, 59)
+        
+        # Get referrals in date range
+        referrals_in_range = Referral.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        )
+        
+        # Get specialty distribution
+        specialty_distribution = Specialty.objects.filter(
+            referral__in=referrals_in_range
+        ).annotate(
+            referral_count=Count('referral')
+        ).filter(referral_count__gt=0).order_by('-referral_count')[:10]
+        
+        specialty_data = []
+        for specialty in specialty_distribution:
+            specialty_data.append({
+                'name': specialty.name,
+                'count': specialty.referral_count
+            })
+        
+        return Response(specialty_data)
+
+    @action(detail=False, methods=['get'])
+    def coordinated_referrals(self, request):
+        """Get coordinated referrals (received by department)"""
+        from django.utils import timezone
+        from datetime import timedelta, datetime
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = request.query_params.get('year', timezone.now().year)
+        
+        try:
+            year = int(year)
+        except (ValueError, TypeError):
+            year = timezone.now().year
+        
+        # Calculate date range based on filter
+        if time_filter == 'week':
+            start_date = timezone.now() - timedelta(weeks=12)
+            end_date = timezone.now()
+        elif time_filter == 'month':
+            start_date = datetime(year, 1, 1)
+            end_date = datetime(year, 12, 31, 23, 59, 59)
+        else:  # year
+            start_date = datetime(year - 4, 1, 1)
+            end_date = datetime(year, 12, 31, 23, 59, 59)
+        
+        # Get coordinated referrals (status: completed, in_transit, waiting, emergent, urgent, schedule_opd)
+        # These are referrals that have been received and are being processed by the department
+        coordinated = Referral.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date,
+            status__in=['completed', 'in_transit', 'waiting', 'emergent', 'urgent', 'schedule_opd']
+        ).select_related('specialty_needed', 'referring_hospital').order_by('-updated_at')[:100]
+        
+        result = []
+        for referral in coordinated:
+            # Determine the department from specialty or assigned department
+            department = referral.specialty_needed.name if referral.specialty_needed else 'N/A'
+            
+            result.append({
+                'referral_id': referral.referral_id,
+                'patient_name': referral.patient_full_name,
+                'department': department,
+                'status': referral.get_status_display(),
+                'referring_hospital': referral.referring_hospital.name,
+                'date_received': referral.updated_at.strftime('%Y-%m-%d %H:%M'),
+                'created_at': referral.created_at.strftime('%Y-%m-%d %H:%M')
+            })
+        
+        return Response(result)
+
+    @action(detail=False, methods=['get'])
+    def uncoordinated_referrals(self, request):
+        """Get uncoordinated referrals (cancelled)"""
+        from django.utils import timezone
+        from datetime import timedelta, datetime
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = request.query_params.get('year', timezone.now().year)
+        
+        try:
+            year = int(year)
+        except (ValueError, TypeError):
+            year = timezone.now().year
+        
+        # Calculate date range based on filter
+        if time_filter == 'week':
+            start_date = timezone.now() - timedelta(weeks=12)
+            end_date = timezone.now()
+        elif time_filter == 'month':
+            start_date = datetime(year, 1, 1)
+            end_date = datetime(year, 12, 31, 23, 59, 59)
+        else:  # year
+            start_date = datetime(year - 4, 1, 1)
+            end_date = datetime(year, 12, 31, 23, 59, 59)
+        
+        # Get uncoordinated referrals (status: cancelled)
+        uncoordinated = Referral.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date,
+            status='cancelled'
+        ).select_related('specialty_needed', 'referring_hospital').prefetch_related('status_history').order_by('-updated_at')[:100]
+        
+        result = []
+        for referral in uncoordinated:
+            # Try to get cancellation reason from status history
+            cancellation_reason = 'No reason provided'
+            last_history = referral.status_history.filter(new_status='cancelled').order_by('-changed_at').first()
+            if last_history and last_history.notes:
+                cancellation_reason = last_history.notes
+            
+            result.append({
+                'referral_id': referral.referral_id,
+                'patient_name': referral.patient_full_name,
+                'reason': cancellation_reason,
+                'referring_hospital': referral.referring_hospital.name,
+                'specialty': referral.specialty_needed.name if referral.specialty_needed else 'N/A',
+                'date_cancelled': referral.updated_at.strftime('%Y-%m-%d %H:%M'),
+                'created_at': referral.created_at.strftime('%Y-%m-%d %H:%M')
+            })
+        
+        return Response(result)
+
 class TransitInfoViewSet(viewsets.ModelViewSet):
     queryset = TransitInfo.objects.select_related('referral')
     serializer_class = TransitInfoSerializer
@@ -937,3 +1199,19 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': 'Referrer profile not found'
             }, status=status.HTTP_404_NOT_FOUND)
+            cancellation_reason = 'No reason provided'
+            last_history = referral.status_history.filter(new_status='cancelled').order_by('-changed_at').first()
+            if last_history and last_history.notes:
+                cancellation_reason = last_history.notes
+            
+            result.append({
+                'referral_id': referral.referral_id,
+                'patient_name': referral.patient_full_name,
+                'reason': cancellation_reason,
+                'referring_hospital': referral.referring_hospital.name,
+                'specialty': referral.specialty_needed.name if referral.specialty_needed else 'N/A',
+                'date_cancelled': referral.updated_at.strftime('%Y-%m-%d %H:%M'),
+                'created_at': referral.created_at.strftime('%Y-%m-%d %H:%M')
+            })
+        
+        return Response(result)

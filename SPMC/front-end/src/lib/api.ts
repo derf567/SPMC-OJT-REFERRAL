@@ -229,6 +229,51 @@ export const referralsAPI = {
     return apiRequest('/referrals/department_analytics/');
   },
 
+  // Get filtered top hospitals
+  getTopHospitals: async (filter: string, year?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) {
+      params.append('year', year.toString());
+    }
+    return apiRequest(`/referrals/top_hospitals/?${params.toString()}`);
+  },
+
+  // Get filtered top departments
+  getTopDepartments: async (filter: string, year?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) {
+      params.append('year', year.toString());
+    }
+    return apiRequest(`/referrals/top_departments/?${params.toString()}`);
+  },
+
+  // Get filtered top specialties
+  getTopSpecialties: async (filter: string, year?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) {
+      params.append('year', year.toString());
+    }
+    return apiRequest(`/referrals/top_specialties/?${params.toString()}`);
+  },
+
+  // Get coordinated referrals (received by department)
+  getCoordinatedReferrals: async (filter: string, year?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) {
+      params.append('year', year.toString());
+    }
+    return apiRequest(`/referrals/coordinated_referrals/?${params.toString()}`);
+  },
+
+  // Get uncoordinated referrals (cancelled)
+  getUncoordinatedReferrals: async (filter: string, year?: number) => {
+    const params = new URLSearchParams({ filter });
+    if (year) {
+      params.append('year', year.toString());
+    }
+    return apiRequest(`/referrals/uncoordinated_referrals/?${params.toString()}`);
+  },
+
   // Transfer referral to triage (EDCC Personnel action)
   transferToTriage: async (id: string, department: string) => {
     return apiRequest(`/referrals/${id}/transfer_to_triage/`, {
