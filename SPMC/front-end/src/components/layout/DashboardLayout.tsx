@@ -84,16 +84,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   ];
 
   // Determine which navigation to use
-  const baseNavigation = user?.permissions?.is_his_department ? hisNavigation : navigation;
-
-  // Add Approval tab for Triage Users
-  const navigationWithApproval = user?.permissions?.can_triage_referrals
-    ? [
-        ...baseNavigation.slice(0, 5), // Dashboard to Facilities/Reports
-        { name: "Account Approval", href: "/approval", icon: UserCheck },
-        ...baseNavigation.slice(5), // Reports (if not HIS)
-      ]
-    : baseNavigation;
+  const finalNavigation = user?.permissions?.is_his_department ? hisNavigation : navigation;
   // Apply dark mode to document on mount and when isDarkMode changes
   useEffect(() => {
     if (isDarkMode) {
@@ -217,7 +208,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </div>
 
             <nav className="p-4 space-y-2">
-              {navigationWithApproval.map((item) => {
+              {finalNavigation.map((item) => {
                 const isActive = location.pathname === item.href;
                 return (
                   <Link
