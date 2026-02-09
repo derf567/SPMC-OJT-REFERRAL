@@ -160,22 +160,18 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
           )}>
             {/* Logo Section */}
             <div className={cn(
-              "flex items-center gap-3 p-4 border-b h-16",
+              "flex flex-col items-center justify-center p-6 border-b",
               isDarkMode ? "border-gray-700" : "border-gray-200"
             )}>
-              <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-sm">R</span>
-              </div>
-              <div>
-                <h1 className={cn(
-                  "font-semibold transition-colors duration-300",
-                  isDarkMode ? "text-white" : "text-gray-900"
-                )}>Referrer Portal</h1>
-                <p className={cn(
-                  "text-xs transition-colors duration-300",
-                  isDarkMode ? "text-gray-400" : "text-gray-500"
-                )}>SPMC Referral System</p>
-              </div>
+              <img 
+                src="/SPMC-Logo.png" 
+                alt="SPMC Logo" 
+                className="w-40 h-40 object-contain rounded-2xl mb-3"
+              />
+              <h1 className={cn(
+                "text-sm font-semibold text-center transition-colors duration-300",
+                isDarkMode ? "text-white" : "text-gray-900"
+              )}>SPMC Referral System</h1>
             </div>
 
             <nav className="p-4 space-y-2">
