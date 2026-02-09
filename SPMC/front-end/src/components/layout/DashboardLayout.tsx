@@ -17,6 +17,7 @@ import {
   LogOut,
   User,
   UserCheck,
+  Inbox,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -72,14 +73,26 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
+  // HIS Department navigation (limited access)
+  const hisNavigation = [
+    { name: "Dashboard", href: "/dashboard", icon: Home },
+    { name: "Incoming Referrals", href: "/incoming", icon: Inbox },
+    { name: "Outpatient", href: "/outpatient", icon: Calendar },
+    { name: "Archived Referrals", href: "/patients", icon: Users },
+    { name: "Reports", href: "/reports", icon: BarChart3 },
+  ];
+
+  // Determine which navigation to use
+  const baseNavigation = user?.permissions?.is_his_department ? hisNavigation : navigation;
+
   // Add Approval tab for Triage Users
   const navigationWithApproval = user?.permissions?.can_triage_referrals
     ? [
-        ...navigation.slice(0, 5), // Dashboard to Facilities
+        ...baseNavigation.slice(0, 5), // Dashboard to Facilities/Reports
         { name: "Account Approval", href: "/approval", icon: UserCheck },
-        ...navigation.slice(5), // Reports
+        ...baseNavigation.slice(5), // Reports (if not HIS)
       ]
-    : navigation;
+    : baseNavigation;
 
   // Apply dark mode to document on mount and when isDarkMode changes
   useEffect(() => {

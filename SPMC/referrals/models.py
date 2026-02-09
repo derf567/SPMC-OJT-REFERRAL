@@ -7,6 +7,7 @@ class UserProfile(models.Model):
     ROLE_CHOICES = [
         ('edcc_personnel', 'EDCC Personnel'),
         ('call_triage', 'EDMAR/EDHO (Call Triage)'),
+        ('his_department', 'HIS Department'),
         ('admin', 'Administrator'),
         ('referrer', 'Referrer'),
     ]
@@ -45,6 +46,16 @@ class UserProfile(models.Model):
     def can_transfer_referrals(self):
         """EDCC Personnel can only transfer/forward referrals"""
         return self.role == 'edcc_personnel'
+    
+    @property
+    def is_his_department(self):
+        """Check if user is HIS department"""
+        return self.role == 'his_department'
+    
+    @property
+    def can_confirm_arrivals(self):
+        """HIS Department can confirm referral arrivals"""
+        return self.role == 'his_department'
     
     @property
     def is_admin_user(self):
