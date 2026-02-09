@@ -13,8 +13,6 @@ import {
   Calendar,
   Archive,
   BarChart3,
-  Filter,
-  Search,
   Check,
   X,
   User,
@@ -49,10 +47,7 @@ const ReferrerDashboard = () => {
   });
   const [recentReferrals, setRecentReferrals] = useState<any[]>([]);
   const [allReferrals, setAllReferrals] = useState<any[]>([]);
-  const [filteredReferrals, setFilteredReferrals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedReferral, setSelectedReferral] = useState<any>(null);
   const [transitDecisionModalOpen, setTransitDecisionModalOpen] = useState(false);
@@ -103,8 +98,9 @@ const ReferrerDashboard = () => {
           
           setStats(stats);
           
-          // Get recent referrals (last 5)
+          // Get recent referrals (last 5) - exclude completed and uncoordinated
           const sortedReferrals = referrals
+            .filter(r => r.status !== 'completed' && r.status !== 'uncoordinated')
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             .slice(0, 5);
           setRecentReferrals(sortedReferrals);
@@ -122,33 +118,6 @@ const ReferrerDashboard = () => {
       return () => clearInterval(interval);
     }
   }, [user]);
-
-  // Filter referrals based on status and search term
-  useEffect(() => {
-    let filtered = allReferrals;
-    
-    // Filter by status
-    if (statusFilter !== 'all') {
-      if (statusFilter === 'active') {
-        filtered = filtered.filter(r => !['completed', 'cancelled'].includes(r.status));
-      } else if (statusFilter === 'completed') {
-        filtered = filtered.filter(r => r.status === 'completed');
-      } else {
-        filtered = filtered.filter(r => r.status === statusFilter);
-      }
-    }
-    
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(r => 
-        r.patient_full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.referral_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.chief_complaint?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    setFilteredReferrals(filtered);
-  }, [allReferrals, statusFilter, searchTerm]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -489,6 +458,15 @@ const ReferrerDashboard = () => {
                     <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
                       {getStatusLabel(referral.status, referral)}
                     </span>
+                    {(referral.status === 'completed' || referral.status === 'uncoordinated') && (
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                        referral.status === 'completed' 
+                          ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30'
+                          : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
+                      }`}>
+                        {referral.status === 'completed' ? '✅ Completed' : '❌ Uncoordinated'}
+                      </span>
+                    )}
                     <button
                       onClick={() => openTimelineModal(referral)}
                       className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline whitespace-nowrap"
@@ -638,17 +616,79 @@ const ReferrerDashboard = () => {
     </div>
   );
 
-  const renderReferredSection = () => (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-current">My Referrals</h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Track all your submitted referrals and their current status.
-          </p>
+  const renderReferredSection = () => {
+    const activeReferrals = allReferrals.filter(r => 
+      r.status !== 'completed' && r.status !== 'uncoordinated'
+    );
+    const completedReferrals = allReferrals.filter(r => 
+      r.status === 'completed' || r.status === 'uncoordinated'
+    );
+
+    const renderReferralCard = (referral: any) => (
+      <div key={referral.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
+            {referral.patient_full_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2) || 'N/A'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="font-semibold text-gray-900 dark:text-white text-sm truncate">
+                {referral.patient_full_name}
+              </h4>
+              {referral.status === 'urgent' && referral.triage_decision === 'urgent' && !referral.transit_decision && (
+                <button
+                  onClick={() => {
+                    setTransitDecisionReferral(referral);
+                    setTransitDecisionModalOpen(true);
+                  }}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1 animate-pulse flex-shrink-0"
+                >
+                  <PhoneCall className="w-3 h-3" />
+                  Call
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
+              {referral.chief_complaint}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
+                {getStatusLabel(referral.status, referral)}
+              </span>
+              {(referral.status === 'completed' || referral.status === 'uncoordinated') && (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${
+                  referral.status === 'completed' 
+                    ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30'
+                    : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
+                }`}>
+                  {referral.status === 'completed' ? '✅' : '❌'}
+                </span>
+              )}
+              <button
+                onClick={() => openTimelineModal(referral)}
+                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 text-xs underline"
+              >
+                Timeline
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+              ID: {referral.referral_id}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+      </div>
+    );
+
+    return (
+      <div className="space-y-6">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-current">My Referrals</h1>
+            <p className="text-gray-500 dark:text-gray-400">
+              Track all your submitted referrals - active and completed.
+            </p>
+          </div>
           <Link to="/referral">
             <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
               <Plus className="w-4 h-4" />
@@ -656,123 +696,66 @@ const ReferrerDashboard = () => {
             </button>
           </Link>
         </div>
-      </div>
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2 flex-1">
-            <Search className="w-4 h-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search by patient name, ID, or complaint..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Referrals List */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Referrals ({filteredReferrals.length})
-          </h3>
-        </div>
-        
-        <div className="p-6">
-          {filteredReferrals.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">
-                {searchTerm || statusFilter !== 'all' ? 'No referrals match your filters' : 'No referrals found'}
-              </p>
+        {/* Two Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left: Active Referrals */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-green-600" />
+                  Active
+                </h3>
+                <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium">
+                  {activeReferrals.length}
+                </span>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredReferrals.map((referral) => (
-                <div key={referral.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4 flex-1">
-                      <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white font-medium">
-                        {referral.patient_full_name?.split(' ').map((n: string) => n[0]).join('') || 'N/A'}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-semibold text-gray-900 dark:text-white">
-                              {referral.patient_full_name}
-                            </h4>
-                            {/* Show triage call button if referral is marked as urgent by EDMAR */}
-                            {referral.status === 'urgent' && referral.triage_decision === 'urgent' && !referral.transit_decision && (
-                              <button
-                                onClick={() => {
-                                  setTransitDecisionReferral(referral);
-                                  setTransitDecisionModalOpen(true);
-                                }}
-                                className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1 animate-pulse"
-                              >
-                                <PhoneCall className="w-3 h-3" />
-                                Triage Call
-                              </button>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
-                              {getStatusLabel(referral.status, referral)}
-                            </span>
-                            <button
-                              onClick={() => openTimelineModal(referral)}
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline"
-                              title="View referral timeline"
-                            >
-                              <Clock className="w-3 h-3" />
-                              View Timeline
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                          <strong>Chief Complaint:</strong> {referral.chief_complaint}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                          <strong>Specialty:</strong> {referral.specialty_needed_name}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                          <strong>Hospital:</strong> {referral.referring_hospital_name}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-500 mt-2">
-                          <span>ID: {referral.referral_id}</span>
-                          <span>Submitted: {new Date(referral.created_at).toLocaleDateString()}</span>
-                          {referral.updated_at && (
-                            <span>Updated: {new Date(referral.updated_at).toLocaleDateString()}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            <div className="p-4 max-h-[700px] overflow-y-auto">
+              {activeReferrals.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">No active referrals</p>
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-3">
+                  {activeReferrals.map(renderReferralCard)}
+                </div>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Right: Completed/Uncoordinated Referrals */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Archive className="w-5 h-5 text-gray-600" />
+                  Completed
+                </h3>
+                <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400 rounded-full text-sm font-medium">
+                  {completedReferrals.length}
+                </span>
+              </div>
+            </div>
+            <div className="p-4 max-h-[700px] overflow-y-auto">
+              {completedReferrals.length === 0 ? (
+                <div className="text-center py-12">
+                  <Archive className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">No completed referrals</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {completedReferrals.map(renderReferralCard)}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderArchivedSection = () => {
     const archivedReferrals = allReferrals.filter(r => r.status === 'completed' || r.status === 'cancelled');
@@ -821,6 +804,15 @@ const ReferrerDashboard = () => {
                               <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
                                 {getStatusLabel(referral.status, referral)}
                               </span>
+                              {(referral.status === 'completed' || referral.status === 'uncoordinated') && (
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                                  referral.status === 'completed' 
+                                    ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30'
+                                    : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
+                                }`}>
+                                  {referral.status === 'completed' ? '✅ Completed' : '❌ Uncoordinated'}
+                                </span>
+                              )}
                               <button
                                 onClick={() => openTimelineModal(referral)}
                                 className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline"

@@ -8,7 +8,6 @@ import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import {
   Home,
   FileText,
-  Archive,
   BarChart3,
   Settings,
   Bell,
@@ -18,6 +17,7 @@ import {
   LogOut,
   User,
   Plus,
+  Info,
 } from "lucide-react";
 
 interface ReferrerDashboardLayoutProps {
@@ -66,7 +66,6 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
   const navigation = [
     { name: "Dashboard", href: "/referrer", icon: Home },
     { name: "My Referrals", href: "/referrer/referred", icon: FileText, badge: myReferralsCount > 0 ? myReferralsCount.toString() : undefined },
-    { name: "Archived", href: "/referrer/archived", icon: Archive },
     { name: "Reports", href: "/referrer/reports", icon: BarChart3 },
     { name: "New Referral", href: "/referral", icon: Plus, highlight: true },
   ];
@@ -217,18 +216,20 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
             </nav>
             
             <div className="absolute bottom-4 left-4 right-4">
-              <Button
-                variant="ghost"
-                className={cn(
-                  "w-full justify-start",
-                  isDarkMode 
-                    ? "text-gray-400 hover:text-white hover:bg-gray-700" 
-                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
-                )}
-              >
-                <Settings className="w-5 h-5 mr-3" />
-                Settings
-              </Button>
+              <AboutUsDialog isDarkMode={isDarkMode} trigger={
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    "w-full justify-start",
+                    isDarkMode 
+                      ? "text-gray-400 hover:text-white hover:bg-gray-700" 
+                      : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                  )}
+                >
+                  <Info className="w-5 h-5 mr-3" />
+                  About us
+                </Button>
+              } />
             </div>
           </div>
 
@@ -254,9 +255,6 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
 
               {/* Right side - Actions and User */}
               <div className="flex items-center gap-4">
-                {/* About Us Button */}
-                <AboutUsDialog isDarkMode={isDarkMode} />
-
                 {/* Dark Mode Toggle */}
                 <Button
                   variant="ghost"

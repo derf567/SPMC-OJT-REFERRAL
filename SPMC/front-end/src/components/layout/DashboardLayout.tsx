@@ -19,6 +19,7 @@ import {
   User,
   UserCheck,
   Inbox,
+  Info,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -245,6 +246,23 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 );
               })}
             </nav>
+            
+            <div className="absolute bottom-4 left-4 right-4">
+              <AboutUsDialog isDarkMode={isDarkMode} trigger={
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    "w-full justify-start",
+                    isDarkMode 
+                      ? "text-gray-400 hover:text-white hover:bg-gray-700" 
+                      : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                  )}
+                >
+                  <Info className="w-5 h-5 mr-3" />
+                  About us
+                </Button>
+              } />
+            </div>
           </div>
 
           {/* Main Content Area */}
@@ -264,9 +282,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
               {/* Right side - Actions and User */}
               <div className="flex items-center gap-4">
-                {/* About Us Button */}
-                <AboutUsDialog isDarkMode={isDarkMode} />
-
                 {/* Dark Mode Toggle */}
                 <Button
                   variant="ghost"

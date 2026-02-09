@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { ReferrerDashboardLayout } from "@/components/layout/ReferrerDashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { referralsAPI } from "@/lib/api";
@@ -16,6 +17,7 @@ import {
   Check,
   AlertTriangle,
   CheckCircle,
+  Stethoscope,
 } from "lucide-react";
 import {
   Dialog,
@@ -25,25 +27,13 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
-interface Patient {
+interface ArchivedReferral {
+  id: string;
+  referral_id: string;
   patient_full_name: string;
   age: number;
   gender: string;
   hrn?: string;
-  patient_category: string;
-  current_address: string;
-  birthday: string;
-  total_referrals: number;
-  latest_referral_date: string;
-  latest_referral_id: string;
-  latest_status: string;
-  latest_specialty?: string;
-  latest_hospital?: string;
-}
-
-interface PatientHistory {
-  id: string;
-  referral_id: string;
   chief_complaint: string;
   working_impression: string;
   specialty_needed_name: string;
@@ -52,7 +42,9 @@ interface PatientHistory {
   priority: string;
   created_at: string;
   updated_at?: string;
-  // User tracking fields
+  completed_at?: string;
+  cancelled_at?: string;
+  cancellation_reason?: string;
   created_by_user?: string;
   transferred_by_user?: string;
   transferred_at?: string;
@@ -62,19 +54,25 @@ interface PatientHistory {
 
 const getStatusColor = (status: string) => {
   switch (status) {
+    case "completed":
+      return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
+    case "uncoordinated":
+      return "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30";
     case "in_transit":
       return "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30";
     case "waiting":
       return "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30";
     case "accepted":
       return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
-    case "completed":
-      return "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30";
     case "pending":
       return "bg-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/30";
     default:
       return "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30";
   }
+};
+
+const getStatusDisplay = (status: string) => {
+  return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
 const PatientHistoryModal = ({ 
@@ -213,42 +211,46 @@ const PatientHistoryModal = ({
 };
 
 const Patients = () => {
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [referrals, setReferrals] = useState<ArchivedReferral[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [stats, setStats] = useState({
-    total_patients: 0,
-    active_cases: 0,
-    pending_cases: 0
+    total_archived: 0,
+    completed: 0,
+    uncoordinated: 0
   });
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedReferral, setSelectedReferral] = useState<any>(null);
   const { user } = useAuth();
 
-  // Fetch patients from API
+  // Determine which layout to use
+  const Layout = user?.role === 'referrer' ? ReferrerDashboardLayout : DashboardLayout;
+
+  // Fetch archived referrals from API
   useEffect(() => {
-    const fetchPatients = async () => {
+    const fetchArchivedReferrals = async () => {
       try {
         setLoading(true);
-        const response = await referralsAPI.getPatients();
-        const patientsData = response.results || response;
-        setPatients(patientsData);
+        const response = await referralsAPI.getAll();
+        const allReferrals = response.results || response;
+        
+        // Filter to only show completed or uncoordinated referrals
+        const archivedReferrals = allReferrals.filter((r: any) => 
+          r.status === 'completed' || r.status === 'uncoordinated'
+        );
+        
+        setReferrals(archivedReferrals);
         
         // Calculate stats
-        const totalPatients = patientsData.length;
-        const activeCases = patientsData.filter((p: Patient) => 
-          ['pending', 'in_transit', 'waiting'].includes(p.latest_status)
-        ).length;
-        const pendingCases = patientsData.filter((p: Patient) => 
-          p.latest_status === 'pending'
-        ).length;
+        const totalArchived = archivedReferrals.length;
+        const completed = archivedReferrals.filter((r: any) => r.status === 'completed').length;
+        const uncoordinated = archivedReferrals.filter((r: any) => r.status === 'uncoordinated').length;
         
         setStats({
-          total_patients: totalPatients,
-          active_cases: activeCases,
-          pending_cases: pendingCases
+          total_archived: totalArchived,
+          completed: completed,
+          uncoordinated: uncoordinated
         });
         
         setError(null);
@@ -260,14 +262,15 @@ const Patients = () => {
       }
     };
 
-    fetchPatients();
+    fetchArchivedReferrals();
   }, []);
 
-  // Filter patients based on search term
-  const filteredPatients = patients.filter(patient =>
-    patient.patient_full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (patient.hrn && patient.hrn.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    patient.latest_referral_id.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filter referrals based on search term
+  const filteredReferrals = referrals.filter(referral =>
+    referral.patient_full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (referral.hrn && referral.hrn.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    referral.referral_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    referral.chief_complaint.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const openTimelineModal = (referral: any) => {
@@ -392,20 +395,20 @@ const Patients = () => {
 
   if (loading) {
     return (
-      <DashboardLayout>
+      <Layout>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600 dark:text-gray-400">Loading archived referrals...</p>
           </div>
         </div>
-      </DashboardLayout>
+      </Layout>
     );
   }
 
   if (error) {
     return (
-      <DashboardLayout>
+      <Layout>
         <div className="text-center py-12">
           <div className="text-red-500 mb-2">Error loading archived referrals</div>
           <div className="text-gray-600 dark:text-gray-400 text-sm mb-4">{error}</div>
@@ -416,17 +419,17 @@ const Patients = () => {
             Retry
           </Button>
         </div>
-      </DashboardLayout>
+      </Layout>
     );
   }
 
   return (
-    <DashboardLayout>
+    <Layout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Archived Referrals</h1>
           <p className="text-gray-500 dark:text-gray-400">
-            {user?.role_display} - View archived referral information and patient history
+            View completed and uncoordinated referrals
           </p>
         </div>
         
@@ -434,28 +437,28 @@ const Patients = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
             <div className="flex items-center gap-3">
-              <User className="w-8 h-8 text-blue-600" />
+              <FileText className="w-8 h-8 text-blue-600" />
               <div>
                 <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-400 mb-1">Total Archived</h3>
-                <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.total_patients}</p>
+                <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.total_archived}</p>
               </div>
             </div>
           </div>
           <div className="bg-green-50 dark:bg-gray-800 border border-green-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
             <div className="flex items-center gap-3">
-              <FileText className="w-8 h-8 text-green-600" />
+              <CheckCircle className="w-8 h-8 text-green-600" />
               <div>
-                <h3 className="text-lg font-semibold text-green-800 dark:text-green-400 mb-1">Active Cases</h3>
-                <p className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.active_cases}</p>
+                <h3 className="text-lg font-semibold text-green-800 dark:text-green-400 mb-1">Completed</h3>
+                <p className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.completed}</p>
               </div>
             </div>
           </div>
-          <div className="bg-yellow-50 dark:bg-gray-800 border border-yellow-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
+          <div className="bg-red-50 dark:bg-gray-800 border border-red-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
             <div className="flex items-center gap-3">
-              <Clock className="w-8 h-8 text-yellow-600" />
+              <AlertTriangle className="w-8 h-8 text-red-600" />
               <div>
-                <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-400 mb-1">Pending</h3>
-                <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{stats.pending_cases}</p>
+                <h3 className="text-lg font-semibold text-red-800 dark:text-red-400 mb-1">Uncoordinated</h3>
+                <p className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.uncoordinated}</p>
               </div>
             </div>
           </div>
@@ -469,110 +472,85 @@ const Patients = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search archived referrals by patient name, HRN, or referral ID..."
+                  placeholder="Search by patient name, HRN, referral ID, or complaint..."
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <Badge variant="outline" className="text-xs">
-                {filteredPatients.length} archived referrals
+                {filteredReferrals.length} referral{filteredReferrals.length !== 1 ? 's' : ''}
               </Badge>
             </div>
           </div>
           
           <div className="p-6">
-            {filteredPatients.length === 0 ? (
+            {filteredReferrals.length === 0 ? (
               <div className="text-center py-12">
-                <User className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                   {searchTerm ? 'No archived referrals found' : 'No archived referrals yet'}
                 </h3>
                 <p className="text-gray-500 dark:text-gray-400">
                   {searchTerm 
                     ? 'Try adjusting your search terms' 
-                    : 'Archived referrals will appear here when referrals are completed'
+                    : 'Archived referrals will appear here when referrals are completed or uncoordinated'
                   }
                 </p>
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredPatients.map((patient) => (
+                {filteredReferrals.map((referral) => (
                   <div 
-                    key={patient.patient_full_name} 
+                    key={referral.id} 
                     className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200"
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
-                            {patient.patient_full_name.split(' ').map(n => n[0]).join('')}
+                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                            {referral.patient_full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                           </div>
                           <div>
                             <h4 className="font-semibold text-gray-900 dark:text-white">
-                              {patient.patient_full_name}
+                              {referral.patient_full_name}
                             </h4>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {patient.age} yrs • {patient.gender} 
-                              {patient.hrn && ` • ${patient.hrn}`}
+                              ID: {referral.referral_id} • {referral.age} yrs • {referral.gender}
+                              {referral.hrn && ` • HRN: ${referral.hrn}`}
                             </p>
                           </div>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                            <MapPin className="w-4 h-4" />
-                            <span className="truncate">{patient.current_address}</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 text-sm">
+                          <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
+                            <FileText className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <span className="line-clamp-2">{referral.chief_complaint}</span>
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                            <Calendar className="w-4 h-4" />
-                            <span>Born: {patient.birthday}</span>
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                            <Stethoscope className="w-4 h-4 flex-shrink-0" />
+                            <span>{referral.specialty_needed_name}</span>
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                            <FileText className="w-4 h-4" />
-                            <span>{patient.total_referrals} referral(s)</span>
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                            <MapPin className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{referral.referring_hospital_name}</span>
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                            <Clock className="w-4 h-4" />
-                            <span>Latest: {new Date(patient.latest_referral_date).toLocaleDateString()}</span>
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                            <span>{new Date(referral.created_at).toLocaleDateString()}</span>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 mt-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(patient.latest_status)}`}>
-                            {patient.latest_status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
+                            {getStatusDisplay(referral.status)}
                           </span>
-                          {patient.latest_specialty && (
-                            <Badge variant="outline" className="text-xs">
-                              {patient.latest_specialty}
-                            </Badge>
+                          {referral.status === 'uncoordinated' && referral.cancellation_reason && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 italic">
+                              Reason: {referral.cancellation_reason}
+                            </span>
                           )}
-                          <button
-                            onClick={() => openTimelineModal({
-                              status: patient.latest_status,
-                              created_at: patient.latest_referral_date,
-                              updated_at: patient.latest_referral_date,
-                              referral_id: patient.latest_referral_id,
-                              patient_full_name: patient.patient_full_name
-                            })}
-                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline ml-2"
-                            title="View referral timeline"
-                          >
-                            <Clock className="w-3 h-3" />
-                            View Timeline
-                          </button>
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 ml-4">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedPatient(patient)}
-                          className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
                       </div>
                     </div>
                   </div>
@@ -582,131 +560,7 @@ const Patients = () => {
           </div>
         </div>
       </div>
-
-      {/* Patient History Modal */}
-      {selectedPatient && (
-        <PatientHistoryModal 
-          patient={selectedPatient} 
-          onClose={() => setSelectedPatient(null)} 
-        />
-      )}
-
-      {/* Timeline Modal */}
-      <Dialog open={timelineModalOpen} onOpenChange={setTimelineModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Referral Timeline - {selectedReferral?.patient_full_name}
-            </DialogTitle>
-            <DialogDescription>
-              Track the complete journey of this referral from submission to completion
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedReferral && (
-            <div className="space-y-6">
-              {/* Referral Info */}
-              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">Referral ID:</span>
-                    <span className="ml-2 text-gray-900 dark:text-white">{selectedReferral.referral_id}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">Specialty:</span>
-                    <span className="ml-2 text-gray-900 dark:text-white">{selectedReferral.specialty_needed_name || 'N/A'}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">Chief Complaint:</span>
-                    <span className="ml-2 text-gray-900 dark:text-white">{selectedReferral.chief_complaint || 'N/A'}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">Current Status:</span>
-                    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedReferral.status)}`}>
-                      {selectedReferral.status?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Timeline */}
-              <div className="space-y-4">
-                {getTimelineSteps(selectedReferral).map((step, index) => {
-                  const IconComponent = step.icon;
-                  const isCompleted = step.completed;
-                  const isCurrent = selectedReferral.status === step.status;
-
-                  return (
-                    <div key={step.status} className="flex items-start gap-4">
-                      {/* Timeline line */}
-                      <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          isCompleted
-                            ? `bg-${step.color}-500 text-white`
-                            : isCurrent
-                            ? `bg-${step.color}-100 dark:bg-${step.color}-900/30 text-${step.color}-600 dark:text-${step.color}-400 border-2 border-${step.color}-500`
-                            : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
-                        }`}>
-                          {isCompleted ? (
-                            <Check className="w-5 h-5" />
-                          ) : (
-                            <IconComponent className="w-5 h-5" />
-                          )}
-                        </div>
-                        {index < getTimelineSteps(selectedReferral).length - 1 && (
-                          <div className={`w-0.5 h-8 ${
-                            isCompleted ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
-                          }`} />
-                        )}
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 pb-8">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className={`font-medium ${
-                            isCompleted
-                              ? 'text-gray-900 dark:text-white'
-                              : isCurrent
-                              ? `text-${step.color}-600 dark:text-${step.color}-400`
-                              : 'text-gray-500 dark:text-gray-400'
-                          }`}>
-                            {step.label}
-                          </h4>
-                          {isCurrent && (
-                            <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded-full">
-                              Current
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                          {step.description}
-                        </p>
-                        {step.date && (
-                          <div className="space-y-1">
-                            <p className="text-xs text-gray-500 dark:text-gray-500">
-                              {new Date(step.date).toLocaleString()}
-                            </p>
-                            {step.user && step.action && (
-                              <p className="text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1">
-                                <User className="w-3 h-3" />
-                                <span className="font-medium">{step.user}</span>
-                                <span className="text-gray-400">•</span>
-                                <span>{step.action}</span>
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </DashboardLayout>
+    </Layout>
   );
 };
 
