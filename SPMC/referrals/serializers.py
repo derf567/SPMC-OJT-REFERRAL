@@ -44,11 +44,21 @@ class ReferrerAccountSerializer(serializers.ModelSerializer):
     documents = ReferrerDocumentSerializer(many=True, read_only=True)
     specialties = serializers.PrimaryKeyRelatedField(queryset=Specialty.objects.all(), many=True, required=False)
     affiliate_hospitals = serializers.PrimaryKeyRelatedField(queryset=ReferringHospital.objects.all(), many=True, required=False)
+    user = serializers.SerializerMethodField()
 
     class Meta:
         model = ReferrerAccount
         fields = ['id', 'user', 'first_name', 'middle_name', 'last_name', 'referrer_type',
-                  'specialties', 'affiliate_hospitals', 'position', 'age', 'address', 'gender', 'created_at', 'documents']
+                  'specialties', 'affiliate_hospitals', 'position', 'age', 'address', 'gender', 
+                  'approval_status', 'created_at', 'documents']
+    
+    def get_user(self, obj):
+        return {
+            'id': obj.user.id,
+            'username': obj.user.username,
+            'email': obj.user.email,
+            'date_joined': obj.user.date_joined.isoformat() if obj.user.date_joined else None
+        }
 
 
 class ReferrerRegistrationSerializer(serializers.Serializer):
@@ -103,9 +113,11 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
         password = validated_data.pop('password')
         email = validated_data.pop('email', '')
 
+        # Create user as inactive until approved
         user = User.objects.create_user(username=username, password=password, email=email,
                                         first_name=validated_data.get('first_name', ''),
-                                        last_name=validated_data.get('last_name', ''))
+                                        last_name=validated_data.get('last_name', ''),
+                                        is_active=False)  # Set inactive until approved
 
         # Create UserProfile with referrer role
         UserProfile.objects.create(

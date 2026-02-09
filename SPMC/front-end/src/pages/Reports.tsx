@@ -59,6 +59,7 @@ const Reports = () => {
   const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
   const [globalMonth, setGlobalMonth] = useState(0); // 0 = All, 1-12 = specific month
   const [globalWeek, setGlobalWeek] = useState(0); // 0 = All, 1-52 = specific week
+  const [weekFilterMonth, setWeekFilterMonth] = useState(0); // Month filter for week view (0 = All)
   
   const [referralsByTime, setReferralsByTime] = useState<any[]>([]);
   const [departmentData, setDepartmentData] = useState<any[]>([]);
@@ -99,7 +100,12 @@ const Reports = () => {
         coordinatedData,
         uncoordinatedData
       ] = await Promise.all([
-        referralsAPI.getReferralsByTimePeriod(globalFilter, globalYear, globalMonth, globalWeek),
+        referralsAPI.getReferralsByTimePeriod(
+          globalFilter, 
+          globalYear, 
+          globalFilter === 'week' ? weekFilterMonth : globalMonth, 
+          globalWeek
+        ),
         referralsAPI.getTopDepartments(globalFilter, globalYear, globalMonth, globalWeek),
         referralsAPI.getTopHospitals(globalFilter, globalYear, globalMonth, globalWeek),
         referralsAPI.getTopSpecialties(globalFilter, globalYear, globalMonth, globalWeek),
@@ -153,7 +159,7 @@ const Reports = () => {
   // Fetch all filtered data when global filter or year changes
   useEffect(() => {
     fetchAllFilteredData();
-  }, [globalFilter, globalYear, globalMonth, globalWeek]);
+  }, [globalFilter, globalYear, globalMonth, globalWeek, weekFilterMonth]);
 
   if (loading) {
     return (
@@ -255,16 +261,40 @@ const Reports = () => {
             
             {/* Week Selector */}
             {globalFilter === 'week' && (
-              <select
-                value={globalWeek}
-                onChange={(e) => setGlobalWeek(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value={0}>All Weeks</option>
-                {Array.from({ length: 52 }, (_, i) => i + 1).map(week => (
-                  <option key={week} value={week}>Week {week}</option>
-                ))}
-              </select>
+              <>
+                <select
+                  value={weekFilterMonth}
+                  onChange={(e) => {
+                    setWeekFilterMonth(Number(e.target.value));
+                    setGlobalWeek(0); // Reset week when month changes
+                  }}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value={0}>All Months</option>
+                  <option value={1}>January</option>
+                  <option value={2}>February</option>
+                  <option value={3}>March</option>
+                  <option value={4}>April</option>
+                  <option value={5}>May</option>
+                  <option value={6}>June</option>
+                  <option value={7}>July</option>
+                  <option value={8}>August</option>
+                  <option value={9}>September</option>
+                  <option value={10}>October</option>
+                  <option value={11}>November</option>
+                  <option value={12}>December</option>
+                </select>
+                <select
+                  value={globalWeek}
+                  onChange={(e) => setGlobalWeek(Number(e.target.value))}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value={0}>All Weeks</option>
+                  {Array.from({ length: 52 }, (_, i) => i + 1).map(week => (
+                    <option key={week} value={week}>Week {week}</option>
+                  ))}
+                </select>
+              </>
             )}
             
             {/* Year Selector for Year filter */}

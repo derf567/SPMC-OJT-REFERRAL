@@ -339,6 +339,25 @@ export const referralsAPI = {
       body: JSON.stringify(requestBody),
     });
   },
+
+  // Get pending accounts for approval
+  getPendingAccounts: async () => {
+    return apiRequest('/referrers/pending_accounts/');
+  },
+
+  // Approve account
+  approveAccount: async (accountId: number) => {
+    return apiRequest(`/referrers/${accountId}/approve_account/`, {
+      method: 'POST',
+    });
+  },
+
+  // Reject account
+  rejectAccount: async (accountId: number) => {
+    return apiRequest(`/referrers/${accountId}/reject_account/`, {
+      method: 'POST',
+    });
+  },
 };
 
 // Hospitals API

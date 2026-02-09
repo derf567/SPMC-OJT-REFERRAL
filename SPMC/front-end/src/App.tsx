@@ -16,6 +16,7 @@ import Outpatient from "./pages/Outpatient";
 import Patients from "./pages/Patients";
 import Facilities from "./pages/Facilities";
 import Reports from "./pages/Reports";
+import Approval from "./pages/Approval";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -90,6 +91,11 @@ const App = () => (
             <Route path="/reports" element={
               <ProtectedRoute>
                 <Reports />
+              </ProtectedRoute>
+            } />
+            <Route path="/approval" element={
+              <ProtectedRoute>
+                <Approval />
               </ProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

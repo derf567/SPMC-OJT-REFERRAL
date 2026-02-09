@@ -734,13 +734,24 @@ class ReferralViewSet(viewsets.ModelViewSet):
             except (ValueError, TypeError):
                 week_num = 0
             
+            try:
+                month_num = int(month) if month else 0
+            except (ValueError, TypeError):
+                month_num = 0
+            
             if week_num == 0:
-                # Show all weeks of the year
+                # Show all weeks (filtered by month if specified)
                 jan_1 = datetime(year, 1, 1)
                 days_to_monday = (7 - jan_1.weekday()) % 7
                 if jan_1.weekday() != 0:
                     days_to_monday = (7 - jan_1.weekday())
                 first_monday = jan_1 + timedelta(days=days_to_monday)
+                
+                # If month is specified, filter weeks for that month
+                if month_num > 0:
+                    month_start = datetime(year, month_num, 1).date()
+                    last_day = calendar.monthrange(year, month_num)[1]
+                    month_end = datetime(year, month_num, last_day).date()
                 
                 for w in range(1, 53):
                     week_start = first_monday + timedelta(weeks=w - 1)
@@ -749,6 +760,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
                     # Stop if we've gone past the year
                     if week_start.year > year:
                         break
+                    
+                    # If month filter is active, only include weeks that overlap with that month
+                    if month_num > 0:
+                        # Skip weeks that don't overlap with the selected month
+                        if week_end.date() < month_start or week_start.date() > month_end:
+                            continue
                     
                     count = Referral.objects.filter(
                         created_at__date__gte=week_start.date(),
@@ -1230,6 +1247,96 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
         except ReferrerAccount.DoesNotExist:
             return Response({
                 'error': 'Referrer profile not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def pending_accounts(self, request):
+        """Get all pending referrer accounts for approval (Triage Users only)"""
+        # Check if user has triage permissions
+        user_profile = getattr(request.user, 'profile', None)
+        if not user_profile or not user_profile.can_triage_referrals:
+            return Response({
+                'error': 'You do not have permission to view pending accounts'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get all accounts (pending, approved, rejected)
+        accounts = ReferrerAccount.objects.select_related('user').prefetch_related(
+            'specialties', 'affiliate_hospitals', 'documents'
+        ).all().order_by('-created_at')
+        
+        serializer = ReferrerAccountSerializer(accounts, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def approve_account(self, request, pk=None):
+        """Approve a pending referrer account (Triage Users only)"""
+        # Check if user has triage permissions
+        user_profile = getattr(request.user, 'profile', None)
+        if not user_profile or not user_profile.can_triage_referrals:
+            return Response({
+                'error': 'You do not have permission to approve accounts'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            account = self.get_object()
+            
+            if account.approval_status == 'approved':
+                return Response({
+                    'error': 'Account is already approved'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update approval status
+            account.approval_status = 'approved'
+            account.save()
+            
+            # Activate the user account
+            account.user.is_active = True
+            account.user.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Account approved successfully'
+            })
+            
+        except ReferrerAccount.DoesNotExist:
+            return Response({
+                'error': 'Account not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def reject_account(self, request, pk=None):
+        """Reject a pending referrer account (Triage Users only)"""
+        # Check if user has triage permissions
+        user_profile = getattr(request.user, 'profile', None)
+        if not user_profile or not user_profile.can_triage_referrals:
+            return Response({
+                'error': 'You do not have permission to reject accounts'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            account = self.get_object()
+            
+            if account.approval_status == 'rejected':
+                return Response({
+                    'error': 'Account is already rejected'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update approval status
+            account.approval_status = 'rejected'
+            account.save()
+            
+            # Deactivate the user account
+            account.user.is_active = False
+            account.user.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Account rejected successfully'
+            })
+            
+        except ReferrerAccount.DoesNotExist:
+            return Response({
+                'error': 'Account not found'
             }, status=status.HTTP_404_NOT_FOUND)
             cancellation_reason = 'No reason provided'
             last_history = referral.status_history.filter(new_status='cancelled').order_by('-changed_at').first()
