@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { authAPI } from "@/lib/api";
+import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { Eye, EyeOff, User } from "lucide-react";
 
 const Register = () => {
@@ -378,25 +379,23 @@ const Register = () => {
       return;
     }
 
-    // Password validation for non-hospital accounts
-    if (formData.referrerType !== 'hospital_account') {
-      if (formData.password !== formData.confirmPassword) {
-        toast({
-          variant: "destructive",
-          title: "Password Mismatch",
-          description: "Passwords do not match. Please check and try again.",
-        });
-        return;
-      }
+    // Password validation
+    if (formData.password !== formData.confirmPassword) {
+      toast({
+        variant: "destructive",
+        title: "Password Mismatch",
+        description: "Passwords do not match. Please check and try again.",
+      });
+      return;
+    }
 
-      if (formData.password.length < 6) {
-        toast({
-          variant: "destructive",
-          title: "Password Too Short",
-          description: "Password must be at least 6 characters long.",
-        });
-        return;
-      }
+    if (formData.password.length < 6) {
+      toast({
+        variant: "destructive",
+        title: "Password Too Short",
+        description: "Password must be at least 6 characters long.",
+      });
+      return;
     }
 
     setLoading(true);
@@ -406,7 +405,7 @@ const Register = () => {
       const fd = new FormData();
       
       // Basic fields
-      fd.append('username', formData.referrerType === 'hospital_account' ? formData.hospitalName : formData.username);
+      fd.append('username', formData.username);
       fd.append('email', formData.email);
       fd.append('password', formData.password);
       fd.append('first_name', formData.firstName);
@@ -485,14 +484,13 @@ const Register = () => {
       } catch (error: any) {
         // Fallback to simple registration if comprehensive fails
         const simpleData = {
-          username: formData.referrerType === 'hospital_account' ? formData.hospitalName : formData.username,
+          username: formData.username,
           email: formData.email,
           password: formData.password,
           firstName: formData.firstName,
           lastName: formData.lastName,
           profession: formData.referrerType === 'doctor' ? 'Doctor' : 
-                     formData.referrerType === 'hospital_employee' ? 'Hospital Employee' : 
-                     formData.referrerType === 'hospital_account' ? 'Hospital Account' : 'Other',
+                     formData.referrerType === 'hospital_employee' ? 'Hospital Employee' : 'Other',
           cellphone: formData.cellphone || '000-000-0000',
           hospitalName: formData.hospitalName || 'Not specified',
           hospitalLocation: formData.exactAddress || formData.city || 'Not specified',
@@ -523,6 +521,11 @@ const Register = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      {/* About Us Button - Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <AboutUsDialog isDarkMode={false} />
+      </div>
+
       <div className="max-w-2xl w-full">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           {/* Header */}
@@ -556,48 +559,48 @@ const Register = () => {
                 >
                   <option value="doctor">Doctor / Medical Professional</option>
                   <option value="hospital_employee">Authorized Hospital Employee</option>
-                  <option value="hospital_account">Hospital Account</option>
                   <option value="other">Other</option>
                 </select>
               </div>
             </div>
 
-            {/* Hospital Account Fields */}
-            {formData.referrerType === 'hospital_account' ? (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-                  Hospital Information
-                </h3>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Hospital Name / Username *
-                  </label>
-                  <textarea
-                    name="hospitalName"
-                    value={formData.hospitalName}
-                    onChange={handleInputChange}
-                    placeholder="Enter hospital name"
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
+            {/* Personal Information Fields */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                Personal Information
+              </h3>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Username *
+                </label>
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  placeholder="Username"
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Hospital Email *
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="Hospital email"
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="Email"
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Password *
@@ -608,7 +611,7 @@ const Register = () => {
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      placeholder="Password"
+                      placeholder="Create a password"
                       required
                       className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     />
@@ -621,84 +624,22 @@ const Register = () => {
                     </button>
                   </div>
                 </div>
-              </div>
-            ) : (
-              /* Individual Account Fields */
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-                  Personal Information
-                </h3>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Username *
-                  </label>
-                  <input
-                    type="text"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleInputChange}
-                    placeholder="Username"
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Email *
+                    Confirm Password *
                   </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="Email"
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Password *
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        name="password"
-                        value={formData.password}
-                        onChange={handleInputChange}
-                        placeholder="Create a password"
-                        required
-                        className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Confirm Password *
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        name="confirmPassword"
-                        value={formData.confirmPassword}
-                        onChange={handleInputChange}
-                        placeholder="Confirm your password"
-                        required
-                        className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      />
-                      <button
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleInputChange}
+                      placeholder="Confirm your password"
+                      required
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                    <button
                         type="button"
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -1012,25 +953,23 @@ const Register = () => {
                     )}
                   </>
                 )}
-              </div>
-            )}
+            </div>
 
             {/* Address Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-                {formData.referrerType === 'hospital_account' ? 'Hospital Address' : 'Address Information'}
+                Address Information
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Region {formData.referrerType === 'hospital_account' ? '*' : ''}
+                    Region
                   </label>
                   <select
                     name="region"
                     value={formData.region}
                     onChange={handleInputChange}
-                    required={formData.referrerType === 'hospital_account'}
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Select Region</option>
@@ -1042,13 +981,12 @@ const Register = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Province {formData.referrerType === 'hospital_account' ? '*' : ''}
+                    Province
                   </label>
                   <select
                     name="province"
                     value={formData.province}
                     onChange={handleInputChange}
-                    required={formData.referrerType === 'hospital_account'}
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Select Province</option>
@@ -1060,13 +998,12 @@ const Register = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    City / Municipality {formData.referrerType === 'hospital_account' ? '*' : ''}
+                    City / Municipality
                   </label>
                   <select
                     name="city"
                     value={formData.city}
                     onChange={handleInputChange}
-                    required={formData.referrerType === 'hospital_account'}
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Select City / Municipality</option>
@@ -1078,13 +1015,12 @@ const Register = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Barangay {formData.referrerType === 'hospital_account' ? '*' : ''}
+                    Barangay
                   </label>
                   <select
                     name="barangay"
                     value={formData.barangay}
                     onChange={handleInputChange}
-                    required={formData.referrerType === 'hospital_account'}
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Select Barangay</option>
@@ -1097,14 +1033,13 @@ const Register = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Exact Address {formData.referrerType === 'hospital_account' ? '*' : ''}
+                  Exact Address
                 </label>
                 <textarea
                   name="exactAddress"
                   value={formData.exactAddress}
                   onChange={handleInputChange}
                   placeholder="House/Street, Building, etc."
-                  required={formData.referrerType === 'hospital_account'}
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   rows={3}
                 />
@@ -1119,7 +1054,7 @@ const Register = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {formData.referrerType === 'hospital_account' ? 'Upload Legal Documents *' : 'Upload Official ID *'}
+                  Upload Official ID *
                 </label>
                 <input
                   type="file"
@@ -1129,10 +1064,7 @@ const Register = () => {
                   className="w-full text-sm text-gray-700 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/30"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {formData.referrerType === 'hospital_account' 
-                    ? 'Please upload any legal documents proving hospital validity.'
-                    : 'Upload your official registered or Legal ID for verification.'
-                  }
+                  Upload your official registered or Legal ID for verification.
                 </p>
               </div>
             </div>

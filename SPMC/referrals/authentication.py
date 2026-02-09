@@ -257,7 +257,7 @@ def comprehensive_register_view(request):
             for file_key, file_obj in files.items():
                 if file_key == 'documents':
                     # Determine document type based on referrer type
-                    doc_type = 'legal_document' if referrer_type == 'hospital_account' else 'official_id'
+                    doc_type = 'official_id'
                     
                     ReferrerDocument.objects.create(
                         referrer=referrer_account,
