@@ -17,6 +17,7 @@ import Patients from "./pages/Patients";
 import Facilities from "./pages/Facilities";
 import Reports from "./pages/Reports";
 import Approval from "./pages/Approval";
+import IncomingReferrals from "./pages/IncomingReferrals";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AccountApproval from "./pages/admin/AccountApproval";
@@ -116,6 +117,11 @@ const App = () => (
             <Route path="/approval" element={
               <ProtectedRoute>
                 <Approval />
+              </ProtectedRoute>
+            } />
+            <Route path="/incoming" element={
+              <ProtectedRoute>
+                <IncomingReferrals />
               </ProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

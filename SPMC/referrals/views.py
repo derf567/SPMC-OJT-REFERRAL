@@ -551,20 +551,25 @@ class ReferralViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def patients(self, request):
-        """Get unique patients from referrals"""
-        # Get unique patients with their latest referral info
+        """Get unique patients from archived referrals (completed, cancelled, emergent, urgent, schedule_opd)"""
         patients_data = []
         
-        # Get unique patient names with their most recent referral
-        unique_patients = Referral.objects.values('patient_full_name').annotate(
+        # Only show patients with archived statuses
+        archived_statuses = ['completed', 'cancelled', 'emergent', 'urgent', 'schedule_opd']
+        
+        # Get unique patient names with their most recent archived referral
+        unique_patients = Referral.objects.filter(
+            status__in=archived_statuses
+        ).values('patient_full_name').annotate(
             latest_referral=Max('created_at'),
             total_referrals=Count('id')
         ).order_by('-latest_referral')
         
         for patient_info in unique_patients:
-            # Get the latest referral for this patient
+            # Get the latest archived referral for this patient
             latest_referral = Referral.objects.filter(
-                patient_full_name=patient_info['patient_full_name']
+                patient_full_name=patient_info['patient_full_name'],
+                status__in=archived_statuses
             ).order_by('-created_at').first()
             
             if latest_referral:
@@ -1164,6 +1169,63 @@ class ReferralViewSet(viewsets.ModelViewSet):
             })
         
         return Response(result)
+
+    @action(detail=False, methods=['get'])
+    def incoming_referrals(self, request):
+        """Get incoming referrals for HIS Department (only in_transit status)"""
+        # Check if user is HIS department
+        user_profile = getattr(request.user, 'profile', None)
+        if not user_profile or not user_profile.is_his_department:
+            return Response({
+                'error': 'You do not have permission to view incoming referrals'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get only in_transit referrals (patients on their way to SPMC)
+        referrals = Referral.objects.filter(
+            status='in_transit'
+        ).select_related(
+            'referring_hospital', 'specialty_needed'
+        ).order_by('-created_at')
+        
+        serializer = ReferralListSerializer(referrals, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def confirm_arrival(self, request, pk=None):
+        """Confirm that a referral has arrived (HIS Department action)"""
+        # Check if user is HIS department
+        user_profile = getattr(request.user, 'profile', None)
+        if not user_profile or not user_profile.is_his_department:
+            return Response({
+                'error': 'You do not have permission to confirm arrivals'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            referral = self.get_object()
+            
+            # Update status to completed
+            old_status = referral.status
+            referral.status = 'completed'
+            referral.save()
+            
+            # Create status history
+            ReferralStatusHistory.objects.create(
+                referral=referral,
+                old_status=old_status,
+                new_status='completed',
+                changed_by=request.user,
+                notes='Arrival confirmed by HIS Department'
+            )
+            
+            return Response({
+                'success': True,
+                'message': 'Referral arrival confirmed and moved to archived referrals'
+            })
+            
+        except Referral.DoesNotExist:
+            return Response({
+                'error': 'Referral not found'
+            }, status=status.HTTP_404_NOT_FOUND)
 
 class TransitInfoViewSet(viewsets.ModelViewSet):
     queryset = TransitInfo.objects.select_related('referral')

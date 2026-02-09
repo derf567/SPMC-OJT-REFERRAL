@@ -554,15 +554,19 @@ export const ReferralTable = () => {
         const response = await referralsAPI.getAll();
         const allReferrals = response.results || response;
         
-        // Filter referrals based on user role
-        let filteredByRole = allReferrals;
+        // Filter to show only active referrals (pending, waiting, in_transit)
+        const activeStatuses = ['pending', 'waiting', 'in_transit'];
+        let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
+        
+        // Further filter based on user role for specific workflows
         if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
           // EDCC Personnel: Only show pending referrals (not yet transferred)
-          filteredByRole = allReferrals.filter((ref: any) => ref.status === 'pending');
+          filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
         } else if (user?.permissions?.can_triage_referrals) {
           // Triage Users: Only show waiting referrals (transferred from EDCC, not yet accepted)
-          filteredByRole = allReferrals.filter((ref: any) => ref.status === 'waiting');
+          filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'waiting');
         }
+        // HIS and other users see all active referrals (pending, waiting, in_transit)
         
         setReferrals(filteredByRole);
         console.log('Filtered referrals for role:', filteredByRole);
@@ -609,13 +613,16 @@ export const ReferralTable = () => {
       const refreshResponse = await referralsAPI.getAll();
       const allReferrals = refreshResponse.results || refreshResponse;
       
-      let filteredByRole = allReferrals;
+      // Filter to show only active referrals (pending, waiting, in_transit)
+      const activeStatuses = ['pending', 'waiting', 'in_transit'];
+      let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
+      
       if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
         // EDCC Personnel: Only show pending referrals
-        filteredByRole = allReferrals.filter((ref: any) => ref.status === 'pending');
+        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
       } else if (user?.permissions?.can_triage_referrals) {
         // Triage Users: Only show waiting referrals (not yet accepted)
-        filteredByRole = allReferrals.filter((ref: any) => ref.status === 'waiting');
+        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'waiting');
       }
       
       setReferrals(filteredByRole);
@@ -663,12 +670,16 @@ export const ReferralTable = () => {
       const refreshResponse = await referralsAPI.getAll();
       const allReferrals = refreshResponse.results || refreshResponse;
       
-      let filteredByRole = allReferrals;
+      // First filter by active statuses (pending, waiting, in_transit)
+      const activeStatuses = ['pending', 'waiting', 'in_transit'];
+      let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
+      
+      // Then apply role-based filtering on top of active filter
       if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
-        filteredByRole = allReferrals.filter((ref: any) => ref.status === 'pending');
+        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
       } else if (user?.permissions?.can_triage_referrals) {
         // Triage Users: Only show waiting referrals (not yet accepted)
-        filteredByRole = allReferrals.filter((ref: any) => ref.status === 'waiting');
+        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'waiting');
       }
       
       setReferrals(filteredByRole);
@@ -776,12 +787,16 @@ export const ReferralTable = () => {
       const refreshResponse = await referralsAPI.getAll();
       const allReferrals = refreshResponse.results || refreshResponse;
       
-      let filteredByRole = allReferrals;
+      // First filter by active statuses (pending, waiting, in_transit)
+      const activeStatuses = ['pending', 'waiting', 'in_transit'];
+      let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
+      
+      // Then apply role-based filtering on top of active filter
       if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
-        filteredByRole = allReferrals.filter((ref: any) => ref.status === 'pending');
+        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
       } else if (user?.permissions?.can_triage_referrals) {
         // Triage Users: Only show waiting referrals (not yet accepted)
-        filteredByRole = allReferrals.filter((ref: any) => ref.status === 'waiting');
+        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'waiting');
       }
       
       setReferrals(filteredByRole);
