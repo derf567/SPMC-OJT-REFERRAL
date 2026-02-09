@@ -11,8 +11,11 @@ const DashboardRedirect = () => {
       // Redirect based on user role
       if (user.role === 'referrer') {
         navigate('/referrer', { replace: true });
+      } else if (user.role === 'admin' || user.permissions?.is_admin_user) {
+        // Admin users go to admin dashboard
+        navigate('/admin/dashboard', { replace: true });
       } else {
-        // For EDCC personnel, triage, admin users - go to main dashboard
+        // For EDCC personnel, triage users - go to main dashboard
         navigate('/dashboard', { replace: true });
       }
     }

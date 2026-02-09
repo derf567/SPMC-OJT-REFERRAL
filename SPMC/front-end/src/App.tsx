@@ -19,6 +19,9 @@ import Reports from "./pages/Reports";
 import Approval from "./pages/Approval";
 import IncomingReferrals from "./pages/IncomingReferrals";
 import NotFound from "./pages/NotFound";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AccountApproval from "./pages/admin/AccountApproval";
+import HeadsUp from "./pages/admin/HeadsUp";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +41,23 @@ const App = () => (
             <Route path="/" element={
               <ProtectedRoute>
                 <DashboardRedirect />
+              </ProtectedRoute>
+            } />
+            
+            {/* Admin Routes */}
+            <Route path="/admin/dashboard" element={
+              <ProtectedRoute>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/approvals" element={
+              <ProtectedRoute>
+                <AccountApproval />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/headsup" element={
+              <ProtectedRoute>
+                <HeadsUp />
               </ProtectedRoute>
             } />
             

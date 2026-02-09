@@ -313,7 +313,6 @@ class ReferrerAccount(models.Model):
     REFERRER_TYPE_CHOICES = [
         ('doctor', 'Doctor / Medical Professional'),
         ('hospital_employee', 'Authorized Hospital Employee'),
-        ('hospital_account', 'Hospital Account'),
         ('other', 'Other'),
     ]
 

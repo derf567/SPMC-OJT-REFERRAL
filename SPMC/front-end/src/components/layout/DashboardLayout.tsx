@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { referralsAPI } from "@/lib/api";
+import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import {
   Home,
   Users,
@@ -16,8 +17,11 @@ import {
   ChevronDown,
   LogOut,
   User,
+<<<<<<< HEAD
+=======
   UserCheck,
   Inbox,
+>>>>>>> 6b4c22954629d4ee2353e45cf05ad894f4239880
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -73,6 +77,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
+<<<<<<< HEAD
+=======
   // HIS Department navigation (limited access)
   const hisNavigation = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -94,6 +100,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       ]
     : baseNavigation;
 
+>>>>>>> 6b4c22954629d4ee2353e45cf05ad894f4239880
   // Apply dark mode to document on mount and when isDarkMode changes
   useEffect(() => {
     if (isDarkMode) {
@@ -217,7 +224,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </div>
 
             <nav className="p-4 space-y-2">
-              {navigationWithApproval.map((item) => {
+              {navigation.map((item) => {
                 const isActive = location.pathname === item.href;
                 return (
                   <Link
@@ -273,6 +280,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
               {/* Right side - Actions and User */}
               <div className="flex items-center gap-4">
+                {/* About Us Button */}
+                <AboutUsDialog isDarkMode={isDarkMode} />
+
                 {/* Dark Mode Toggle */}
                 <Button
                   variant="ghost"
