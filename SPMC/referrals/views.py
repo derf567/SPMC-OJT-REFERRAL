@@ -551,11 +551,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def patients(self, request):
-        """Get unique patients from archived referrals (completed, cancelled, emergent, urgent, schedule_opd)"""
+        """Get unique patients from archived referrals (completed, cancelled, uncoordinated)"""
         patients_data = []
         
-        # Only show patients with archived statuses
-        archived_statuses = ['completed', 'cancelled', 'emergent', 'urgent', 'schedule_opd']
+        # Only show patients with archived statuses (completed, cancelled)
+        # Note: uncoordinated is typically represented as cancelled
+        archived_statuses = ['completed', 'cancelled']
         
         # Get unique patient names with their most recent archived referral
         unique_patients = Referral.objects.filter(
@@ -1172,7 +1173,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def incoming_referrals(self, request):
-        """Get incoming referrals for HIS Department (only in_transit status)"""
+        """Get incoming referrals for HIS Department (in_transit, urgent, emergent, schedule_opd)"""
         # Check if user is HIS department
         user_profile = getattr(request.user, 'profile', None)
         if not user_profile or not user_profile.is_his_department:
@@ -1180,9 +1181,9 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'error': 'You do not have permission to view incoming referrals'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Get only in_transit referrals (patients on their way to SPMC)
+        # Get referrals that need arrival confirmation
         referrals = Referral.objects.filter(
-            status='in_transit'
+            status__in=['in_transit', 'urgent', 'emergent', 'schedule_opd']
         ).select_related(
             'referring_hospital', 'specialty_needed'
         ).order_by('-created_at')

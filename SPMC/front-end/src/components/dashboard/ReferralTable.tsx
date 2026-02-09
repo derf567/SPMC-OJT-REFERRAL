@@ -554,8 +554,8 @@ export const ReferralTable = () => {
         const response = await referralsAPI.getAll();
         const allReferrals = response.results || response;
         
-        // Filter to show only active referrals (pending, waiting, in_transit)
-        const activeStatuses = ['pending', 'waiting', 'in_transit'];
+        // Filter to show only active referrals (pending, waiting, in_transit, urgent, emergent, schedule_opd)
+        const activeStatuses = ['pending', 'waiting', 'in_transit', 'urgent', 'emergent', 'schedule_opd'];
         let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
         
         // Further filter based on user role for specific workflows
@@ -563,10 +563,18 @@ export const ReferralTable = () => {
           // EDCC Personnel: Only show pending referrals (not yet transferred)
           filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
         } else if (user?.permissions?.can_triage_referrals) {
-          // Triage Users: Only show waiting referrals (transferred from EDCC, not yet accepted)
-          filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'waiting');
+          // Triage Users: Show waiting referrals (transferred from EDCC, not yet accepted)
+          // and also urgent, emergent, schedule_opd (already triaged but still active)
+          filteredByRole = filteredByRole.filter((ref: any) => 
+            ['waiting', 'urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
+          );
+        } else if (user?.permissions?.is_his_department) {
+          // HIS Department: Only show referrals that need arrival confirmation
+          filteredByRole = filteredByRole.filter((ref: any) => 
+            ['urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
+          );
         }
-        // HIS and other users see all active referrals (pending, waiting, in_transit)
+        // Other users see all active referrals
         
         setReferrals(filteredByRole);
         console.log('Filtered referrals for role:', filteredByRole);
@@ -613,16 +621,18 @@ export const ReferralTable = () => {
       const refreshResponse = await referralsAPI.getAll();
       const allReferrals = refreshResponse.results || refreshResponse;
       
-      // Filter to show only active referrals (pending, waiting, in_transit)
-      const activeStatuses = ['pending', 'waiting', 'in_transit'];
+      // Filter to show only active referrals (pending, waiting, in_transit, urgent, emergent, schedule_opd)
+      const activeStatuses = ['pending', 'waiting', 'in_transit', 'urgent', 'emergent', 'schedule_opd'];
       let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
       
       if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
         // EDCC Personnel: Only show pending referrals
         filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
       } else if (user?.permissions?.can_triage_referrals) {
-        // Triage Users: Only show waiting referrals (not yet accepted)
-        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'waiting');
+        // Triage Users: Show waiting and triaged referrals (not yet completed)
+        filteredByRole = filteredByRole.filter((ref: any) => 
+          ['waiting', 'urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
+        );
       }
       
       setReferrals(filteredByRole);
@@ -693,6 +703,51 @@ export const ReferralTable = () => {
       toast({
         title: "Department Changed! 🔄",
         description: response.message || "The department assignment has been successfully updated.",
+        className: "bg-blue-50 border-blue-200 text-blue-800",
+      });
+    } catch (err: any) {
+      console.error('Error changing department:', err);
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to change department';
+      toast({
+        variant: "destructive",
+        title: "Change Failed ❌",
+        description: `Failed to change department: ${errorMessage}`,
+      });
+    }
+  };
+
+  // Handle confirm arrival (HIS Department action)
+  const handleConfirmArrival = async (referralId: string) => {
+    try {
+      const response = await referralsAPI.confirmArrival(Number(referralId));
+      
+      // Refresh the referrals list
+      const refreshResponse = await referralsAPI.getAll();
+      const allReferrals = refreshResponse.results || refreshResponse;
+      
+      // Filter to show only active referrals
+      const activeStatuses = ['pending', 'waiting', 'in_transit', 'urgent', 'emergent', 'schedule_opd'];
+      let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
+      
+      // Apply role-based filtering
+      if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
+        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
+      } else if (user?.permissions?.can_triage_referrals) {
+        filteredByRole = filteredByRole.filter((ref: any) => 
+          ['waiting', 'urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
+        );
+      } else if (user?.permissions?.is_his_department) {
+        filteredByRole = filteredByRole.filter((ref: any) => 
+          ['urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
+        );
+      }
+      
+      setReferrals(filteredByRole);
+      
+      // Success notification
+      toast({
+        title: "Arrival Confirmed! ✅",
+        description: response.message || "The referral has been marked as arrived and moved to archived referrals.",
         className: "bg-blue-50 border-blue-200 text-blue-800",
       });
     } catch (err: any) {
@@ -1050,6 +1105,8 @@ export const ReferralTable = () => {
                   ? 'Pending Referrals - EDCC Queue' 
                   : user?.permissions?.can_triage_referrals 
                   ? 'Triage Queue - EDMAR/EDHO' 
+                  : user?.permissions?.is_his_department
+                  ? 'Incoming Referrals - HIS Department'
                   : 'SPMC Emergency Referrals'
                 }
               </h2>
@@ -1058,6 +1115,8 @@ export const ReferralTable = () => {
                   ? 'Review and transfer new referrals to triage team'
                   : user?.permissions?.can_triage_referrals 
                   ? 'Accept or reject referrals transferred from EDCC (accepted referrals will be removed from queue)'
+                  : user?.permissions?.is_his_department
+                  ? 'Confirm patient arrivals for urgent, emergent, scheduled OPD, and in-transit referrals'
                   : 'View only access'
                 }
               </p>
@@ -1234,6 +1293,8 @@ export const ReferralTable = () => {
                        ? 'No pending referrals in your queue'
                        : user?.permissions?.can_triage_referrals 
                        ? 'No referrals waiting for triage decision'
+                       : user?.permissions?.is_his_department
+                       ? 'No incoming referrals to confirm'
                        : 'No referrals found'
                     }
                   </td>
@@ -1423,6 +1484,17 @@ export const ReferralTable = () => {
                             title="Accept Referral"
                           >
                             <CheckCircle className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {user?.permissions?.is_his_department && ['urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(referral.status) && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-purple-500 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/20"
+                            onClick={() => handleConfirmArrival(referral.id || referral.referral_id)}
+                            title="Confirm Arrival"
+                          >
+                            <Check className="w-4 h-4" />
                           </Button>
                         )}
                       </div>
