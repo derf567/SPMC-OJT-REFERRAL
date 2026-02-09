@@ -185,7 +185,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <img 
                 src="/SPMC-Logo.png" 
                 alt="SPMC Logo" 
-                className="w-40 h-40 object-contain rounded-2xl mb-3"
+                className="w-20 h-20 mb-3 object-contain"
               />
               <h1 className={cn(
                 "text-sm font-semibold text-center transition-colors duration-300",
