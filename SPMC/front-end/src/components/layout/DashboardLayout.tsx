@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { referralsAPI } from "@/lib/api";
 import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
+import { NotificationContainer } from "@/components/ui/NotificationContainer";
+import { TestNotificationButton } from "@/components/ui/TestNotificationButton";
+import { startNotificationPolling, stopNotificationPolling, NotificationData, checkAccountApprovals } from "@/lib/notificationService";
 import {
   Home,
   Users,
@@ -61,6 +64,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [activeReferralsCount, setActiveReferralsCount] = useState(0);
+  const [liveNotifications, setLiveNotifications] = useState<NotificationData[]>([]);
+  const [dropdownNotifications, setDropdownNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -140,9 +146,65 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         }
         
         setActiveReferralsCount(activeReferrals.length);
+
+        // Generate dynamic notifications from recent referrals
+        const recentReferrals = Array.isArray(referrals) 
+          ? referrals.slice(0, 5).map((ref: any, index: number) => {
+              let notifType = 'info';
+              let title = 'Referral Update';
+              let message = '';
+
+              if (ref.status === 'pending') {
+                notifType = 'critical';
+                title = 'New Referral Pending';
+                message = `${ref.patient_name} from ${ref.referring_hospital || 'External Hospital'}`;
+              } else if (ref.status === 'waiting') {
+                notifType = 'info';
+                title = 'Referral Waiting for Triage';
+                message = `${ref.patient_name} - ${ref.referral_id}`;
+              } else if (ref.status === 'emergent') {
+                notifType = 'critical';
+                title = 'Emergent Referral';
+                message = `${ref.patient_name} requires immediate attention`;
+              } else if (ref.status === 'urgent') {
+                notifType = 'critical';
+                title = 'Urgent Referral';
+                message = `${ref.patient_name} - Priority case`;
+              } else if (ref.status === 'completed') {
+                notifType = 'success';
+                title = 'Referral Completed';
+                message = `${ref.patient_name} - Treatment completed`;
+              } else if (ref.assigned_department) {
+                notifType = 'info';
+                title = 'Department Assignment';
+                message = `${ref.patient_name} assigned to ${ref.assigned_department}`;
+              }
+
+              const timeAgo = getTimeAgo(ref.updated_at || ref.created_at);
+
+              return {
+                id: ref.id,
+                title,
+                message,
+                time: timeAgo,
+                type: notifType,
+              };
+            })
+          : [];
+
+        setDropdownNotifications(recentReferrals);
+        
+        // Count unread (for this demo, we'll count pending/waiting as unread)
+        const unread = Array.isArray(referrals)
+          ? referrals.filter((ref: any) => 
+              ref.status === 'pending' || ref.status === 'waiting' || ref.status === 'emergent'
+            ).length
+          : 0;
+        setUnreadCount(Math.min(unread, 99)); // Cap at 99 for display
       } catch (error) {
         console.error('Error fetching active referrals count:', error);
         setActiveReferralsCount(0);
+        setUnreadCount(0);
       }
     };
 
@@ -153,6 +215,73 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       return () => clearInterval(interval);
     }
   }, [user]);
+
+  // Helper function to calculate time ago
+  const getTimeAgo = (timestamp: string) => {
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now.getTime() - past.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  };
+
+  // Start notification polling
+  useEffect(() => {
+    if (user && user.permissions) {
+      const handleNotification = (notification: NotificationData) => {
+        setLiveNotifications((prev) => {
+          // Avoid duplicates
+          if (prev.some(n => n.id === notification.id)) {
+            return prev;
+          }
+          return [...prev, notification];
+        });
+      };
+
+      startNotificationPolling(user.permissions, handleNotification);
+
+      // Check for account approvals if admin
+      if (user.is_staff || user.is_superuser) {
+        const approvalInterval = setInterval(() => {
+          checkAccountApprovals(true, handleNotification);
+        }, 10000); // Check every 10 seconds
+
+        return () => {
+          stopNotificationPolling();
+          clearInterval(approvalInterval);
+        };
+      }
+
+      return () => {
+        stopNotificationPolling();
+      };
+    }
+  }, [user]);
+
+  const removeNotification = (id: string) => {
+    setLiveNotifications((prev) => prev.filter(n => n.id !== id));
+  };
+
+  const testNotification = () => {
+    const testNotif: NotificationData = {
+      id: `test_${Date.now()}`,
+      type: user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals 
+        ? 'new_referral' 
+        : user?.permissions?.can_triage_referrals 
+        ? 'referral_transferred' 
+        : 'account_approval',
+      message: 'This is a test notification to verify the system is working correctly.',
+      referralId: 'TEST-001',
+      timestamp: new Date().toISOString(),
+    };
+    setLiveNotifications((prev) => [...prev, testNotif]);
+  };
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
@@ -179,6 +308,12 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   return (
     <div className={cn("min-h-screen", isDarkMode ? "dark" : "")}>
+      {/* Live Notifications */}
+      <NotificationContainer 
+        notifications={liveNotifications} 
+        onRemove={removeNotification} 
+      />
+
       <div className={cn(
         "min-h-screen transition-colors duration-300",
         isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
@@ -296,9 +431,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     )}
                   >
                     <Bell className="w-5 h-5" />
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center text-white font-medium">
-                      3
-                    </span>
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 rounded-full text-xs flex items-center justify-center text-white font-medium">
+                        {unreadCount}
+                      </span>
+                    )}
                   </Button>
 
                   {showNotifications && (
@@ -318,35 +455,44 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                         )}>Notifications</h3>
                       </div>
                       <div className="max-h-96 overflow-y-auto">
-                        {notifications.map((notification) => (
-                          <div key={notification.id} className={cn(
-                            "px-4 py-3 border-b transition-colors duration-300",
-                            isDarkMode 
-                              ? "hover:bg-gray-700 border-gray-700/50" 
-                              : "hover:bg-gray-50 border-gray-200/50"
-                          )}>
-                            <div className="flex items-start gap-3">
-                              <div className={`w-2 h-2 rounded-full mt-2 ${
-                                notification.type === 'critical' ? 'bg-red-500' :
-                                notification.type === 'success' ? 'bg-green-500' : 'bg-blue-500'
-                              }`}></div>
-                              <div className="flex-1">
-                                <p className={cn(
-                                  "text-sm font-medium transition-colors duration-300",
-                                  isDarkMode ? "text-white" : "text-gray-900"
-                                )}>{notification.title}</p>
-                                <p className={cn(
-                                  "text-xs mt-1 transition-colors duration-300",
-                                  isDarkMode ? "text-gray-400" : "text-gray-600"
-                                )}>{notification.message}</p>
-                                <p className={cn(
-                                  "text-xs mt-1 transition-colors duration-300",
-                                  isDarkMode ? "text-gray-500" : "text-gray-500"
-                                )}>{notification.time}</p>
+                        {dropdownNotifications.length > 0 ? (
+                          dropdownNotifications.map((notification) => (
+                            <div key={notification.id} className={cn(
+                              "px-4 py-3 border-b transition-colors duration-300",
+                              isDarkMode 
+                                ? "hover:bg-gray-700 border-gray-700/50" 
+                                : "hover:bg-gray-50 border-gray-200/50"
+                            )}>
+                              <div className="flex items-start gap-3">
+                                <div className={`w-2 h-2 rounded-full mt-2 ${
+                                  notification.type === 'critical' ? 'bg-red-500' :
+                                  notification.type === 'success' ? 'bg-green-500' : 'bg-blue-500'
+                                }`}></div>
+                                <div className="flex-1">
+                                  <p className={cn(
+                                    "text-sm font-medium transition-colors duration-300",
+                                    isDarkMode ? "text-white" : "text-gray-900"
+                                  )}>{notification.title}</p>
+                                  <p className={cn(
+                                    "text-xs mt-1 transition-colors duration-300",
+                                    isDarkMode ? "text-gray-400" : "text-gray-600"
+                                  )}>{notification.message}</p>
+                                  <p className={cn(
+                                    "text-xs mt-1 transition-colors duration-300",
+                                    isDarkMode ? "text-gray-500" : "text-gray-500"
+                                  )}>{notification.time}</p>
+                                </div>
                               </div>
                             </div>
+                          ))
+                        ) : (
+                          <div className="px-4 py-8 text-center">
+                            <p className={cn(
+                              "text-sm transition-colors duration-300",
+                              isDarkMode ? "text-gray-400" : "text-gray-500"
+                            )}>No notifications</p>
                           </div>
-                        ))}
+                        )}
                       </div>
                       <div className={cn(
                         "px-4 py-2 border-t transition-colors duration-300",
@@ -429,6 +575,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             <main className="p-6">
               {children}
             </main>
+
+            {/* Test Notification Button - Remove after testing */}
+            <TestNotificationButton onTest={testNotification} />
           </div>
         </div>
       </div>
