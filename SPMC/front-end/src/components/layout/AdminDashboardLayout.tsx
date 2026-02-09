@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import {
   Home,
   UserCheck,
@@ -12,6 +13,7 @@ import {
   Sun,
   ChevronDown,
   LogOut,
+  Info,
 } from "lucide-react";
 
 interface AdminDashboardLayoutProps {
@@ -145,6 +147,23 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
                 );
               })}
             </nav>
+            
+            <div className="absolute bottom-4 left-4 right-4">
+              <AboutUsDialog isDarkMode={isDarkMode} trigger={
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    "w-full justify-start",
+                    isDarkMode 
+                      ? "text-gray-400 hover:text-white hover:bg-gray-700" 
+                      : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                  )}
+                >
+                  <Info className="w-5 h-5 mr-3" />
+                  About us
+                </Button>
+              } />
+            </div>
           </div>
 
           {/* Main Content */}

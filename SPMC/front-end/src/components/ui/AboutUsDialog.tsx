@@ -1,32 +1,39 @@
-import { useState } from "react";
+import { useState, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AboutUsDialogProps {
   isDarkMode?: boolean;
+  trigger?: ReactNode;
 }
 
-export const AboutUsDialog = ({ isDarkMode = false }: AboutUsDialogProps) => {
+export const AboutUsDialog = ({ isDarkMode = false, trigger }: AboutUsDialogProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <>
       {/* About Us Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setIsOpen(true)}
-        className={cn(
-          "transition-colors duration-300",
-          isDarkMode 
-            ? "text-gray-400 hover:text-white hover:bg-gray-700" 
-            : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
-        )}
-        title="About Us"
-      >
-        <Info className="w-5 h-5" />
-      </Button>
+      {trigger ? (
+        <div onClick={() => setIsOpen(true)}>
+          {trigger}
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsOpen(true)}
+          className={cn(
+            "transition-colors duration-300",
+            isDarkMode 
+              ? "text-gray-400 hover:text-white hover:bg-gray-700" 
+              : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+          )}
+          title="About Us"
+        >
+          <Info className="w-5 h-5" />
+        </Button>
+      )}
 
       {/* Modal Overlay */}
       {isOpen && (
