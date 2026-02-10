@@ -83,6 +83,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         
+        # Filter by department for department users
+        user_profile = getattr(self.request.user, 'profile', None)
+        if user_profile and user_profile.is_department_user and user_profile.department:
+            # Department users can only see referrals assigned to their department
+            queryset = queryset.filter(assigned_department=user_profile.department)
+        
         # Filter by date range if provided
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
@@ -494,22 +500,25 @@ class ReferralViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def dashboard_stats(self, request):
         """Get dashboard statistics"""
-        total_referrals = Referral.objects.count()
-        pending_referrals = Referral.objects.filter(status='pending').count()
-        in_transit_referrals = Referral.objects.filter(status='in_transit').count()
-        critical_referrals = Referral.objects.filter(priority='critical').count()
-        urgent_referrals = Referral.objects.filter(is_urgent=True).count()
+        # Get base queryset (will be filtered by department if user is department user)
+        base_queryset = self.get_queryset()
+        
+        total_referrals = base_queryset.count()
+        pending_referrals = base_queryset.filter(status='pending').count()
+        in_transit_referrals = base_queryset.filter(status='in_transit').count()
+        critical_referrals = base_queryset.filter(priority='critical').count()
+        urgent_referrals = base_queryset.filter(is_urgent=True).count()
         
         # Triage decisions
-        emergent_referrals = Referral.objects.filter(status='emergent').count()
-        urgent_triage_referrals = Referral.objects.filter(status='urgent').count()
-        scheduled_opd_referrals = Referral.objects.filter(status='schedule_opd').count()
+        emergent_referrals = base_queryset.filter(status='emergent').count()
+        urgent_triage_referrals = base_queryset.filter(status='urgent').count()
+        scheduled_opd_referrals = base_queryset.filter(status='schedule_opd').count()
         
         # Recent referrals (last 24 hours)
         from django.utils import timezone
         from datetime import timedelta
         yesterday = timezone.now() - timedelta(days=1)
-        recent_referrals = Referral.objects.filter(created_at__gte=yesterday).count()
+        recent_referrals = base_queryset.filter(created_at__gte=yesterday).count()
         
         return Response({
             'total_referrals': total_referrals,
@@ -554,12 +563,15 @@ class ReferralViewSet(viewsets.ModelViewSet):
         """Get unique patients from archived referrals (completed, cancelled, uncoordinated)"""
         patients_data = []
         
+        # Get base queryset (will be filtered by department if user is department user)
+        base_queryset = self.get_queryset()
+        
         # Only show patients with archived statuses (completed, cancelled)
         # Note: uncoordinated is typically represented as cancelled
         archived_statuses = ['completed', 'cancelled']
         
         # Get unique patient names with their most recent archived referral
-        unique_patients = Referral.objects.filter(
+        unique_patients = base_queryset.filter(
             status__in=archived_statuses
         ).values('patient_full_name').annotate(
             latest_referral=Max('created_at'),
@@ -568,7 +580,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         for patient_info in unique_patients:
             # Get the latest archived referral for this patient
-            latest_referral = Referral.objects.filter(
+            latest_referral = base_queryset.filter(
                 patient_full_name=patient_info['patient_full_name'],
                 status__in=archived_statuses
             ).order_by('-created_at').first()
@@ -618,11 +630,14 @@ class ReferralViewSet(viewsets.ModelViewSet):
         from datetime import timedelta
         from django.db.models import Count, Q
         
+        # Get base queryset (will be filtered by department if user is department user)
+        base_queryset = self.get_queryset()
+        
         # Basic counts
-        total_referrals = Referral.objects.count()
-        successful_referrals = Referral.objects.filter(status='completed').count()
-        pending_referrals = Referral.objects.filter(status='pending').count()
-        cancelled_referrals = Referral.objects.filter(status='cancelled').count()
+        total_referrals = base_queryset.count()
+        successful_referrals = base_queryset.filter(status='completed').count()
+        pending_referrals = base_queryset.filter(status='pending').count()
+        cancelled_referrals = base_queryset.filter(status='cancelled').count()
         
         # Calculate success rate
         success_rate = (successful_referrals / total_referrals * 100) if total_referrals > 0 else 0
@@ -634,7 +649,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
             month_start = timezone.now().replace(day=1) - timedelta(days=30*i)
             month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
             
-            month_referrals = Referral.objects.filter(
+            month_referrals = base_queryset.filter(
                 created_at__date__gte=month_start.date(),
                 created_at__date__lte=month_end.date()
             ).count()
@@ -647,8 +662,9 @@ class ReferralViewSet(viewsets.ModelViewSet):
         monthly_data.reverse()  # Show oldest to newest
         
         # Top referring hospitals
-        top_hospitals = ReferringHospital.objects.annotate(
-            referral_count=Count('referral')
+        hospital_ids = base_queryset.values_list('referring_hospital', flat=True).distinct()
+        top_hospitals = ReferringHospital.objects.filter(id__in=hospital_ids).annotate(
+            referral_count=Count('referral', filter=Q(referral__in=base_queryset))
         ).filter(referral_count__gt=0).order_by('-referral_count')[:5]
         
         hospital_data = []
@@ -661,18 +677,19 @@ class ReferralViewSet(viewsets.ModelViewSet):
             })
         
         # Status distribution
-        status_distribution = Referral.objects.values('status').annotate(
+        status_distribution = base_queryset.values('status').annotate(
             count=Count('status')
         ).order_by('-count')
         
         # Priority distribution
-        priority_distribution = Referral.objects.values('priority').annotate(
+        priority_distribution = base_queryset.values('priority').annotate(
             count=Count('priority')
         ).order_by('-count')
         
         # Specialty distribution
-        specialty_distribution = Specialty.objects.annotate(
-            referral_count=Count('referral')
+        specialty_ids = base_queryset.values_list('specialty_needed', flat=True).distinct()
+        specialty_distribution = Specialty.objects.filter(id__in=specialty_ids).annotate(
+            referral_count=Count('referral', filter=Q(referral__in=base_queryset))
         ).filter(referral_count__gt=0).order_by('-referral_count')[:10]
         
         specialty_data = []
@@ -684,10 +701,10 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         # Recent activity (last 7 days)
         week_ago = timezone.now() - timedelta(days=7)
-        recent_referrals = Referral.objects.filter(created_at__gte=week_ago).count()
+        recent_referrals = base_queryset.filter(created_at__gte=week_ago).count()
         
         # Average processing time (for completed referrals)
-        completed_referrals = Referral.objects.filter(status='completed')
+        completed_referrals = base_queryset.filter(status='completed')
         avg_processing_time = 0
         if completed_referrals.exists():
             total_time = sum([

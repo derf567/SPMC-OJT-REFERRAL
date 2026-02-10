@@ -10,6 +10,7 @@ class UserProfile(models.Model):
         ('his_department', 'HIS Department'),
         ('admin', 'Administrator'),
         ('referrer', 'Referrer'),
+        ('department_user', 'Department User'),
     ]
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
@@ -61,6 +62,11 @@ class UserProfile(models.Model):
     def is_admin_user(self):
         """Check if user is admin"""
         return self.role == 'admin' or self.user.is_superuser
+    
+    @property
+    def is_department_user(self):
+        """Check if user is a department user"""
+        return self.role == 'department_user'
 
 class ReferringHospital(models.Model):
     """Model for referring hospitals/facilities"""

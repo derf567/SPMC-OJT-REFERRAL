@@ -90,8 +90,20 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
+  // Department User navigation (department-specific access)
+  const departmentNavigation = [
+    { name: "Dashboard", href: "/dashboard", icon: Home },
+    { name: "Incoming Patient", href: "/referrals", icon: Inbox, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
+    { name: "Archived Patient", href: "/patients", icon: Users },
+    { name: "Reports", href: "/reports", icon: BarChart3 },
+  ];
+
   // Determine which navigation to use
-  const finalNavigation = user?.permissions?.is_his_department ? hisNavigation : navigation;
+  const finalNavigation = user?.role === 'department_user' 
+    ? departmentNavigation 
+    : user?.permissions?.is_his_department 
+      ? hisNavigation 
+      : navigation;
   // Apply dark mode to document on mount and when isDarkMode changes
   useEffect(() => {
     if (isDarkMode) {
