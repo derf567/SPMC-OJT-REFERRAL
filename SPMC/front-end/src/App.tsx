@@ -60,6 +60,11 @@ const App = () => (
                 <HeadsUp />
               </ProtectedRoute>
             } />
+            <Route path="/admin/reports" element={
+              <ProtectedRoute>
+                <Reports />
+              </ProtectedRoute>
+            } />
             
             {/* Referrer Dashboard and Sub-routes */}
             <Route path="/referrer" element={
