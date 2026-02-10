@@ -156,7 +156,7 @@ const AdminDashboard = () => {
             </div>
           </Link>
 
-          <Link to="/facilities">
+          <Link to="/admin/reports">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-lg transition-all cursor-pointer">
               <div className="flex items-center justify-between">
                 <div>
@@ -175,7 +175,7 @@ const AdminDashboard = () => {
             </div>
           </Link>
 
-          <Link to="/reports">
+          <Link to="/admin/reports">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-lg transition-all cursor-pointer">
               <div className="flex items-center justify-between">
                 <div>
