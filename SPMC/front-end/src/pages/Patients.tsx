@@ -38,6 +38,7 @@ interface ArchivedReferral {
   working_impression: string;
   specialty_needed_name: string;
   referring_hospital_name: string;
+  assigned_department?: string;
   status: string;
   priority: string;
   created_at: string;
@@ -103,6 +104,27 @@ const getStatusColor = (status: string) => {
 
 const getStatusDisplay = (status: string) => {
   return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
+const getDepartmentDisplay = (departmentCode?: string) => {
+  if (!departmentCode) return 'Unassigned';
+  
+  const departments: Record<string, string> = {
+    'emergency': 'Emergency Department',
+    'internal_medicine': 'Internal Medicine',
+    'surgery': 'Surgery Department',
+    'obstetrics_gynecology': 'Obstetrics and Gynecology',
+    'pediatrics': 'Pediatrics',
+    'orthopedics': 'Orthopedics',
+    'cardiology': 'Cardiology',
+    'neurology': 'Neurology',
+    'anesthesiology': 'Anesthesiology',
+    'radiology': 'Radiology',
+    'pathology': 'Pathology',
+    'other': 'Other Department'
+  };
+  
+  return departments[departmentCode] || departmentCode.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
 const PatientHistoryModal = ({ 
@@ -561,7 +583,7 @@ const Patients = () => {
                           </div>
                           <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <Stethoscope className="w-4 h-4 flex-shrink-0" />
-                            <span>{referral.specialty_needed_name}</span>
+                            <span>{getDepartmentDisplay(referral.assigned_department)}</span>
                           </div>
                           <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <MapPin className="w-4 h-4 flex-shrink-0" />

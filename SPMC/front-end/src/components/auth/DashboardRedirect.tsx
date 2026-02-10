@@ -14,8 +14,11 @@ const DashboardRedirect = () => {
       } else if (user.role === 'admin' || user.permissions?.is_admin_user) {
         // Admin users go to admin dashboard
         navigate('/admin/dashboard', { replace: true });
+      } else if (user.role === 'department_user') {
+        // Department users go to main dashboard (with department filtering)
+        navigate('/dashboard', { replace: true });
       } else {
-        // For EDCC personnel, triage users - go to main dashboard
+        // For EDCC personnel, triage users, HIS department - go to main dashboard
         navigate('/dashboard', { replace: true });
       }
     }
