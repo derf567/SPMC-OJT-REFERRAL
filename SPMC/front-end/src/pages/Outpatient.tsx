@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
+import { useNavigate } from "react-router-dom";
 import { 
   Calendar, 
   Clock, 
@@ -15,7 +16,8 @@ import {
   Search,
   Eye,
   X,
-  CheckCircle2
+  CheckCircle2,
+  ArrowLeft
 } from "lucide-react";
 
 interface OutpatientData {
@@ -197,6 +199,7 @@ const Outpatient = () => {
   const [showCompleted, setShowCompleted] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Mark appointment as completed
   const handleMarkAsCompleted = async (outpatient: OutpatientData) => {
@@ -332,6 +335,17 @@ const Outpatient = () => {
     <DashboardLayout>
       <div className="space-y-6">
         <div>
+          <div className="flex items-center gap-4 mb-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+          </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Outpatient Appointments</h1>
           <p className="text-gray-500 dark:text-gray-400">Scheduled OPD appointments from referral triage</p>
         </div>

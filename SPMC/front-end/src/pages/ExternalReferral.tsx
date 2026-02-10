@@ -14,7 +14,8 @@ import {
   CheckCircle,
   Phone,
   Building2,
-  Info
+  Info,
+  ArrowLeft
 } from "lucide-react";
 
 interface ReferralFormData {
@@ -1386,6 +1387,17 @@ const ExternalReferral = () => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden min-h-[900px]">
           {/* Form Header */}
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-4 mb-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </Button>
+            </div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Patient Referral Form</h2>
             <p className="text-gray-500 dark:text-gray-400 mt-1">
               Submit a referral request to Southern Philippines Medical Center
