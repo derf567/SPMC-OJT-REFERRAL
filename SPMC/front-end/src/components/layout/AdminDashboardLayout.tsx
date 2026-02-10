@@ -36,7 +36,7 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
   const navigation = [
     { name: "Dashboard", href: "/admin/dashboard", icon: Home },
     { name: "Account Approval", href: "/admin/approvals", icon: UserCheck, badge: pendingApprovals > 0 ? pendingApprovals.toString() : undefined },
-    { name: "Heads Up", href: "/admin/headsup", icon: Users },
+    { name: "Department Doctors", href: "/admin/headsup", icon: Users },
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
