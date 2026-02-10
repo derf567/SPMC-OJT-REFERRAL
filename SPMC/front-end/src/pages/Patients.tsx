@@ -1,31 +1,18 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ReferrerDashboardLayout } from "@/components/layout/ReferrerDashboardLayout";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Search,
-  Eye,
-  User,
   Calendar,
   MapPin,
   FileText,
-  X,
-  Clock,
-  Check,
   AlertTriangle,
   CheckCircle,
   Stethoscope,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 
 interface ArchivedReferral {
   id: string;
@@ -51,36 +38,6 @@ interface ArchivedReferral {
   transferred_at?: string;
   triaged_by_user?: string;
   triaged_at?: string;
-}
-
-interface Patient {
-  patient_full_name: string;
-  age: number;
-  gender: string;
-  hrn?: string;
-  patient_category: string;
-  current_address: string;
-  birthday: string;
-  total_referrals: number;
-  latest_referral_date: string;
-  latest_referral_id: string;
-  latest_status: string;
-  latest_specialty?: string;
-  latest_hospital?: string;
-}
-
-interface PatientHistory {
-  id: string;
-  referral_id: string;
-  patient_full_name: string;
-  age: number;
-  gender: string;
-  chief_complaint: string;
-  working_impression: string;
-  specialty_needed_name: string;
-  referring_hospital_name: string;
-  status: string;
-  created_at: string;
 }
 
 const getStatusColor = (status: string) => {
@@ -261,7 +218,6 @@ const PatientHistoryModal = ({
     </div>
   );
 };
-
 const Patients = () => {
   const [referrals, setReferrals] = useState<ArchivedReferral[]>([]);
   const [loading, setLoading] = useState(true);
@@ -272,8 +228,6 @@ const Patients = () => {
     completed: 0,
     uncoordinated: 0
   });
-  const [timelineModalOpen, setTimelineModalOpen] = useState(false);
-  const [selectedReferral, setSelectedReferral] = useState<any>(null);
   const { user } = useAuth();
 
   // Determine which layout to use
@@ -289,17 +243,15 @@ const Patients = () => {
         
         // Filter to only show completed or uncoordinated referrals
         const archivedReferrals = allReferrals.filter((r: any) => 
-          r.status === 'completed' || r.status === 'uncoordinated' || r.status === 'cancelled'
+          r.status === 'completed' || r.status === 'uncoordinated'
         );
         
         setReferrals(archivedReferrals);
         
-        // Calculate stats from the filtered referrals
+        // Calculate stats
         const totalArchived = archivedReferrals.length;
         const completed = archivedReferrals.filter((r: any) => r.status === 'completed').length;
-        const uncoordinated = archivedReferrals.filter((r: any) => 
-          r.status === 'uncoordinated' || r.status === 'cancelled'
-        ).length;
+        const uncoordinated = archivedReferrals.filter((r: any) => r.status === 'uncoordinated').length;
         
         setStats({
           total_archived: totalArchived,
@@ -327,126 +279,6 @@ const Patients = () => {
     referral.chief_complaint.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const openTimelineModal = (referral: any) => {
-    setSelectedReferral(referral);
-    setTimelineModalOpen(true);
-  };
-
-  const getTimelineSteps = (referral: any) => {
-    const steps = [
-      {
-        status: 'pending',
-        label: 'Request Submitted',
-        description: 'Referral request submitted and awaiting review',
-        icon: FileText,
-        color: 'yellow',
-        completed: true,
-        date: referral.created_at,
-        user: referral.created_by_user || 'System',
-        action: 'Created referral'
-      },
-      {
-        status: 'waiting',
-        label: 'Under Triage',
-        description: 'Referral is being reviewed by EDCC staff',
-        icon: Clock,
-        color: 'blue',
-        completed: ['waiting', 'in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-        date: referral.transferred_at || referral.created_at,
-        user: referral.transferred_by_user || 'EDCC Staff',
-        action: 'Forwarded to EDMAR Triage'
-      }
-    ];
-
-    // Add the actual triage decision made by EDMAR staff (only if a decision was made)
-    if (referral.triage_decision) {
-      let triageStep;
-      
-      if (referral.triage_decision === 'emergent') {
-        triageStep = {
-          status: 'emergent',
-          label: 'Emergent Care',
-          description: 'Patient requires immediate emergency care',
-          icon: AlertTriangle,
-          color: 'red',
-          completed: ['emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-          date: referral.triaged_at || referral.updated_at,
-          user: referral.triaged_by_user || 'EDMAR Staff',
-          action: 'Marked as emergent case'
-        };
-      } else if (referral.triage_decision === 'urgent') {
-        triageStep = {
-          status: 'urgent',
-          label: 'Urgent Care',
-          description: 'Patient requires urgent medical attention',
-          icon: AlertTriangle,
-          color: 'orange',
-          completed: ['urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-          date: referral.triaged_at || referral.updated_at,
-          user: referral.triaged_by_user || 'EDMAR Staff',
-          action: 'Marked as urgent case'
-        };
-      } else if (referral.triage_decision === 'schedule_opd') {
-        triageStep = {
-          status: 'schedule_opd',
-          label: 'Scheduled OPD',
-          description: 'Patient appointment scheduled for outpatient department',
-          icon: Calendar,
-          color: 'green',
-          completed: ['schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-          date: referral.triaged_at || referral.updated_at,
-          user: referral.triaged_by_user || 'EDMAR Staff',
-          action: 'Scheduled OPD appointment'
-        };
-      }
-
-      if (triageStep) {
-        steps.push(triageStep);
-      }
-    }
-
-    // Add In Transit step after triage decision
-    steps.push({
-      status: 'in_transit',
-      label: 'In Transit',
-      description: 'Patient is being transported to the facility',
-      icon: MapPin,
-      color: 'purple',
-      completed: ['in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-      date: referral.status === 'in_transit' ? referral.updated_at : null,
-      user: referral.triaged_by_user || 'EDMAR Staff',
-      action: 'Initiated patient transport'
-    });
-
-    // Add final status steps
-    steps.push(
-      {
-        status: 'completed',
-        label: 'Completed',
-        description: 'Referral process completed successfully',
-        icon: CheckCircle,
-        color: 'gray',
-        completed: referral.status === 'completed',
-        date: referral.status === 'completed' ? referral.updated_at : null,
-        user: referral.triaged_by_user || 'EDMAR Staff',
-        action: 'Marked as completed'
-      },
-      {
-        status: 'cancelled',
-        label: 'Cancelled',
-        description: 'Referral has been cancelled',
-        icon: X,
-        color: 'red',
-        completed: referral.status === 'cancelled',
-        date: referral.status === 'cancelled' ? referral.updated_at : null,
-        user: referral.triaged_by_user || referral.transferred_by_user || 'Staff',
-        action: 'Cancelled referral'
-      }
-    );
-
-    return steps;
-  };
-
   if (loading) {
     return (
       <Layout>
@@ -465,13 +297,7 @@ const Patients = () => {
       <Layout>
         <div className="text-center py-12">
           <div className="text-red-500 mb-2">Error loading archived referrals</div>
-          <div className="text-gray-600 dark:text-gray-400 text-sm mb-4">{error}</div>
-          <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            onClick={() => window.location.reload()}
-          >
-            Retry
-          </Button>
+          <div className="text-gray-600 dark:text-gray-400 text-sm">{error}</div>
         </div>
       </Layout>
     );

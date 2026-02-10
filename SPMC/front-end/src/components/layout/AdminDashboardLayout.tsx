@@ -37,7 +37,7 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
     { name: "Dashboard", href: "/admin/dashboard", icon: Home },
     { name: "Account Approval", href: "/admin/approvals", icon: UserCheck, badge: pendingApprovals > 0 ? pendingApprovals.toString() : undefined },
     { name: "Department Doctors", href: "/admin/headsup", icon: Users },
-    { name: "Reports", href: "/reports", icon: BarChart3 },
+    { name: "Reports", href: "/admin/reports", icon: BarChart3 },
   ];
 
   useEffect(() => {
