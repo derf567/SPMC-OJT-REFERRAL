@@ -1,31 +1,18 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ReferrerDashboardLayout } from "@/components/layout/ReferrerDashboardLayout";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Search,
-  Eye,
-  User,
   Calendar,
   MapPin,
   FileText,
-  X,
-  Clock,
-  Check,
   AlertTriangle,
   CheckCircle,
   Stethoscope,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 
 interface ArchivedReferral {
   id: string;
@@ -52,36 +39,6 @@ interface ArchivedReferral {
   triaged_at?: string;
 }
 
-interface Patient {
-  patient_full_name: string;
-  age: number;
-  gender: string;
-  hrn?: string;
-  patient_category: string;
-  current_address: string;
-  birthday: string;
-  total_referrals: number;
-  latest_referral_date: string;
-  latest_referral_id: string;
-  latest_status: string;
-  latest_specialty?: string;
-  latest_hospital?: string;
-}
-
-interface PatientHistory {
-  id: string;
-  referral_id: string;
-  patient_full_name: string;
-  age: number;
-  gender: string;
-  chief_complaint: string;
-  working_impression: string;
-  specialty_needed_name: string;
-  referring_hospital_name: string;
-  status: string;
-  created_at: string;
-}
-
 const getStatusColor = (status: string) => {
   switch (status) {
     case "completed":
@@ -105,141 +62,6 @@ const getStatusDisplay = (status: string) => {
   return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
-const PatientHistoryModal = ({ 
-  patient, 
-  onClose 
-}: { 
-  patient: Patient; 
-  onClose: () => void; 
-}) => {
-  const [history, setHistory] = useState<PatientHistory[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const response = await referralsAPI.getPatientHistory(patient.patient_full_name);
-        setHistory(response);
-      } catch (error) {
-        console.error('Error fetching patient history:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchHistory();
-  }, [patient.patient_full_name]);
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Patient History - {patient.patient_full_name}
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {patient.age} yrs • {patient.gender} • {patient.total_referrals} referrals
-            </p>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-
-        {/* Patient Info */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Patient Category</label>
-              <p className="text-sm text-gray-900 dark:text-white mt-1">
-                {patient.patient_category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-              </p>
-            </div>
-            {patient.hrn && (
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">HRN</label>
-                <p className="text-sm text-gray-900 dark:text-white mt-1">{patient.hrn}</p>
-              </div>
-            )}
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Birthday</label>
-              <p className="text-sm text-gray-900 dark:text-white mt-1">{patient.birthday}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Latest Referral</label>
-              <p className="text-sm text-gray-900 dark:text-white mt-1">
-                {new Date(patient.latest_referral_date).toLocaleDateString()}
-              </p>
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Address</label>
-              <p className="text-sm text-gray-900 dark:text-white mt-1">{patient.current_address}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Referral History */}
-        <div className="p-6">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Referral History</h3>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
-              <span className="text-gray-600 dark:text-gray-400">Loading history...</span>
-            </div>
-          ) : history.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No referral history found</p>
-          ) : (
-            <div className="space-y-4">
-              {history.map((referral) => (
-                <div key={referral.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h4 className="font-medium text-gray-900 dark:text-white">{referral.referral_id}</h4>
-                        <Badge className={getStatusColor(referral.status)}>
-                          {referral.status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {referral.specialty_needed_name}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-900 dark:text-white mb-1">
-                        <strong>Chief Complaint:</strong> {referral.chief_complaint}
-                      </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        <strong>Impression:</strong> {referral.working_impression}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        From: {referral.referring_hospital_name}
-                      </p>
-                    </div>
-                    <div className="text-right text-sm text-gray-500 dark:text-gray-400">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {new Date(referral.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const Patients = () => {
   const [referrals, setReferrals] = useState<ArchivedReferral[]>([]);
   const [loading, setLoading] = useState(true);
@@ -250,8 +72,6 @@ const Patients = () => {
     completed: 0,
     uncoordinated: 0
   });
-  const [timelineModalOpen, setTimelineModalOpen] = useState(false);
-  const [selectedReferral, setSelectedReferral] = useState<any>(null);
   const { user } = useAuth();
 
   // Determine which layout to use
@@ -267,17 +87,15 @@ const Patients = () => {
         
         // Filter to only show completed or uncoordinated referrals
         const archivedReferrals = allReferrals.filter((r: any) => 
-          r.status === 'completed' || r.status === 'uncoordinated' || r.status === 'cancelled'
+          r.status === 'completed' || r.status === 'uncoordinated'
         );
         
         setReferrals(archivedReferrals);
         
-        // Calculate stats from the filtered referrals
+        // Calculate stats
         const totalArchived = archivedReferrals.length;
         const completed = archivedReferrals.filter((r: any) => r.status === 'completed').length;
-        const uncoordinated = archivedReferrals.filter((r: any) => 
-          r.status === 'uncoordinated' || r.status === 'cancelled'
-        ).length;
+        const uncoordinated = archivedReferrals.filter((r: any) => r.status === 'uncoordinated').length;
         
         setStats({
           total_archived: totalArchived,
@@ -305,126 +123,6 @@ const Patients = () => {
     referral.chief_complaint.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const openTimelineModal = (referral: any) => {
-    setSelectedReferral(referral);
-    setTimelineModalOpen(true);
-  };
-
-  const getTimelineSteps = (referral: any) => {
-    const steps = [
-      {
-        status: 'pending',
-        label: 'Request Submitted',
-        description: 'Referral request submitted and awaiting review',
-        icon: FileText,
-        color: 'yellow',
-        completed: true,
-        date: referral.created_at,
-        user: referral.created_by_user || 'System',
-        action: 'Created referral'
-      },
-      {
-        status: 'waiting',
-        label: 'Under Triage',
-        description: 'Referral is being reviewed by EDCC staff',
-        icon: Clock,
-        color: 'blue',
-        completed: ['waiting', 'in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-        date: referral.transferred_at || referral.created_at,
-        user: referral.transferred_by_user || 'EDCC Staff',
-        action: 'Forwarded to EDMAR Triage'
-      }
-    ];
-
-    // Add the actual triage decision made by EDMAR staff (only if a decision was made)
-    if (referral.triage_decision) {
-      let triageStep;
-      
-      if (referral.triage_decision === 'emergent') {
-        triageStep = {
-          status: 'emergent',
-          label: 'Emergent Care',
-          description: 'Patient requires immediate emergency care',
-          icon: AlertTriangle,
-          color: 'red',
-          completed: ['emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-          date: referral.triaged_at || referral.updated_at,
-          user: referral.triaged_by_user || 'EDMAR Staff',
-          action: 'Marked as emergent case'
-        };
-      } else if (referral.triage_decision === 'urgent') {
-        triageStep = {
-          status: 'urgent',
-          label: 'Urgent Care',
-          description: 'Patient requires urgent medical attention',
-          icon: AlertTriangle,
-          color: 'orange',
-          completed: ['urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-          date: referral.triaged_at || referral.updated_at,
-          user: referral.triaged_by_user || 'EDMAR Staff',
-          action: 'Marked as urgent case'
-        };
-      } else if (referral.triage_decision === 'schedule_opd') {
-        triageStep = {
-          status: 'schedule_opd',
-          label: 'Scheduled OPD',
-          description: 'Patient appointment scheduled for outpatient department',
-          icon: Calendar,
-          color: 'green',
-          completed: ['schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-          date: referral.triaged_at || referral.updated_at,
-          user: referral.triaged_by_user || 'EDMAR Staff',
-          action: 'Scheduled OPD appointment'
-        };
-      }
-
-      if (triageStep) {
-        steps.push(triageStep);
-      }
-    }
-
-    // Add In Transit step after triage decision
-    steps.push({
-      status: 'in_transit',
-      label: 'In Transit',
-      description: 'Patient is being transported to the facility',
-      icon: MapPin,
-      color: 'purple',
-      completed: ['in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-      date: referral.status === 'in_transit' ? referral.updated_at : null,
-      user: referral.triaged_by_user || 'EDMAR Staff',
-      action: 'Initiated patient transport'
-    });
-
-    // Add final status steps
-    steps.push(
-      {
-        status: 'completed',
-        label: 'Completed',
-        description: 'Referral process completed successfully',
-        icon: CheckCircle,
-        color: 'gray',
-        completed: referral.status === 'completed',
-        date: referral.status === 'completed' ? referral.updated_at : null,
-        user: referral.triaged_by_user || 'EDMAR Staff',
-        action: 'Marked as completed'
-      },
-      {
-        status: 'cancelled',
-        label: 'Cancelled',
-        description: 'Referral has been cancelled',
-        icon: X,
-        color: 'red',
-        completed: referral.status === 'cancelled',
-        date: referral.status === 'cancelled' ? referral.updated_at : null,
-        user: referral.triaged_by_user || referral.transferred_by_user || 'Staff',
-        action: 'Cancelled referral'
-      }
-    );
-
-    return steps;
-  };
-
   if (loading) {
     return (
       <Layout>
@@ -443,13 +141,7 @@ const Patients = () => {
       <Layout>
         <div className="text-center py-12">
           <div className="text-red-500 mb-2">Error loading archived referrals</div>
-          <div className="text-gray-600 dark:text-gray-400 text-sm mb-4">{error}</div>
-          <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            onClick={() => window.location.reload()}
-          >
-            Retry
-          </Button>
+          <div className="text-gray-600 dark:text-gray-400 text-sm">{error}</div>
         </div>
       </Layout>
     );
