@@ -7,6 +7,7 @@ import { referralsAPI } from "@/lib/api";
 import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { NotificationContainer } from "@/components/ui/NotificationContainer";
 import { TestNotificationButton } from "@/components/ui/TestNotificationButton";
+import { SoundToggle } from "@/components/ui/SoundToggle";
 import { startNotificationPolling, stopNotificationPolling, NotificationData, checkAccountApprovals } from "@/lib/notificationService";
 import {
   Home,
@@ -68,6 +69,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [liveNotifications, setLiveNotifications] = useState<NotificationData[]>([]);
   const [dropdownNotifications, setDropdownNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [selectedReferralId, setSelectedReferralId] = useState<string | null>(null);
+  const [selectedReferral, setSelectedReferral] = useState<any | null>(null);
+  const [loadingReferral, setLoadingReferral] = useState(false);
   
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -290,6 +294,29 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     setLiveNotifications((prev) => prev.filter(n => n.id !== id));
   };
 
+  const handleNotificationClick = async (referralId?: string) => {
+    if (!referralId) return;
+    
+    setLoadingReferral(true);
+    try {
+      // Fetch the referral details
+      const referral = await referralsAPI.getById(referralId);
+      setSelectedReferral(referral);
+      setSelectedReferralId(referralId);
+    } catch (error) {
+      console.error('Error fetching referral:', error);
+      // Fallback: navigate to active referrals page
+      navigate('/referrals');
+    } finally {
+      setLoadingReferral(false);
+    }
+  };
+
+  const closeReferralModal = () => {
+    setSelectedReferral(null);
+    setSelectedReferralId(null);
+  };
+
   const testNotification = () => {
     const testNotif: NotificationData = {
       id: `test_${Date.now()}`,
@@ -333,7 +360,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       {/* Live Notifications */}
       <NotificationContainer 
         notifications={liveNotifications} 
-        onRemove={removeNotification} 
+        onRemove={removeNotification}
+        onNotificationClick={handleNotificationClick}
       />
 
       <div className={cn(
@@ -438,6 +466,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
               {/* Right side - Actions and User */}
               <div className="flex items-center gap-4">
+                {/* Sound Toggle */}
+                <SoundToggle />
+
                 {/* Dark Mode Toggle */}
                 <Button
                   variant="ghost"
@@ -616,6 +647,138 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             <TestNotificationButton onTest={testNotification} />
           </div>
         </div>
+
+        {/* Referral Details Modal */}
+        {selectedReferral && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Referral Details - {selectedReferral.referral_id}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {selectedReferral.patient_full_name} • {selectedReferral.age} yrs • {selectedReferral.gender}
+                  </p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={closeReferralModal}>
+                  <span className="text-2xl">&times;</span>
+                </Button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 space-y-6">
+                {/* Patient Status Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                    Patient Status
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Chief Complaint</label>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.chief_complaint}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Working Impression</label>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.working_impression}</p>
+                    </div>
+                  </div>
+
+                  {/* Vital Signs */}
+                  {(selectedReferral.bp || selectedReferral.hr || selectedReferral.rr || selectedReferral.temp || selectedReferral.o2_sat) && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-3">Latest Vital Signs</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        {selectedReferral.bp && (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Blood Pressure</p>
+                            <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.bp}</p>
+                          </div>
+                        )}
+                        {selectedReferral.hr && (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Heart Rate</p>
+                            <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.hr} bpm</p>
+                          </div>
+                        )}
+                        {selectedReferral.rr && (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Respiratory Rate</p>
+                            <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.rr} /min</p>
+                          </div>
+                        )}
+                        {selectedReferral.temp && (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Temperature</p>
+                            <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.temp}°C</p>
+                          </div>
+                        )}
+                        {selectedReferral.o2_sat && (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">O2 Saturation</p>
+                            <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.o2_sat}%</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Patient Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                    Patient Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Patient Category</label>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.patient_category}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Birthday</label>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1">{new Date(selectedReferral.birthday).toLocaleDateString()}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Address</label>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.current_address}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Referring Hospital */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                    Referring Hospital
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Facility Name</label>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.referring_hospital_name}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Referrer Name</label>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.referrer_name}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
+                <Button variant="outline" onClick={closeReferralModal}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  closeReferralModal();
+                  navigate('/referrals');
+                }}>
+                  View All Referrals
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

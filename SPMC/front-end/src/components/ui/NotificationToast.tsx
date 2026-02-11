@@ -8,9 +8,10 @@ interface NotificationToastProps {
   message: string;
   referralId?: string;
   onClose: (id: string) => void;
+  onClick?: (referralId?: string) => void;
 }
 
-export const NotificationToast = ({ id, type, message, referralId, onClose }: NotificationToastProps) => {
+export const NotificationToast = ({ id, type, message, referralId, onClose, onClick }: NotificationToastProps) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
@@ -18,21 +19,28 @@ export const NotificationToast = ({ id, type, message, referralId, onClose }: No
     // Fade in
     setTimeout(() => setIsVisible(true), 10);
 
-    // Start fade out after 2.7 seconds (to complete at 3 seconds)
+    // Start fade out after 7.7 seconds (to complete at 8 seconds)
     const fadeOutTimer = setTimeout(() => {
       setIsExiting(true);
-    }, 2700);
+    }, 7700);
 
-    // Remove after 3 seconds
+    // Remove after 8 seconds
     const removeTimer = setTimeout(() => {
       onClose(id);
-    }, 3000);
+    }, 8000);
 
     return () => {
       clearTimeout(fadeOutTimer);
       clearTimeout(removeTimer);
     };
   }, [id, onClose]);
+
+  const handleClick = () => {
+    if (onClick) {
+      onClick(referralId);
+    }
+    onClose(id);
+  };
 
   const getIcon = () => {
     switch (type) {
@@ -62,8 +70,9 @@ export const NotificationToast = ({ id, type, message, referralId, onClose }: No
 
   return (
     <div
+      onClick={handleClick}
       className={cn(
-        'flex items-start gap-3 p-4 rounded-lg border shadow-lg min-w-[320px] max-w-md transition-all duration-300',
+        'flex items-start gap-3 p-4 rounded-lg border shadow-lg min-w-[320px] max-w-md transition-all duration-300 cursor-pointer hover:shadow-xl hover:scale-105',
         getBackgroundColor(),
         isVisible && !isExiting ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       )}
@@ -85,9 +94,15 @@ export const NotificationToast = ({ id, type, message, referralId, onClose }: No
             ID: {referralId}
           </p>
         )}
+        <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-medium">
+          Click to view details →
+        </p>
       </div>
       <button
-        onClick={() => onClose(id)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose(id);
+        }}
         className="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
       >
         <X className="w-4 h-4" />
