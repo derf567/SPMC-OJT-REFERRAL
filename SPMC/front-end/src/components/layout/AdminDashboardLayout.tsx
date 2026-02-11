@@ -4,6 +4,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
+import { NotificationContainer } from "@/components/ui/NotificationContainer";
+import { SoundToggle } from "@/components/ui/SoundToggle";
+import { checkAccountApprovals, NotificationData } from "@/lib/notificationService";
 import {
   Home,
   UserCheck,
@@ -14,6 +17,7 @@ import {
   ChevronDown,
   LogOut,
   Info,
+  Bell,
 } from "lucide-react";
 
 interface AdminDashboardLayoutProps {
@@ -29,9 +33,14 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
     return saved !== null ? JSON.parse(saved) : true;
   });
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotificationMenu, setShowNotificationMenu] = useState(false);
   const [pendingApprovals] = useState(0);
+  const [liveNotifications, setLiveNotifications] = useState<NotificationData[]>([]);
+  const [pendingAccounts, setPendingAccounts] = useState<any[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
   
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const notificationMenuRef = useRef<HTMLDivElement>(null);
 
   const navigation = [
     { name: "Dashboard", href: "/admin/dashboard", icon: Home },
@@ -54,6 +63,9 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
+      if (notificationMenuRef.current && !notificationMenuRef.current.contains(event.target as Node)) {
+        setShowNotificationMenu(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -61,6 +73,99 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Start notification polling for admin
+  useEffect(() => {
+    if (user) {
+      console.log('🔔 Admin notification polling started for user:', user.username);
+      
+      const handleNotification = (notification: NotificationData) => {
+        setLiveNotifications((prev) => {
+          // Avoid duplicates
+          if (prev.some(n => n.id === notification.id)) {
+            return prev;
+          }
+          return [...prev, notification];
+        });
+      };
+
+      let approvalInterval: NodeJS.Timeout | null = null;
+      let retryTimeout: NodeJS.Timeout | null = null;
+
+      // Wait a bit to ensure token is available
+      const startPolling = () => {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          console.warn('⚠️ Token not yet available, retrying in 1 second...');
+          retryTimeout = setTimeout(startPolling, 1000);
+          return;
+        }
+
+        console.log('✅ Token found, starting notification polling');
+        
+        // Fetch initial count
+        fetchPendingAccounts();
+        
+        // Check immediately on mount
+        checkAccountApprovals(true, handleNotification);
+        
+        // Then check every 10 seconds
+        approvalInterval = setInterval(() => {
+          checkAccountApprovals(true, handleNotification);
+          fetchPendingAccounts();
+        }, 10000);
+      };
+
+      startPolling();
+
+      return () => {
+        if (approvalInterval) {
+          clearInterval(approvalInterval);
+        }
+        if (retryTimeout) {
+          clearTimeout(retryTimeout);
+        }
+      };
+    }
+  }, [user]);
+
+  const removeNotification = (id: string) => {
+    setLiveNotifications((prev) => prev.filter(n => n.id !== id));
+  };
+
+  const handleAccountApprovalClick = () => {
+    navigate('/admin/approvals');
+  };
+
+  const fetchPendingAccounts = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/referrers/?approval_status=pending', {
+        headers: {
+          'Authorization': `Token ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const pending = data.results || data;
+        setPendingAccounts(Array.isArray(pending) ? pending : []);
+        setPendingCount(Array.isArray(pending) ? pending.length : 0);
+      }
+    } catch (error) {
+      console.error('Error fetching pending accounts:', error);
+    }
+  };
+
+  const toggleNotificationMenu = () => {
+    setShowNotificationMenu(!showNotificationMenu);
+    if (!showNotificationMenu) {
+      fetchPendingAccounts();
+    }
+  };
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
@@ -85,6 +190,17 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
 
   return (
     <div className={cn("min-h-screen", isDarkMode ? "dark" : "")}>
+      {/* Live Notifications */}
+      <NotificationContainer 
+        notifications={liveNotifications} 
+        onRemove={removeNotification}
+        onNotificationClick={(referralId, type) => {
+          if (type === 'account_approval') {
+            handleAccountApprovalClick();
+          }
+        }}
+      />
+
       <div className={cn(
         "min-h-screen transition-colors duration-300",
         isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
@@ -180,6 +296,103 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
               </div>
 
               <div className="flex items-center gap-4">
+                {/* Sound Toggle */}
+                <SoundToggle />
+
+                {/* Notification Bell */}
+                <div className="relative" ref={notificationMenuRef}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleNotificationMenu}
+                    className="rounded-full relative"
+                  >
+                    <Bell className="w-5 h-5" />
+                    {pendingCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse">
+                        {pendingCount}
+                      </span>
+                    )}
+                  </Button>
+
+                  {showNotificationMenu && (
+                    <div className={cn(
+                      "absolute right-0 mt-2 w-80 rounded-lg shadow-lg border overflow-hidden z-50",
+                      isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+                    )}>
+                      <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="text-sm font-semibold">Pending Approvals</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {pendingCount} account{pendingCount !== 1 ? 's' : ''} waiting for review
+                        </p>
+                      </div>
+                      
+                      <div className="max-h-96 overflow-y-auto">
+                        {pendingAccounts.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                            No pending approvals
+                          </div>
+                        ) : (
+                          pendingAccounts.map((account) => {
+                            const fullName = `${account.first_name} ${account.last_name}`;
+                            const accountType = account.referrer_type === 'doctor' ? 'Doctor' : 
+                                               account.referrer_type === 'hospital_employee' ? 'Hospital Employee' : 
+                                               'Referrer';
+                            
+                            return (
+                              <button
+                                key={account.id}
+                                onClick={() => {
+                                  setShowNotificationMenu(false);
+                                  navigate('/admin/approvals');
+                                }}
+                                className={cn(
+                                  "w-full p-3 text-left border-b transition-colors",
+                                  isDarkMode 
+                                    ? "border-gray-700 hover:bg-gray-700" 
+                                    : "border-gray-200 hover:bg-gray-50"
+                                )}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
+                                    {account.first_name[0]}{account.last_name[0]}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">
+                                      {fullName}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                      {accountType}
+                                    </p>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                      {account.user.email}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                      
+                      {pendingAccounts.length > 0 && (
+                        <div className="p-3 border-t border-gray-200 dark:border-gray-700">
+                          <button
+                            onClick={() => {
+                              setShowNotificationMenu(false);
+                              navigate('/admin/approvals');
+                            }}
+                            className="w-full text-center text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 font-medium"
+                          >
+                            View All Approvals →
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Dark Mode Toggle */}
                 <Button
                   variant="ghost"
                   size="sm"

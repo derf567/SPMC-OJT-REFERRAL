@@ -108,6 +108,10 @@ const checkForNewNotifications = async (
   }
 };
 
+// Track last checked timestamp for account approvals
+let lastApprovalCheckTimestamp: string | null = null;
+let isFirstCheck = true;
+
 // For admin account approval notifications
 export const checkAccountApprovals = async (
   isAdmin: boolean,
@@ -116,32 +120,77 @@ export const checkAccountApprovals = async (
   if (!isAdmin) return;
 
   try {
-    // This would need an API endpoint to check for pending approvals
-    // For now, we'll create a placeholder
-    const response = await fetch('/api/referrers/pending-approvals/', {
+    console.log('🔍 Checking for new account approvals...');
+    
+    // Set initial timestamp if not set
+    if (!lastApprovalCheckTimestamp) {
+      lastApprovalCheckTimestamp = new Date().toISOString();
+      console.log('📅 Initial timestamp set:', lastApprovalCheckTimestamp);
+    }
+
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      console.error('❌ No auth token found');
+      return;
+    }
+
+    const response = await fetch('/api/referrers/?approval_status=pending', {
       headers: {
-        'Authorization': `Token ${localStorage.getItem('token')}`,
+        'Authorization': `Token ${token}`,
+        'Content-Type': 'application/json',
       },
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      const pendingApprovals = data.results || data;
+    if (!response.ok) {
+      console.error('❌ Failed to fetch pending approvals:', response.status);
+      return;
+    }
 
-      if (Array.isArray(pendingApprovals) && pendingApprovals.length > 0) {
-        pendingApprovals.forEach((approval: any) => {
-          if (approval.created_at > (lastCheckedTimestamp || '')) {
-            onNotification({
-              id: `account_approval_${approval.id}`,
-              type: 'account_approval',
-              message: `New account approval request from ${approval.first_name} ${approval.last_name}`,
-              timestamp: approval.created_at,
-            });
-          }
-        });
+    const data = await response.json();
+    const pendingApprovals = data.results || data;
+
+    console.log(`📋 Found ${pendingApprovals.length} pending approval(s)`);
+
+    if (Array.isArray(pendingApprovals) && pendingApprovals.length > 0) {
+      const currentTimestamp = new Date().toISOString();
+      let newApprovalCount = 0;
+      
+      pendingApprovals.forEach((approval: any) => {
+        // On first check, show ALL pending approvals
+        // On subsequent checks, only show new ones since last check
+        const shouldNotify = isFirstCheck || approval.created_at > lastApprovalCheckTimestamp!;
+        
+        if (shouldNotify) {
+          console.log('🟣 New account registration detected:', approval.user?.username || approval.first_name);
+          
+          const accountType = approval.referrer_type === 'doctor' ? 'Doctor' : 
+                             approval.referrer_type === 'hospital_employee' ? 'Hospital Employee' : 
+                             'Referrer';
+          
+          onNotification({
+            id: `account_approval_${approval.id}_${approval.created_at}`,
+            type: 'account_approval',
+            message: `New ${accountType} registration: ${approval.first_name} ${approval.last_name}`,
+            timestamp: approval.created_at,
+          });
+          
+          newApprovalCount++;
+        }
+      });
+
+      if (newApprovalCount > 0) {
+        console.log(`✅ ${newApprovalCount} new registration notification(s) triggered`);
       }
+
+      // Mark first check as complete
+      if (isFirstCheck) {
+        isFirstCheck = false;
+        console.log('✅ First check complete - will now only show NEW registrations');
+      }
+
+      lastApprovalCheckTimestamp = currentTimestamp;
     }
   } catch (error) {
-    console.error('Error checking account approvals:', error);
+    console.error('❌ Error checking account approvals:', error);
   }
 };
