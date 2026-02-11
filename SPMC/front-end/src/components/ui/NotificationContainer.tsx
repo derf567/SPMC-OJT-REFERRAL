@@ -6,7 +6,7 @@ import { notificationSound } from '@/lib/notificationSound';
 interface NotificationContainerProps {
   notifications: NotificationData[];
   onRemove: (id: string) => void;
-  onNotificationClick?: (referralId?: string) => void;
+  onNotificationClick?: (referralId?: string, type?: string) => void;
 }
 
 interface DelayedNotification extends NotificationData {
@@ -31,7 +31,7 @@ export const NotificationContainer = ({ notifications, onRemove, onNotificationC
         setDelayedNotifications(prev => [...prev, delayedNotif]);
       }
     });
-  }, [notifications]);
+  }, [notifications, delayedNotifications]);
 
   // Check which notifications should be visible now and play sound
   useEffect(() => {
@@ -94,7 +94,7 @@ export const NotificationContainer = ({ notifications, onRemove, onNotificationC
             message={notification.message}
             referralId={notification.referralId}
             onClose={onRemove}
-            onClick={onNotificationClick}
+            onClick={(referralId) => onNotificationClick?.(referralId, notification.type)}
           />
         ))}
       </div>

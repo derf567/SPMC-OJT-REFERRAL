@@ -1260,6 +1260,7 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
     serializer_class = ReferrerAccountSerializer
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['first_name', 'last_name', 'user__username']
+    filterset_fields = ['approval_status', 'referrer_type']
 
     def get_permissions(self):
         # Allow anyone to create/register; other actions require authentication

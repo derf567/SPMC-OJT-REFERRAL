@@ -8,7 +8,7 @@ import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { NotificationContainer } from "@/components/ui/NotificationContainer";
 import { TestNotificationButton } from "@/components/ui/TestNotificationButton";
 import { SoundToggle } from "@/components/ui/SoundToggle";
-import { startNotificationPolling, stopNotificationPolling, NotificationData, checkAccountApprovals } from "@/lib/notificationService";
+import { startNotificationPolling, stopNotificationPolling, NotificationData } from "@/lib/notificationService";
 import {
   Home,
   Users,
@@ -21,38 +21,21 @@ import {
   ChevronDown,
   LogOut,
   User,
-  UserCheck,
   Inbox,
   Info,
+  LucideIcon,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
   children: ReactNode;
 }
 
-const notifications = [
-  {
-    id: 1,
-    title: "New Critical Referral",
-    message: "Patient Juan Dela Cruz requires immediate attention",
-    time: "2 mins ago",
-    type: "critical"
-  },
-  {
-    id: 2,
-    title: "Bed Available",
-    message: "ICU bed now available at SPMC Emergency",
-    time: "5 mins ago",
-    type: "success"
-  },
-  {
-    id: 3,
-    title: "Department Assignment",
-    message: "New referral assigned to Cardiology",
-    time: "10 mins ago",
-    type: "info"
-  }
-];
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  badge?: string;
+}
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
@@ -69,14 +52,12 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [liveNotifications, setLiveNotifications] = useState<NotificationData[]>([]);
   const [dropdownNotifications, setDropdownNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [selectedReferralId, setSelectedReferralId] = useState<string | null>(null);
   const [selectedReferral, setSelectedReferral] = useState<any | null>(null);
-  const [loadingReferral, setLoadingReferral] = useState(false);
   
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
-  const navigation = [
+  const navigation: NavigationItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Active Referrals", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
@@ -86,7 +67,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   ];
 
   // HIS Department navigation (limited access)
-  const hisNavigation = [
+  const hisNavigation: NavigationItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Incoming Referrals", href: "/incoming", icon: Inbox },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
@@ -95,7 +76,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   ];
 
   // Department User navigation (department-specific access)
-  const departmentNavigation = [
+  const departmentNavigation: NavigationItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Incoming Patient", href: "/referrals", icon: Inbox, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
     { name: "Archived Patient", href: "/patients", icon: Users },
@@ -175,7 +156,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
         // Generate dynamic notifications from recent referrals
         const recentReferrals = Array.isArray(referrals) 
-          ? referrals.slice(0, 5).map((ref: any, index: number) => {
+          ? referrals.slice(0, 5).map((ref: any) => {
               let notifType = 'info';
               let title = 'Referral Update';
               let message = '';
@@ -272,18 +253,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
       startNotificationPolling(user.permissions, handleNotification);
 
-      // Check for account approvals if admin
-      if (user.is_staff || user.is_superuser) {
-        const approvalInterval = setInterval(() => {
-          checkAccountApprovals(true, handleNotification);
-        }, 10000); // Check every 10 seconds
-
-        return () => {
-          stopNotificationPolling();
-          clearInterval(approvalInterval);
-        };
-      }
-
       return () => {
         stopNotificationPolling();
       };
@@ -297,24 +266,23 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const handleNotificationClick = async (referralId?: string) => {
     if (!referralId) return;
     
-    setLoadingReferral(true);
     try {
       // Fetch the referral details
       const referral = await referralsAPI.getById(referralId);
       setSelectedReferral(referral);
-      setSelectedReferralId(referralId);
     } catch (error) {
       console.error('Error fetching referral:', error);
       // Fallback: navigate to active referrals page
       navigate('/referrals');
-    } finally {
-      setLoadingReferral(false);
     }
+  };
+
+  const handleAccountApprovalClick = () => {
+    navigate('/admin/account-approval');
   };
 
   const closeReferralModal = () => {
     setSelectedReferral(null);
-    setSelectedReferralId(null);
   };
 
   const testNotification = () => {
@@ -361,7 +329,13 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       <NotificationContainer 
         notifications={liveNotifications} 
         onRemove={removeNotification}
-        onNotificationClick={handleNotificationClick}
+        onNotificationClick={(referralId, type) => {
+          if (type === 'account_approval') {
+            handleAccountApprovalClick();
+          } else {
+            handleNotificationClick(referralId);
+          }
+        }}
       />
 
       <div className={cn(
