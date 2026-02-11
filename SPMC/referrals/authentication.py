@@ -15,6 +15,8 @@ import json
 def login_view(request):
     """Login endpoint"""
     try:
+        from .models import ReferrerAccount
+        
         data = json.loads(request.body)
         username = data.get('username')
         password = data.get('password')
@@ -27,11 +29,27 @@ def login_view(request):
         user = authenticate(username=username, password=password)
         
         if user:
-            login(request, user)
-            token, created = Token.objects.get_or_create(user=user)
-            
             # Get or create user profile
             profile, created = UserProfile.objects.get_or_create(user=user)
+            
+            # Check if user is a referrer and if their account is approved
+            if profile.role == 'referrer':
+                try:
+                    referrer_account = ReferrerAccount.objects.get(user=user)
+                    if referrer_account.approval_status == 'pending':
+                        return Response({
+                            'error': 'Your account is pending approval. Please wait for an administrator to review your registration.'
+                        }, status=status.HTTP_403_FORBIDDEN)
+                    elif referrer_account.approval_status == 'rejected':
+                        return Response({
+                            'error': 'Your account registration has been rejected. Please contact the administrator for more information.'
+                        }, status=status.HTTP_403_FORBIDDEN)
+                except ReferrerAccount.DoesNotExist:
+                    # If no ReferrerAccount exists, allow login (for legacy accounts)
+                    pass
+            
+            login(request, user)
+            token, created = Token.objects.get_or_create(user=user)
             
             return Response({
                 'success': True,
@@ -269,7 +287,7 @@ def comprehensive_register_view(request):
         
         return Response({
             'success': True,
-            'message': 'Account created successfully. You can now login.',
+            'message': 'Registration submitted successfully. Your account is pending approval by an administrator.',
             'user': {
                 'id': user.id,
                 'username': user.username,

@@ -18,6 +18,7 @@ interface DashboardStats {
   completed_today: number;
   yesterday_completed: number;
   yesterday_total: number;
+  total_patients: number;
 }
 
 const Index = () => {
@@ -28,6 +29,7 @@ const Index = () => {
     completed_today: 0,
     yesterday_completed: 0,
     yesterday_total: 0,
+    total_patients: 0,
   });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -70,6 +72,9 @@ const Index = () => {
           ref.status === 'completed' && ref.updated_at.startsWith(yesterday)
         ).length;
         
+        // Calculate unique patients (count unique patient names)
+        const uniquePatients = new Set(referrals.map((ref: any) => ref.patient_full_name));
+        
         setStats({
           total_referrals_today: todayReferrals.length,
           pending_cases: pendingCases,
@@ -77,6 +82,7 @@ const Index = () => {
           completed_today: completedToday,
           yesterday_completed: completedYesterday,
           yesterday_total: yesterdayReferrals.length,
+          total_patients: uniquePatients.size,
         });
       } catch (error) {
         console.error('Error fetching dashboard stats:', error);
@@ -173,7 +179,7 @@ const Index = () => {
               <div>
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Patients</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-                  {loading ? '...' : '247'}
+                  {loading ? '...' : stats.total_patients}
                 </p>
                 <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">Registered in system</p>
               </div>

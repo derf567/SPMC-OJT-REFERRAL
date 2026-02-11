@@ -501,9 +501,9 @@ const Register = () => {
       }
       
       toast({
-        title: "Registration Successful! 🎉",
-        description: "Your account has been created. You can now login to access your referrer dashboard.",
-        className: "bg-green-50 border-green-200 text-green-800",
+        title: "Registration Submitted! 🎉",
+        description: "Your account is pending approval. An administrator will review your registration. You will be able to login once approved.",
+        className: "bg-blue-50 border-blue-200 text-blue-800",
       });
       
       navigate('/login');
