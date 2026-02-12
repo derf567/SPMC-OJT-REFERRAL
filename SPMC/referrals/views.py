@@ -83,11 +83,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # Filter by department for department users
+        # Filter by department for department users and view-only users
         user_profile = getattr(self.request.user, 'profile', None)
-        if user_profile and user_profile.is_department_user and user_profile.department:
-            # Department users can only see referrals assigned to their department
-            queryset = queryset.filter(assigned_department=user_profile.department)
+        if user_profile and user_profile.department:
+            # Department users and view-only users can only see referrals assigned to their department
+            if user_profile.is_department_user or user_profile.is_view_only:
+                queryset = queryset.filter(assigned_department=user_profile.department)
         
         # Filter by date range if provided
         start_date = self.request.query_params.get('start_date')
@@ -1335,7 +1336,7 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
         """Get all referrer accounts for approval (Admin only)"""
         # Check if user is admin
         user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not user_profile.is_admin_user:
+        if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
             return Response({
                 'error': 'You do not have permission to view pending accounts'
             }, status=status.HTTP_403_FORBIDDEN)
@@ -1353,7 +1354,7 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
         """Approve a pending referrer account (Admin only)"""
         # Check if user is admin
         user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not user_profile.is_admin_user:
+        if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
             return Response({
                 'error': 'You do not have permission to approve accounts'
             }, status=status.HTTP_403_FORBIDDEN)
@@ -1389,7 +1390,7 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
         """Reject a pending referrer account (Admin only)"""
         # Check if user is admin
         user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not user_profile.is_admin_user:
+        if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
             return Response({
                 'error': 'You do not have permission to reject accounts'
             }, status=status.HTTP_403_FORBIDDEN)
@@ -1448,7 +1449,7 @@ def admin_dashboard_stats(request):
     """Get admin dashboard statistics"""
     # Check if user is admin only
     user_profile = getattr(request.user, 'profile', None)
-    if not user_profile or not user_profile.is_admin_user:
+    if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
         return Response({
             'error': 'You do not have permission to access admin dashboard'
         }, status=status.HTTP_403_FORBIDDEN)
@@ -1486,57 +1487,15 @@ def admin_dashboard_stats(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_all_doctors(request):
-    """Get all doctors with their departments and specialties"""
-    # Check if user is admin only
-    user_profile = getattr(request.user, 'profile', None)
-    if not user_profile or not user_profile.is_admin_user:
-        return Response({
-            'error': 'You do not have permission to view doctors'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    # Get all users with UserProfile (SPMC staff)
-    doctors = UserProfile.objects.select_related('user').all()
-    
-    doctors_data = []
-    for profile in doctors:
-        # Get referrer account if exists (for specialties)
-        referrer_account = None
-        try:
-            referrer_account = ReferrerAccount.objects.prefetch_related('specialties').get(user=profile.user)
-        except ReferrerAccount.DoesNotExist:
-            pass
-        
-        specialties = []
-        if referrer_account:
-            specialties = [
-                {'id': s.id, 'name': s.name} 
-                for s in referrer_account.specialties.all()
-            ]
-        
-        doctors_data.append({
-            'id': profile.user.id,
-            'name': profile.user.get_full_name() or profile.user.username,
-            'username': profile.user.username,
-            'email': profile.user.email,
-            'role': profile.role,
-            'role_display': profile.get_role_display(),
-            'department': profile.department or 'Not Assigned',
-            'specialties': specialties,
-            'contact_number': profile.contact_number,
-        })
-    
-    return Response(doctors_data)
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def update_doctor_specialties(request, user_id):
     """Update doctor's specialties"""
-    # Check if user is admin only
+    # Check if user is admin
     user_profile = getattr(request.user, 'profile', None)
-    if not user_profile or not user_profile.is_admin_user:
+    if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
         return Response({
             'error': 'You do not have permission to update doctor specialties'
         }, status=status.HTTP_403_FORBIDDEN)
@@ -1581,4 +1540,198 @@ def update_doctor_specialties(request, user_id):
     except User.DoesNotExist:
         return Response({
             'error': 'Doctor not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
+# Admin ViewSet for managing doctors and department assignments
+from rest_framework.decorators import api_view
+from django.contrib.auth.models import User
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_all_doctors(request):
+    """Get all doctors with their departments and specialties"""
+    # Check if user is admin
+    user_profile = getattr(request.user, 'profile', None)
+    if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
+        return Response({
+            'error': 'You do not have permission to view doctors'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get all users with referrer accounts (approved doctors)
+    doctors = User.objects.filter(
+        referrer_profile__approval_status='approved',
+        referrer_profile__referrer_type='doctor'
+    ).select_related('profile', 'referrer_profile').prefetch_related(
+        'referrer_profile__specialties'
+    )
+    
+    doctors_data = []
+    for user in doctors:
+        profile = getattr(user, 'profile', None)
+        referrer = getattr(user, 'referrer_profile', None)
+        
+        doctors_data.append({
+            'id': user.id,
+            'name': user.get_full_name() or user.username,
+            'username': user.username,
+            'email': user.email,
+            'role': profile.role if profile else 'referrer',
+            'role_display': profile.get_role_display() if profile else 'Referrer',
+            'department': profile.department if profile else None,
+            'contact_number': profile.contact_number if profile else None,
+            'specialties': [
+                {'id': s.id, 'name': s.name} 
+                for s in referrer.specialties.all()
+            ] if referrer else []
+        })
+    
+    return Response(doctors_data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def assign_doctor_to_department(request):
+    """Assign a doctor to a department with a specific role"""
+    # Check if user is admin
+    user_profile = getattr(request.user, 'profile', None)
+    if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
+        return Response({
+            'error': 'You do not have permission to assign doctors'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    user_id = request.data.get('user_id')
+    department = request.data.get('department')
+    role = request.data.get('role')
+    
+    if not user_id or not department or not role:
+        return Response({
+            'error': 'user_id, department, and role are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(id=user_id)
+        profile = getattr(user, 'profile', None)
+        
+        if not profile:
+            # Create profile if it doesn't exist
+            from .models import UserProfile
+            profile = UserProfile.objects.create(user=user)
+        
+        # Update profile with department and role
+        profile.department = department
+        profile.role = role
+        profile.save()
+        
+        return Response({
+            'message': f'Doctor successfully assigned to {department}',
+            'user_id': user.id,
+            'name': user.get_full_name(),
+            'department': department,
+            'role': role,
+            'role_display': profile.get_role_display()
+        })
+        
+    except User.DoesNotExist:
+        return Response({
+            'error': 'User not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def unassign_doctor_from_department(request):
+    """Remove a doctor from their department assignment"""
+    # Check if user is admin
+    user_profile = getattr(request.user, 'profile', None)
+    
+    # Debug logging
+    print(f"Unassign request from user: {request.user.username}")
+    print(f"Has profile: {user_profile is not None}")
+    print(f"Is admin: {user_profile.is_admin_user if user_profile else False}")
+    print(f"Is superuser: {request.user.is_superuser}")
+    
+    if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
+        return Response({
+            'error': 'You do not have permission to unassign doctors'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    user_id = request.data.get('user_id')
+    
+    if not user_id:
+        return Response({
+            'error': 'user_id is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(id=user_id)
+        profile = getattr(user, 'profile', None)
+        
+        if not profile:
+            # Create profile if it doesn't exist
+            from .models import UserProfile
+            profile = UserProfile.objects.create(user=user, role='referrer')
+        
+        # Remove department assignment and reset to referrer role
+        old_department = profile.department
+        profile.department = None
+        profile.role = 'referrer'
+        profile.save()
+        
+        print(f"Successfully unassigned {user.get_full_name()} from {old_department}")
+        
+        return Response({
+            'message': f'Doctor successfully unassigned from department',
+            'user_id': user.id,
+            'name': user.get_full_name()
+        })
+        
+    except User.DoesNotExist:
+        return Response({
+            'error': 'User not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        print(f"Error unassigning doctor: {str(e)}")
+        return Response({
+            'error': f'Error unassigning doctor: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_doctor_specialties(request, user_id):
+    """Update doctor's specialties"""
+    # Check if user is admin
+    user_profile = getattr(request.user, 'profile', None)
+    if not user_profile or not user_profile.is_admin_user:
+        return Response({
+            'error': 'You do not have permission to update doctor specialties'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    specialty_ids = request.data.get('specialty_ids', [])
+    
+    try:
+        user = User.objects.get(id=user_id)
+        referrer = getattr(user, 'referrer_profile', None)
+        
+        if not referrer:
+            return Response({
+                'error': 'Referrer profile not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Update specialties
+        referrer.specialties.set(specialty_ids)
+        
+        return Response({
+            'message': 'Specialties updated successfully',
+            'user_id': user.id,
+            'specialties': [
+                {'id': s.id, 'name': s.name} 
+                for s in referrer.specialties.all()
+            ]
+        })
+        
+    except User.DoesNotExist:
+        return Response({
+            'error': 'User not found'
         }, status=status.HTTP_404_NOT_FOUND)

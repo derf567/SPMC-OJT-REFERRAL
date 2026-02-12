@@ -19,6 +19,8 @@ interface User {
     can_transfer_referrals: boolean;
     is_admin_user: boolean;
     is_his_department: boolean;
+    is_view_only: boolean;
+    department: string;
   };
 }
 

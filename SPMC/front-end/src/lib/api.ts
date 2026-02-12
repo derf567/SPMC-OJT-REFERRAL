@@ -407,6 +407,22 @@ export const adminAPI = {
     });
   },
 
+  // Assign doctor to department
+  assignDoctorToDepartment: async (userId: number, department: string, role: string) => {
+    return apiRequest('/admin/doctors/assign/', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, department, role }),
+    });
+  },
+
+  // Unassign doctor from department
+  unassignDoctorFromDepartment: async (userId: number) => {
+    return apiRequest('/admin/doctors/unassign/', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    });
+  },
+
   // Approve referrer account
   approveReferrer: async (accountId: number) => {
     return apiRequest(`/referrers/${accountId}/approve_account/`, {

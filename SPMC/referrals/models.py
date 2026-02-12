@@ -8,6 +8,7 @@ class UserProfile(models.Model):
         ('edcc_personnel', 'EDCC Personnel'),
         ('call_triage', 'EDMAR/EDHO (Call Triage)'),
         ('his_department', 'HIS Department'),
+        ('view_only', 'View Only (Department Doctor)'),
         ('admin', 'Administrator'),
         ('referrer', 'Referrer'),
         ('department_user', 'Department User'),
@@ -67,6 +68,11 @@ class UserProfile(models.Model):
     def is_department_user(self):
         """Check if user is a department user"""
         return self.role == 'department_user'
+    
+    @property
+    def is_view_only(self):
+        """Check if user is view only (department doctor)"""
+        return self.role == 'view_only'
 
 class ReferringHospital(models.Model):
     """Model for referring hospitals/facilities"""

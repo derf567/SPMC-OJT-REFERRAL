@@ -22,6 +22,7 @@ import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AccountApproval from "./pages/admin/AccountApproval";
 import HeadsUp from "./pages/admin/HeadsUp";
+import HeadsUpDragDrop from "./pages/admin/HeadsUpDragDrop";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,11 @@ const App = () => (
             <Route path="/admin/headsup" element={
               <ProtectedRoute>
                 <HeadsUp />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/headsup/assign" element={
+              <ProtectedRoute>
+                <HeadsUpDragDrop />
               </ProtectedRoute>
             } />
             <Route path="/admin/reports" element={
