@@ -7,6 +7,7 @@ from django.db.models import Q, Count, Max
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
+from datetime import datetime
 from .models import ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory
 from .serializers import (
     ReferringHospitalSerializer, SpecialtySerializer, ReferralListSerializer,
@@ -292,112 +293,158 @@ class ReferralViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def accept_with_triage_decision(self, request, pk=None):
         """Accept referral with triage decision (Triage user action)"""
-        referral = self.get_object()
-        
-        # Check if user has permission to triage referrals
-        if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
-            return Response({
-                'error': 'You do not have permission to make triage decisions'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        # Only allow triage decisions for waiting referrals
-        if referral.status != 'waiting':
-            return Response({
-                'error': 'Can only make triage decisions for referrals in waiting status'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Get triage decision from request data
-        triage_decision = request.data.get('triage_decision')
-        triage_notes = request.data.get('triage_notes', '')
-        scheduled_date = request.data.get('scheduled_date')
-        scheduled_time = request.data.get('scheduled_time')
-        
-        if not triage_decision:
-            return Response({
-                'error': 'Triage decision is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate triage decision
-        valid_decisions = [choice[0] for choice in Referral.TRIAGE_DECISION_CHOICES]
-        if triage_decision not in valid_decisions:
-            return Response({
-                'error': 'Invalid triage decision'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate scheduled date/time for schedule_opd
-        if triage_decision == 'schedule_opd':
-            if not scheduled_date or not scheduled_time:
+        try:
+            referral = self.get_object()
+            
+            # Check if user has permission to triage referrals
+            if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
                 return Response({
-                    'error': 'Scheduled date and time are required for OPD appointments'
+                    'error': 'You do not have permission to make triage decisions'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Only allow triage decisions for waiting referrals
+            if referral.status != 'waiting':
+                return Response({
+                    'error': 'Can only make triage decisions for referrals in waiting status'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Validate date is not in the past
-            from datetime import datetime
-            try:
-                scheduled_datetime = datetime.combine(
-                    datetime.strptime(scheduled_date, '%Y-%m-%d').date(),
-                    datetime.strptime(scheduled_time, '%H:%M').time()
-                )
-                if scheduled_datetime < timezone.now():
+            # Get triage decision from request data
+            triage_decision = request.data.get('triage_decision')
+            triage_notes = request.data.get('triage_notes', '')
+            scheduled_date = request.data.get('scheduled_date')
+            scheduled_time = request.data.get('scheduled_time')
+            
+            if not triage_decision:
+                return Response({
+                    'error': 'Triage decision is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate triage decision
+            valid_decisions = [choice[0] for choice in Referral.TRIAGE_DECISION_CHOICES]
+            if triage_decision not in valid_decisions:
+                return Response({
+                    'error': 'Invalid triage decision'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate scheduled date/time for schedule_opd
+            if triage_decision == 'schedule_opd':
+                if not scheduled_date or not scheduled_time:
                     return Response({
-                        'error': 'Cannot schedule appointments in the past'
+                        'error': 'Scheduled date and time are required for OPD appointments'
                     }, status=status.HTTP_400_BAD_REQUEST)
-            except ValueError:
-                return Response({
-                    'error': 'Invalid date or time format'
-                }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Update referral with triage decision
-        old_status = referral.status
-        referral.triage_decision = triage_decision
-        referral.triage_notes = triage_notes
-        referral.triaged_by = request.user
-        referral.triaged_at = timezone.now()
-        
-        # Set status based on triage decision
-        if triage_decision == 'emergent':
-            referral.status = 'emergent'
-            referral.is_emergent = True
-        elif triage_decision == 'urgent':
-            referral.status = 'urgent'
-            referral.is_urgent = True
-        elif triage_decision == 'schedule_opd':
-            referral.status = 'schedule_opd'
-            referral.scheduled_date = scheduled_date
-            referral.scheduled_time = scheduled_time
-        
-        referral.save()
-        
-        # Create status history record
-        decision_display = dict(Referral.TRIAGE_DECISION_CHOICES).get(triage_decision, triage_decision)
-        history_notes = f'Triage decision: {decision_display}'
-        if triage_notes:
-            history_notes += f'. Notes: {triage_notes}'
-        if triage_decision == 'schedule_opd':
-            history_notes += f'. Scheduled for {scheduled_date} at {scheduled_time}'
+                
+                # Validate date is not in the past
+                try:
+                    scheduled_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
+                    
+                    # Try to parse time in multiple formats
+                    scheduled_time_obj = None
+                    time_formats = ['%H:%M', '%I:%M %p', '%I:%M%p']  # 24-hour, 12-hour with space, 12-hour without space
+                    
+                    for time_format in time_formats:
+                        try:
+                            scheduled_time_obj = datetime.strptime(scheduled_time, time_format).time()
+                            break
+                        except ValueError:
+                            continue
+                    
+                    if scheduled_time_obj is None:
+                        return Response({
+                            'error': f'Invalid time format. Please use HH:MM or HH:MM AM/PM format. Received: {scheduled_time}'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Create timezone-aware datetime for comparison
+                    scheduled_datetime = timezone.make_aware(
+                        datetime.combine(scheduled_date_obj, scheduled_time_obj)
+                    )
+                    
+                    if scheduled_datetime < timezone.now():
+                        return Response({
+                            'error': 'Cannot schedule appointments in the past'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                except ValueError as e:
+                    return Response({
+                        'error': f'Invalid date or time format: {str(e)}'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                except Exception as e:
+                    return Response({
+                        'error': f'Error validating date/time: {str(e)}'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-        ReferralStatusHistory.objects.create(
-            referral=referral,
-            old_status=old_status,
-            new_status=referral.status,
-            changed_by=request.user,
-            notes=history_notes
-        )
-        
-        # Prepare response data
-        response_data = {
-            'message': f'Referral accepted with triage decision: {decision_display}',
-            'triage_decision': triage_decision,
-            'new_status': referral.status,
-            'triaged_by': request.user.get_full_name(),
-            'triaged_at': referral.triaged_at
-        }
-        
-        if triage_decision == 'schedule_opd':
-            response_data['scheduled_date'] = referral.scheduled_date
-            response_data['scheduled_time'] = referral.scheduled_time
-        
-        return Response(response_data)
+            # Update referral with triage decision
+            old_status = referral.status
+            referral.triage_decision = triage_decision
+            referral.triage_notes = triage_notes
+            referral.triaged_by = request.user
+            referral.triaged_at = timezone.now()
+            
+            # Set status based on triage decision
+            if triage_decision == 'emergent':
+                referral.status = 'emergent'
+                referral.is_emergent = True
+            elif triage_decision == 'urgent':
+                referral.status = 'urgent'
+                referral.is_urgent = True
+            elif triage_decision == 'schedule_opd':
+                referral.status = 'schedule_opd'
+                referral.scheduled_date = scheduled_date
+                # Convert time to proper format if needed
+                time_formats = ['%H:%M', '%I:%M %p', '%I:%M%p']
+                time_parsed = False
+                for time_format in time_formats:
+                    try:
+                        time_obj = datetime.strptime(scheduled_time, time_format).time()
+                        referral.scheduled_time = time_obj
+                        time_parsed = True
+                        break
+                    except ValueError:
+                        continue
+                
+                if not time_parsed:
+                    return Response({
+                        'error': f'Could not parse time format: {scheduled_time}'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            referral.save()
+            
+            # Create status history record
+            decision_display = dict(Referral.TRIAGE_DECISION_CHOICES).get(triage_decision, triage_decision)
+            history_notes = f'Triage decision: {decision_display}'
+            if triage_notes:
+                history_notes += f'. Notes: {triage_notes}'
+            if triage_decision == 'schedule_opd':
+                history_notes += f'. Scheduled for {scheduled_date} at {scheduled_time}'
+                
+            ReferralStatusHistory.objects.create(
+                referral=referral,
+                old_status=old_status,
+                new_status=referral.status,
+                changed_by=request.user,
+                notes=history_notes
+            )
+            
+            # Prepare response data
+            response_data = {
+                'message': f'Referral accepted with triage decision: {decision_display}',
+                'triage_decision': triage_decision,
+                'new_status': referral.status,
+                'triaged_by': request.user.get_full_name(),
+                'triaged_at': referral.triaged_at.isoformat() if referral.triaged_at else None
+            }
+            
+            if triage_decision == 'schedule_opd':
+                response_data['scheduled_date'] = str(referral.scheduled_date) if referral.scheduled_date else None
+                response_data['scheduled_time'] = str(referral.scheduled_time) if referral.scheduled_time else None
+            
+            return Response(response_data)
+            
+        except Exception as e:
+            # Log the error for debugging
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'error': f'An unexpected error occurred: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
     def respond_to_triage_call(self, request, pk=None):
@@ -441,17 +488,36 @@ class ReferralViewSet(viewsets.ModelViewSet):
             # Validate date is not in the past
             from datetime import datetime
             try:
-                scheduled_datetime = datetime.combine(
-                    datetime.strptime(scheduled_date, '%Y-%m-%d').date(),
-                    datetime.strptime(scheduled_time, '%H:%M').time()
+                scheduled_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
+                
+                # Try to parse time in multiple formats
+                scheduled_time_obj = None
+                time_formats = ['%H:%M', '%I:%M %p', '%I:%M%p']  # 24-hour, 12-hour with space, 12-hour without space
+                
+                for time_format in time_formats:
+                    try:
+                        scheduled_time_obj = datetime.strptime(scheduled_time, time_format).time()
+                        break
+                    except ValueError:
+                        continue
+                
+                if scheduled_time_obj is None:
+                    return Response({
+                        'error': f'Invalid time format. Please use HH:MM or HH:MM AM/PM format. Received: {scheduled_time}'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Create timezone-aware datetime for comparison
+                scheduled_datetime = timezone.make_aware(
+                    datetime.combine(scheduled_date_obj, scheduled_time_obj)
                 )
+                
                 if scheduled_datetime < timezone.now():
                     return Response({
                         'error': 'Cannot schedule transport in the past'
                     }, status=status.HTTP_400_BAD_REQUEST)
-            except ValueError:
+            except ValueError as e:
                 return Response({
-                    'error': 'Invalid date or time format'
+                    'error': f'Invalid date or time format: {str(e)}'
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         # Update referral with transit decision
@@ -463,7 +529,16 @@ class ReferralViewSet(viewsets.ModelViewSet):
             referral.status = 'in_transit'
         elif transit_decision == 'scheduled':
             referral.transit_scheduled_date = scheduled_date
-            referral.transit_scheduled_time = scheduled_time
+            # Convert time to proper format if needed
+            from datetime import datetime
+            time_formats = ['%H:%M', '%I:%M %p', '%I:%M%p']
+            for time_format in time_formats:
+                try:
+                    time_obj = datetime.strptime(scheduled_time, time_format).time()
+                    referral.transit_scheduled_time = time_obj
+                    break
+                except ValueError:
+                    continue
             # Keep status as urgent until scheduled time
         
         referral.save()
@@ -489,12 +564,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
             'message': f'Transit decision recorded: {transit_decision}',
             'transit_decision': transit_decision,
             'new_status': referral.status,
-            'decided_at': referral.transit_decision_at
+            'decided_at': referral.transit_decision_at.isoformat() if referral.transit_decision_at else None
         }
         
         if transit_decision == 'scheduled':
-            response_data['transit_scheduled_date'] = referral.transit_scheduled_date
-            response_data['transit_scheduled_time'] = referral.transit_scheduled_time
+            response_data['transit_scheduled_date'] = str(referral.transit_scheduled_date) if referral.transit_scheduled_date else None
+            response_data['transit_scheduled_time'] = str(referral.transit_scheduled_time) if referral.transit_scheduled_time else None
         
         return Response(response_data)
     
