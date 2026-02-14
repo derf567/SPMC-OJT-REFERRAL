@@ -83,12 +83,21 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
+  // View Only navigation (read-only department access)
+  const viewOnlyNavigation: NavigationItem[] = [
+    { name: "Dashboard", href: "/dashboard", icon: Home },
+    { name: "Patients", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
+    { name: "Reports", href: "/reports", icon: BarChart3 },
+  ];
+
   // Determine which navigation to use
-  const finalNavigation = user?.role === 'department_user' 
-    ? departmentNavigation 
-    : user?.permissions?.is_his_department 
-      ? hisNavigation 
-      : navigation;
+  const finalNavigation = user?.role === 'view_only'
+    ? viewOnlyNavigation
+    : user?.role === 'department_user' 
+      ? departmentNavigation 
+      : user?.permissions?.is_his_department 
+        ? hisNavigation 
+        : navigation;
   // Apply dark mode to document on mount and when isDarkMode changes
   useEffect(() => {
     if (isDarkMode) {

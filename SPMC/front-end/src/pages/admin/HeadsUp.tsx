@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { AdminDashboardLayout } from "@/components/layout/AdminDashboardLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +12,7 @@ import {
   Building2,
   Trash2,
   UserPlus,
+  ArrowRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -41,6 +43,7 @@ interface Specialty {
 }
 
 const HeadsUp = () => {
+  const navigate = useNavigate();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
   const [allSpecialties, setAllSpecialties] = useState<Specialty[]>([]);
@@ -202,12 +205,50 @@ const HeadsUp = () => {
     <AdminDashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Department Doctors</h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Manage doctors and assign specialties per department
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Department Doctors</h1>
+            <p className="text-gray-500 dark:text-gray-400">
+              Manage doctors and assign specialties per department
+            </p>
+          </div>
+          <Button
+            onClick={() => navigate('/admin/headsup/assign')}
+            className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2"
+          >
+            <UserPlus className="w-4 h-4" />
+            Assign Doctors to Departments
+            <ArrowRight className="w-4 h-4" />
+          </Button>
         </div>
+
+        {/* Unassigned Doctors Alert */}
+        {doctors.filter(d => !d.department).length > 0 && (
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <User className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  {doctors.filter(d => !d.department).length} Unassigned Doctor{doctors.filter(d => !d.department).length !== 1 ? 's' : ''}
+                </h3>
+                <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+                  You have doctors that haven't been assigned to any department yet. Use the drag-and-drop interface to assign them.
+                </p>
+                <Button
+                  onClick={() => navigate('/admin/headsup/assign')}
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 border-yellow-600 text-yellow-700 hover:bg-yellow-100 dark:border-yellow-400 dark:text-yellow-300 dark:hover:bg-yellow-900/30"
+                >
+                  <ArrowRight className="w-4 h-4 mr-2" />
+                  Go to Assignment Interface
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">

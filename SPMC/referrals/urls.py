@@ -4,7 +4,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .views import (
     ReferringHospitalViewSet, SpecialtyViewSet, ReferralViewSet, TransitInfoViewSet, ReferrerAccountViewSet,
-    admin_dashboard_stats, get_all_doctors, update_doctor_specialties
+    admin_dashboard_stats, get_all_doctors, update_doctor_specialties, assign_doctor_to_department, unassign_doctor_from_department
 )
 from .authentication import login_view, logout_view, user_profile, register_view, comprehensive_register_view
 
@@ -44,4 +44,6 @@ urlpatterns = [
     path('api/admin/dashboard_stats/', admin_dashboard_stats, name='admin_dashboard_stats'),
     path('api/admin/doctors/', get_all_doctors, name='get_all_doctors'),
     path('api/admin/doctors/<int:user_id>/update_specialties/', update_doctor_specialties, name='update_doctor_specialties'),
+    path('api/admin/doctors/assign/', assign_doctor_to_department, name='assign_doctor_to_department'),
+    path('api/admin/doctors/unassign/', unassign_doctor_from_department, name='unassign_doctor_from_department'),
 ]

@@ -110,7 +110,14 @@ const Index = () => {
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-current">Dashboard</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-current">Dashboard</h1>
+              {user?.role === 'view_only' && user?.department && (
+                <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm font-medium">
+                  {user.department.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                </span>
+              )}
+            </div>
             <p className="text-gray-500 dark:text-gray-400">
               Welcome back, {user?.full_name || user?.username}. Here's today's overview.
             </p>

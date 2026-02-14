@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { AdminDashboardLayout } from "@/components/layout/AdminDashboardLayout";
 import { Link } from "react-router-dom";
 import {
@@ -9,6 +10,8 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  ArrowRight,
+  UserPlus,
 } from "lucide-react";
 import { adminAPI } from "@/lib/api";
 import { toast } from "sonner";
@@ -41,6 +44,7 @@ interface PendingReferrer {
 }
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [pendingReferrers, setPendingReferrers] = useState<PendingReferrer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,6 +194,46 @@ const AdminDashboard = () => {
                 <div className="p-3 rounded-lg bg-purple-500/10">
                   <BarChart3 className="w-8 h-8 text-purple-600 dark:text-purple-400" />
                 </div>
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div 
+            onClick={() => navigate('/admin/headsup/assign')}
+            className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg p-6 text-white cursor-pointer hover:shadow-xl transition-all transform hover:scale-[1.02]"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Assign Doctors to Departments</h3>
+                <p className="text-purple-100 text-sm mb-4">
+                  Use drag-and-drop to assign unassigned doctors to their departments
+                </p>
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span>Go to Assignment Interface</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </div>
+              <UserPlus className="w-8 h-8 opacity-80" />
+            </div>
+          </div>
+
+          <Link to="/admin/approvals">
+            <div className="bg-gradient-to-br from-orange-500 to-orange-700 rounded-lg p-6 text-white cursor-pointer hover:shadow-xl transition-all transform hover:scale-[1.02]">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Review Account Approvals</h3>
+                  <p className="text-orange-100 text-sm mb-4">
+                    {stats.pending_referrers} pending referrer account{stats.pending_referrers !== 1 ? 's' : ''} waiting for approval
+                  </p>
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <span>Review Accounts</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                </div>
+                <UserCheck className="w-8 h-8 opacity-80" />
               </div>
             </div>
           </Link>

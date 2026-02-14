@@ -14,6 +14,9 @@ const DashboardRedirect = () => {
       } else if (user.role === 'admin' || user.permissions?.is_admin_user) {
         // Admin users go to admin dashboard
         navigate('/admin/dashboard', { replace: true });
+      } else if (user.role === 'view_only') {
+        // View Only users (department doctors) go to department-filtered dashboard
+        navigate('/dashboard', { replace: true });
       } else if (user.role === 'department_user') {
         // Department users go to main dashboard (with department filtering)
         navigate('/dashboard', { replace: true });

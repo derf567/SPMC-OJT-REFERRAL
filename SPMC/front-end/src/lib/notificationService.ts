@@ -96,6 +96,27 @@ const checkForNewNotifications = async (
         });
         newNotificationCount++;
       }
+
+      // Check for department-assigned referrals (View Only doctors)
+      if (
+        userPermissions?.is_view_only &&
+        userPermissions?.department &&
+        referral.assigned_department === userPermissions.department &&
+        (referral.status === 'waiting' || referral.status === 'emergent' || referral.status === 'urgent') &&
+        referral.transferred_at &&
+        referral.transferred_at > (lastCheckedTimestamp || '')
+      ) {
+        console.log('🟣 New patient assigned to department:', referral.referral_id);
+        const departmentName = userPermissions.department.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+        onNotification({
+          id: `department_referral_${referral.id}`,
+          type: 'referral_transferred',
+          message: `New patient in ${departmentName}: ${referral.patient_full_name} - ${referral.referral_id}`,
+          referralId: referral.referral_id,
+          timestamp: referral.transferred_at,
+        });
+        newNotificationCount++;
+      }
     });
 
     if (newNotificationCount > 0) {

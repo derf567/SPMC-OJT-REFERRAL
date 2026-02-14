@@ -72,6 +72,8 @@ def login_view(request):
                         'is_his_department': profile.is_his_department,
                         'can_confirm_arrivals': profile.can_confirm_arrivals,
                         'is_admin_user': profile.is_admin_user,
+                        'is_view_only': profile.is_view_only,
+                        'department': profile.department,
                     }
                 }
             })
@@ -353,6 +355,8 @@ def user_profile(request):
                     'is_his_department': profile.is_his_department,
                     'can_confirm_arrivals': profile.can_confirm_arrivals,
                     'is_admin_user': profile.is_admin_user,
+                    'is_view_only': profile.is_view_only,
+                    'department': profile.department,
                 }
             }
         })
