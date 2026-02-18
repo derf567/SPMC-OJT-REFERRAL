@@ -87,7 +87,17 @@ const IncomingReferrals = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, triageDecision?: string) => {
+    // Show emergent badge if triage decision is emergent
+    if (triageDecision === 'emergent' && status === 'in_transit') {
+      return (
+        <Badge className="bg-red-500 text-white flex items-center gap-1">
+          <AlertCircle className="w-3 h-3" />
+          Emergent - In Transit
+        </Badge>
+      );
+    }
+    
     switch (status) {
       case 'in_transit':
         return (
@@ -191,7 +201,7 @@ const IncomingReferrals = () => {
                           </p>
                         </div>
                       </div>
-                      {getStatusBadge(referral.status)}
+                      {getStatusBadge(referral.status, referral.triage_decision)}
                     </div>
 
                     {/* Patient Info */}

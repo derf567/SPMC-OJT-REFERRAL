@@ -102,7 +102,7 @@ const checkForNewNotifications = async (
         userPermissions?.is_view_only &&
         userPermissions?.department &&
         referral.assigned_department === userPermissions.department &&
-        (referral.status === 'waiting' || referral.status === 'emergent' || referral.status === 'urgent') &&
+        (referral.status === 'waiting' || referral.status === 'urgent' || (referral.status === 'in_transit' && referral.triage_decision === 'emergent')) &&
         referral.transferred_at &&
         referral.transferred_at > (lastCheckedTimestamp || '')
       ) {

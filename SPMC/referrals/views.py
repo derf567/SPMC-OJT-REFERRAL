@@ -380,9 +380,14 @@ class ReferralViewSet(viewsets.ModelViewSet):
             
             # Set status based on triage decision
             if triage_decision == 'emergent':
-                referral.status = 'emergent'
+                # For emergent cases, automatically mark as in_transit
+                # Referrer should transfer patient immediately without scheduling
+                referral.status = 'in_transit'
                 referral.is_emergent = True
+                referral.transit_decision = 'now'  # Automatically set to immediate transfer
+                referral.transit_decision_at = timezone.now()
             elif triage_decision == 'urgent':
+                # For urgent cases, referrer needs to decide on transport timing
                 referral.status = 'urgent'
                 referral.is_urgent = True
             elif triage_decision == 'schedule_opd':
@@ -409,7 +414,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
             
             # Create status history record
             decision_display = dict(Referral.TRIAGE_DECISION_CHOICES).get(triage_decision, triage_decision)
-            history_notes = f'Triage decision: {decision_display}'
+            
+            if triage_decision == 'emergent':
+                history_notes = f'Triage decision: {decision_display}. Patient requires immediate emergency care - automatically marked for immediate transfer.'
+            else:
+                history_notes = f'Triage decision: {decision_display}'
+            
             if triage_notes:
                 history_notes += f'. Notes: {triage_notes}'
             if triage_decision == 'schedule_opd':
@@ -432,7 +442,10 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'triaged_at': referral.triaged_at.isoformat() if referral.triaged_at else None
             }
             
-            if triage_decision == 'schedule_opd':
+            if triage_decision == 'emergent':
+                response_data['transit_decision'] = 'now'
+                response_data['message'] = f'Referral accepted with triage decision: {decision_display}. Patient marked for immediate transfer.'
+            elif triage_decision == 'schedule_opd':
                 response_data['scheduled_date'] = str(referral.scheduled_date) if referral.scheduled_date else None
                 response_data['scheduled_time'] = str(referral.scheduled_time) if referral.scheduled_time else None
             

@@ -178,7 +178,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 notifType = 'info';
                 title = 'Referral Waiting for Triage';
                 message = `${ref.patient_name} - ${ref.referral_id}`;
-              } else if (ref.status === 'emergent') {
+              } else if (ref.triage_decision === 'emergent' && ref.status === 'in_transit') {
                 notifType = 'critical';
                 title = 'Emergent Referral';
                 message = `${ref.patient_name} requires immediate attention`;
@@ -210,10 +210,12 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
         setDropdownNotifications(recentReferrals);
         
-        // Count unread (for this demo, we'll count pending/waiting as unread)
+        // Count unread (for this demo, we'll count pending/waiting/emergent as unread)
         const unread = Array.isArray(referrals)
           ? referrals.filter((ref: any) => 
-              ref.status === 'pending' || ref.status === 'waiting' || ref.status === 'emergent'
+              ref.status === 'pending' || 
+              ref.status === 'waiting' || 
+              (ref.triage_decision === 'emergent' && ref.status === 'in_transit')
             ).length
           : 0;
         setUnreadCount(Math.min(unread, 99)); // Cap at 99 for display
