@@ -141,6 +141,11 @@ const ReferrerDashboard = () => {
   };
 
   const getStatusLabel = (status: string, referral?: any) => {
+    // Show emergent label if triage decision is emergent
+    if (referral?.triage_decision === 'emergent' && status === 'in_transit') {
+      return "🚨 Emergent - In Transit";
+    }
+    
     // Show transit decision status if available
     if (referral?.transit_decision) {
       if (referral.transit_decision === 'now') {
@@ -363,6 +368,26 @@ const ReferrerDashboard = () => {
         </div>
       </div>
 
+      {/* Emergent Notification */}
+      {recentReferrals.some(r => r.triage_decision === 'emergent' && r.status === 'in_transit') && (
+        <div className="bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="w-6 h-6 text-red-600 animate-pulse" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-red-800 dark:text-red-200">
+                🚨 EMERGENT - Transfer Patient Immediately
+              </h3>
+              <p className="text-red-700 dark:text-red-300 mt-1">
+                You have {recentReferrals.filter(r => r.triage_decision === 'emergent' && r.status === 'in_transit').length} referral(s) 
+                marked as EMERGENT by EDMAR staff. Patient requires immediate emergency care. Please transfer the patient immediately.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Triage Call Notifications */}
       {recentReferrals.some(r => r.status === 'urgent' && r.triage_decision === 'urgent' && !r.transit_decision) && (
         <div className="bg-orange-100 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg p-4 mb-6">
@@ -442,6 +467,13 @@ const ReferrerDashboard = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    {/* Show emergent badge if marked as emergent */}
+                    {referral.triage_decision === 'emergent' && referral.status === 'in_transit' && (
+                      <span className="bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-1 animate-pulse">
+                        <AlertTriangle className="w-3 h-3" />
+                        Transfer Immediately
+                      </span>
+                    )}
                     {/* Show triage call button if referral is marked as urgent by EDMAR */}
                     {referral.status === 'urgent' && referral.triage_decision === 'urgent' && !referral.transit_decision && (
                       <button
@@ -635,6 +667,14 @@ const ReferrerDashboard = () => {
               <h4 className="font-semibold text-gray-900 dark:text-white text-sm truncate">
                 {referral.patient_full_name}
               </h4>
+              {/* Show emergent badge if marked as emergent */}
+              {referral.triage_decision === 'emergent' && referral.status === 'in_transit' && (
+                <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1 animate-pulse flex-shrink-0">
+                  <AlertTriangle className="w-3 h-3" />
+                  Transfer Now
+                </span>
+              )}
+              {/* Show triage call button if marked as urgent */}
               {referral.status === 'urgent' && referral.triage_decision === 'urgent' && !referral.transit_decision && (
                 <button
                   onClick={() => {

@@ -131,10 +131,14 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
                 notifType = 'info';
                 title = 'Referral Accepted';
                 message = `${ref.patient_name} has been accepted by SPMC`;
-              } else if (ref.status === 'emergent' || ref.status === 'urgent') {
-                notifType = 'success';
-                title = 'Referral Triaged';
-                message = `${ref.patient_name} has been triaged as ${ref.status}`;
+              } else if (ref.triage_decision === 'emergent' && ref.status === 'in_transit') {
+                notifType = 'critical';
+                title = 'EMERGENT - Transfer Immediately';
+                message = `${ref.patient_name} requires immediate emergency care`;
+              } else if (ref.status === 'urgent') {
+                notifType = 'warning';
+                title = 'Urgent Triage Call';
+                message = `${ref.patient_name} - Please respond to determine transport timing`;
               } else if (ref.status === 'completed') {
                 notifType = 'success';
                 title = 'Referral Completed';
