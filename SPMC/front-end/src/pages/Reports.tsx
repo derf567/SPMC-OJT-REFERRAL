@@ -22,7 +22,7 @@ interface ReportsData {
     successful_referrals: number;
     pending_referrals: number;
     cancelled_referrals: number;
-    success_rate: number;
+    coordination_rate: number;
     cancellation_rate: number;
     recent_referrals: number;
     avg_processing_time_hours: number;
@@ -330,10 +330,10 @@ const Reports = () => {
           </div>
           
           <div className="bg-green-50 dark:bg-gray-800 border border-green-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
-            <h3 className="text-lg font-semibold text-green-800 dark:text-green-400 mb-2">Successful</h3>
+            <h3 className="text-lg font-semibold text-green-800 dark:text-green-400 mb-2">Coordinated</h3>
             <p className="text-3xl font-bold text-green-600 dark:text-green-400">{summary.successful_referrals.toLocaleString()}</p>
             <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-              {summary.success_rate}% success rate
+              {summary.coordination_rate}% coordination rate
             </p>
           </div>
           
