@@ -76,11 +76,19 @@ class UserProfile(models.Model):
 
 class ReferringHospital(models.Model):
     """Model for referring hospitals/facilities"""
+    DOH_LEVEL_CHOICES = [
+        ('primary', 'Primary'),
+        ('secondary', 'Secondary'),
+        ('tertiary', 'Tertiary'),
+    ]
+    
     name = models.CharField(max_length=200)
+    doh_level = models.CharField(max_length=20, choices=DOH_LEVEL_CHOICES, blank=True, null=True)
     is_inside_davao_city = models.BooleanField(default=True)
-    location = models.CharField(max_length=100, blank=True, null=True)
+    location = models.CharField(max_length=100, blank=True, null=True, help_text="City/Province (e.g., Surigao, Agusan)")
     address = models.TextField(blank=True, null=True)
     contact_number = models.CharField(max_length=20, blank=True, null=True)
+    contact_numbers = models.JSONField(default=list, blank=True, help_text="List of contact numbers (hotlines, phone numbers)")
     
     def __str__(self):
         return self.name
@@ -178,6 +186,7 @@ class Referral(models.Model):
     rr = models.IntegerField(verbose_name="Respiratory Rate")
     temp = models.DecimalField(max_digits=4, decimal_places=1, verbose_name="Temperature")
     o2_sat = models.IntegerField(verbose_name="O2 Saturation")
+    vital_signs_time = models.TimeField(blank=True, null=True, verbose_name="Time Vital Signs Taken")
     
     gcs_score = models.CharField(max_length=50, verbose_name="GCS Score or AVPU")
     o2_support = models.CharField(max_length=100, verbose_name="O2 Support")
@@ -204,9 +213,12 @@ class Referral(models.Model):
     
     # Referring Hospital Information
     referring_hospital = models.ForeignKey(ReferringHospital, on_delete=models.CASCADE)
+    hospital_doh_level = models.CharField(max_length=20, blank=True, null=True, help_text="DOH Level: Primary, Secondary, or Tertiary")
+    hospital_location = models.CharField(max_length=200, blank=True, null=True, help_text="Hospital location in Mindanao")
+    hospital_contact_numbers = models.JSONField(default=list, blank=True, help_text="List of hospital contact numbers")
     referrer_name = models.CharField(max_length=200)
     referrer_profession = models.CharField(max_length=100)
-    referrer_cellphone = models.CharField(max_length=20)
+    referrer_cellphone = models.CharField(max_length=20, blank=True, null=True)
     mode_of_transportation = models.CharField(max_length=100)
     
     # Consent
@@ -352,8 +364,13 @@ class ReferrerAccount(models.Model):
     address = models.TextField(blank=True, null=True)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
 
+    # Hospital Information (for all referrer types)
+    hospital_name = models.CharField(max_length=200, blank=True, null=True, help_text="Name of referring hospital")
+    hospital_doh_level = models.CharField(max_length=20, blank=True, null=True, help_text="DOH Level: Primary, Secondary, or Tertiary")
+    hospital_location = models.CharField(max_length=200, blank=True, null=True, help_text="Hospital location (City/Province in Mindanao)")
+    contact_numbers = models.JSONField(default=list, blank=True, help_text="List of contact numbers")
+
     # Doctor-specific
-    specialties = models.ManyToManyField(Specialty, blank=True, related_name='referrers')
     affiliate_hospitals = models.ManyToManyField(ReferringHospital, blank=True, related_name='affiliated_referrers')
 
     # Hospital employee-specific

@@ -20,7 +20,6 @@ const Register = () => {
     middleName: "",
     lastName: "",
     referrerType: "doctor",
-    specialties: [] as number[],
     affiliateHospitals: [] as number[],
     hospitalName: "",
     age: "",
@@ -369,16 +368,6 @@ const Register = () => {
       return;
     }
 
-    // Specialty validation for doctors
-    if (formData.referrerType === 'doctor' && formData.specialties.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Specialty Required",
-        description: "Please select at least one medical specialty.",
-      });
-      return;
-    }
-
     // Password validation
     if (formData.password !== formData.confirmPassword) {
       toast({
@@ -424,33 +413,6 @@ const Register = () => {
       fd.append('city', formData.city || '');
       fd.append('barangay', formData.barangay || '');
       fd.append('address', formData.exactAddress || '');
-      
-      // Specialties and hospitals
-      if (formData.referrerType === 'doctor') {
-        const specialtyNames = [
-          'Internal Medicine',
-          'Pediatrics',
-          'Obstetrics and Gynecology (OB-GYN)',
-          'Surgery (General)',
-          'Orthopedics',
-          'Cardiology',
-          'Ophthalmology (Eye Care)',
-          'Otolaryngology (ENT-Head and Neck Surgery)',
-          'Urology',
-          'Neurology',
-          'Oncology (Cancer Care)',
-          'Pulmonology (Lung Care)',
-          'Nephrology (Renal Care)',
-          'Infectious Disease',
-          'Rehabilitation Medicine'
-        ];
-        
-        formData.specialties?.forEach((index: number) => {
-          if (specialtyNames[index]) {
-            fd.append('specialties', specialtyNames[index]);
-          }
-        });
-      }
       
       // Hospital information
       if (formData.hospitalName) {
@@ -699,117 +661,6 @@ const Register = () => {
                 {/* Doctor-specific fields */}
                 {formData.referrerType === 'doctor' && (
                   <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Medical Specialties *
-                      </label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                        Select a specialty from the dropdown to add it to your list. You can add multiple specialties.
-                      </p>
-                      
-                      {/* Single Select Dropdown */}
-                      <select
-                        onChange={(e) => {
-                          const selectedIndex = Number(e.target.value);
-                          if (selectedIndex >= 0 && !formData.specialties.includes(selectedIndex)) {
-                            setFormData(prev => ({
-                              ...prev,
-                              specialties: [...prev.specialties, selectedIndex]
-                            }));
-                          }
-                          // Reset dropdown to placeholder
-                          e.target.value = '';
-                        }}
-                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        defaultValue=""
-                      >
-                        <option value="" disabled>Select specialty</option>
-                        {[
-                          'Internal Medicine',
-                          'Pediatrics',
-                          'Obstetrics and Gynecology (OB-GYN)',
-                          'Surgery (General)',
-                          'Orthopedics',
-                          'Cardiology',
-                          'Ophthalmology (Eye Care)',
-                          'Otolaryngology (ENT-Head and Neck Surgery)',
-                          'Urology',
-                          'Neurology',
-                          'Oncology (Cancer Care)',
-                          'Pulmonology (Lung Care)',
-                          'Nephrology (Renal Care)',
-                          'Infectious Disease',
-                          'Rehabilitation Medicine'
-                        ].map((specialty, index) => (
-                          <option 
-                            key={index} 
-                            value={index}
-                            disabled={formData.specialties.includes(index)}
-                            className={formData.specialties.includes(index) ? 'text-gray-400' : ''}
-                          >
-                            {specialty} {formData.specialties.includes(index) ? '(Added)' : ''}
-                          </option>
-                        ))}
-                      </select>
-                      
-                      {/* Selected Specialties Display */}
-                      {formData.specialties.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Selected Specialties ({formData.specialties.length}):
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {formData.specialties.map((specialtyIndex) => {
-                              const specialtyNames = [
-                                'Internal Medicine',
-                                'Pediatrics',
-                                'Obstetrics and Gynecology (OB-GYN)',
-                                'Surgery (General)',
-                                'Orthopedics',
-                                'Cardiology',
-                                'Ophthalmology (Eye Care)',
-                                'Otolaryngology (ENT-Head and Neck Surgery)',
-                                'Urology',
-                                'Neurology',
-                                'Oncology (Cancer Care)',
-                                'Pulmonology (Lung Care)',
-                                'Nephrology (Renal Care)',
-                                'Infectious Disease',
-                                'Rehabilitation Medicine'
-                              ];
-                              return (
-                                <span
-                                  key={specialtyIndex}
-                                  className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                                >
-                                  {specialtyNames[specialtyIndex]}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setFormData(prev => ({
-                                        ...prev,
-                                        specialties: prev.specialties.filter(id => id !== specialtyIndex)
-                                      }));
-                                    }}
-                                    className="ml-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Validation message */}
-                      {formData.specialties.length === 0 && (
-                        <p className="text-sm text-red-600 dark:text-red-400 mt-2">
-                          Please select at least one specialty.
-                        </p>
-                      )}
-                    </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Affiliate Hospitals

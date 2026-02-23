@@ -66,6 +66,11 @@ interface ReferralData {
   referring_hospital_location?: string;
   referring_hospital_is_inside_davao?: boolean;
   transit_info?: any;
+  // New hospital fields
+  hospital_doh_level?: string;
+  hospital_location?: string;
+  hospital_contact_numbers?: string[];
+  vital_signs_time?: string;
 }
 
 const getStatusColor = (status: string) => {
@@ -224,66 +229,77 @@ const ReferralDetailModal = ({
             </div>
 
             {/* Vital Signs */}
-            {(referral.bp || referral.hr || referral.rr || referral.temp || referral.o2_sat) && (
+            {(referral.bp || referral.hr || referral.rr || referral.temp || referral.o2_sat || referral.vital_signs_time) && (
               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                 <h4 className="font-medium text-gray-900 dark:text-white mb-3">Latest Vital Signs</h4>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {referral.bp && (
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Blood Pressure</p>
-                      <p className="font-medium text-gray-900 dark:text-white">{referral.bp}</p>
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Blood Pressure</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{referral.bp}</p>
                     </div>
                   )}
                   {referral.hr && (
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Heart Rate</p>
-                      <p className="font-medium text-gray-900 dark:text-white">{referral.hr} bpm</p>
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Heart Rate</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{referral.hr} bpm</p>
                     </div>
                   )}
                   {referral.rr && (
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Respiratory Rate</p>
-                      <p className="font-medium text-gray-900 dark:text-white">{referral.rr} /min</p>
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Respiratory Rate</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{referral.rr} /min</p>
                     </div>
                   )}
                   {referral.temp && (
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Temperature</p>
-                      <p className="font-medium text-gray-900 dark:text-white">{referral.temp}°C</p>
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Temperature</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{referral.temp}°C</p>
                     </div>
                   )}
                   {referral.o2_sat && (
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">O2 Saturation</p>
-                      <p className="font-medium text-gray-900 dark:text-white">{referral.o2_sat}%</p>
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">O2 Saturation</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{referral.o2_sat}%</p>
+                    </div>
+                  )}
+                  {referral.vital_signs_time && (
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Time Taken</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{referral.vital_signs_time}</p>
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {referral.gcs_score && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">GCS Score</label>
-                  <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.gcs_score}</p>
-                </div>
-              )}
-              {referral.o2_support && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">O2 Support</label>
-                  <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.o2_support}</p>
-                </div>
-              )}
-              {referral.rtpcr_result && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">RTPCR Result</label>
-                  <Badge className={getRtpcrColor(referral.rtpcr_result)}>
-                    {referral.rtpcr_result.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                  </Badge>
-                </div>
-              )}
-            </div>
+            {/* Additional Medical Information */}
+            {(referral.gcs_score || referral.o2_support || referral.rtpcr_result) && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
+                {referral.gcs_score && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">GCS Score</label>
+                    <p className="text-sm text-gray-900 dark:text-white mt-1 font-semibold">{referral.gcs_score}</p>
+                  </div>
+                )}
+                {referral.o2_support && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">O2 Support</label>
+                    <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.o2_support}</p>
+                  </div>
+                )}
+                {referral.rtpcr_result && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">RTPCR Result</label>
+                    <div className="mt-1">
+                      <Badge className={getRtpcrColor(referral.rtpcr_result)}>
+                        {referral.rtpcr_result.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Patient Information Section */}
@@ -341,12 +357,29 @@ const ReferralDetailModal = ({
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Facility Name</label>
                 <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.referring_hospital_name}</p>
               </div>
-              {referral.referring_hospital_location && (
+              {referral.hospital_doh_level && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">DOH Level</label>
+                  <p className="text-sm text-gray-900 dark:text-white mt-1 capitalize">{referral.hospital_doh_level}</p>
+                </div>
+              )}
+              {referral.hospital_location && (
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Location</label>
-                  <p className="text-sm text-gray-900 dark:text-white mt-1">
-                    {referral.referring_hospital_is_inside_davao ? `Davao City - ${referral.referring_hospital_location}` : "Outside Davao City"}
-                  </p>
+                  <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.hospital_location}</p>
+                </div>
+              )}
+              {referral.hospital_contact_numbers && referral.hospital_contact_numbers.length > 0 && (
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Hospital Contact Numbers</label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {referral.hospital_contact_numbers.map((number: string, index: number) => (
+                      <div key={index} className="flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm">
+                        <Phone className="w-3 h-3" />
+                        <span>{number}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
               <div>
@@ -357,15 +390,6 @@ const ReferralDetailModal = ({
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Profession</label>
                   <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.referrer_profession}</p>
-                </div>
-              )}
-              {referral.referrer_cellphone && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Contact Number</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Phone className="w-4 h-4 text-gray-500" />
-                    <p className="text-sm text-gray-900 dark:text-white">{referral.referrer_cellphone}</p>
-                  </div>
                 </div>
               )}
               {referral.mode_of_transportation && (

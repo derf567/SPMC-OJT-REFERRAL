@@ -247,17 +247,6 @@ def comprehensive_register_view(request):
             position=data.get('position', ''),
         )
         
-        # Handle specialties for doctors
-        if referrer_type == 'doctor':
-            specialties_data = data.getlist('specialties') if hasattr(data, 'getlist') else data.get('specialties', [])
-            if isinstance(specialties_data, str):
-                specialties_data = [specialties_data]
-            
-            for specialty_name in specialties_data:
-                if specialty_name:
-                    specialty, created = Specialty.objects.get_or_create(name=specialty_name)
-                    referrer_account.specialties.add(specialty)
-        
         # Handle affiliate hospitals for doctors
         if referrer_type == 'doctor':
             hospitals_data = data.getlist('affiliate_hospitals') if hasattr(data, 'getlist') else data.get('affiliate_hospitals', [])

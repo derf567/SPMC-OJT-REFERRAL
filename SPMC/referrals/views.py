@@ -728,8 +728,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
         pending_referrals = base_queryset.filter(status='pending').count()
         cancelled_referrals = base_queryset.filter(status='cancelled').count()
         
-        # Calculate success rate
-        success_rate = (successful_referrals / total_referrals * 100) if total_referrals > 0 else 0
+        # Calculate coordination rate
+        coordination_rate = (successful_referrals / total_referrals * 100) if total_referrals > 0 else 0
         cancellation_rate = (cancelled_referrals / total_referrals * 100) if total_referrals > 0 else 0
         
         # Monthly trends (last 6 months)
@@ -808,7 +808,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'successful_referrals': successful_referrals,
                 'pending_referrals': pending_referrals,
                 'cancelled_referrals': cancelled_referrals,
-                'success_rate': round(success_rate, 1),
+                'coordination_rate': round(coordination_rate, 1),
                 'cancellation_rate': round(cancellation_rate, 1),
                 'recent_referrals': recent_referrals,
                 'avg_processing_time_hours': round(avg_processing_time, 1)

@@ -42,14 +42,13 @@ class ReferrerDocumentSerializer(serializers.ModelSerializer):
 
 class ReferrerAccountSerializer(serializers.ModelSerializer):
     documents = ReferrerDocumentSerializer(many=True, read_only=True)
-    specialties = serializers.PrimaryKeyRelatedField(queryset=Specialty.objects.all(), many=True, required=False)
     affiliate_hospitals = serializers.PrimaryKeyRelatedField(queryset=ReferringHospital.objects.all(), many=True, required=False)
     user = serializers.SerializerMethodField()
 
     class Meta:
         model = ReferrerAccount
         fields = ['id', 'user', 'first_name', 'middle_name', 'last_name', 'referrer_type',
-                  'specialties', 'affiliate_hospitals', 'position', 'age', 'address', 'gender', 
+                  'affiliate_hospitals', 'position', 'age', 'address', 'gender', 
                   'approval_status', 'created_at', 'documents']
     
     def get_user(self, obj):
@@ -70,7 +69,6 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
     middle_name = serializers.CharField(required=False, allow_blank=True)
     last_name = serializers.CharField()
     referrer_type = serializers.ChoiceField(choices=ReferrerAccount.REFERRER_TYPE_CHOICES)
-    specialties = serializers.ListField(child=serializers.IntegerField(), required=False)
     affiliate_hospitals = serializers.ListField(child=serializers.IntegerField(), required=False)
     hospital_name = serializers.CharField(required=False, allow_blank=True)
     position = serializers.CharField(required=False, allow_blank=True)
@@ -88,7 +86,6 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
         from django.contrib.auth.models import User
 
         docs = validated_data.pop('documents', [])
-        specialties = validated_data.pop('specialties', [])
         referrer_type = validated_data.get('referrer_type')
         affiliate_hospitals = validated_data.pop('affiliate_hospitals', [])
         age = validated_data.pop('age', None)
@@ -133,8 +130,6 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
             gender=gender
         )
 
-        if specialties:
-            referrer.specialties.set(Specialty.objects.filter(id__in=specialties))
         if affiliate_hospitals:
             referrer.affiliate_hospitals.set(ReferringHospital.objects.filter(id__in=affiliate_hospitals))
 
@@ -176,7 +171,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'reason_for_referral', 'management_done',
             
             # Vital signs
-            'bp', 'hr', 'rr', 'temp', 'o2_sat', 'gcs_score', 'o2_support',
+            'bp', 'hr', 'rr', 'temp', 'o2_sat', 'gcs_score', 'o2_support', 'vital_signs_time',
             
             # Medical status
             'admission_status', 'rtpcr_result',
@@ -184,6 +179,9 @@ class ReferralListSerializer(serializers.ModelSerializer):
             # Specialty and referrer info
             'specialty_needed_name', 'referring_hospital_name', 'referrer_name', 
             'referrer_profession', 'referrer_cellphone', 'mode_of_transportation',
+            
+            # Hospital information (new fields)
+            'hospital_doh_level', 'hospital_location', 'hospital_contact_numbers',
             
             # System fields
             'created_by_name', 'assigned_to_name', 'consent_secured',

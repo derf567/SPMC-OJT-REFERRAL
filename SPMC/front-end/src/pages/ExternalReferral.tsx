@@ -29,6 +29,7 @@ interface ReferralFormData {
     rr: string;
     temp: string;
     o2Sat: string;
+    timeTaken: string;
   };
   gcsScore: string;
   o2Support: string;
@@ -60,6 +61,8 @@ interface ReferralFormData {
   isInsideDavaoCity: boolean;
   hospitalLocation: string;
   referringFacilityName: string;
+  hospitalDohLevel: string;
+  hospitalContactNumbers: string[];
   referrerName: string;
   referrerProfession: string;
   referrerCellphone: string;
@@ -90,7 +93,7 @@ const initialFormData: ReferralFormData = {
   chiefComplaint: "",
   pertinentHistory: "",
   pertinentPhysicalExam: "",
-  latestVitalSigns: { bp: "", hr: "", rr: "", temp: "", o2Sat: "" },
+  latestVitalSigns: { bp: "", hr: "", rr: "", temp: "", o2Sat: "", timeTaken: "" },
   gcsScore: "",
   o2Support: "",
   admissionStatus: "",
@@ -117,6 +120,8 @@ const initialFormData: ReferralFormData = {
   isInsideDavaoCity: true,
   hospitalLocation: "",
   referringFacilityName: "",
+  hospitalDohLevel: "",
+  hospitalContactNumbers: [],
   referrerName: "",
   referrerProfession: "",
   referrerCellphone: "",
@@ -154,6 +159,7 @@ const ExternalReferral = () => {
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [currentContactNumber, setCurrentContactNumber] = useState("");
   const [referrerProfile, setReferrerProfile] = useState<any>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -306,6 +312,7 @@ const ExternalReferral = () => {
     if (!formData.latestVitalSigns.rr.trim()) errors.push("Respiratory Rate is required");
     if (!formData.latestVitalSigns.temp.trim()) errors.push("Temperature is required");
     if (!formData.latestVitalSigns.o2Sat.trim()) errors.push("O2 Saturation is required");
+    if (!formData.latestVitalSigns.timeTaken.trim()) errors.push("Time Taken for vital signs is required");
     if (!formData.gcsScore.trim()) errors.push("GCS Score is required");
     if (!formData.o2Support.trim()) errors.push("O2 Support is required");
     if (!formData.admissionStatus) errors.push("Admission Status is required");
@@ -323,9 +330,11 @@ const ExternalReferral = () => {
     
     // Step 4 - Referring Hospital validation
     if (!formData.referringFacilityName) errors.push("Referring Facility is required");
+    if (!formData.hospitalDohLevel) errors.push("Hospital DOH Level is required");
+    if (!formData.hospitalLocation) errors.push("Hospital Location is required");
+    if (formData.hospitalContactNumbers.length === 0) errors.push("At least one hospital contact number is required");
     if (!formData.referrerName.trim()) errors.push("Referrer Name is required");
     if (!formData.referrerProfession.trim()) errors.push("Referrer Profession is required");
-    if (!formData.referrerCellphone.trim()) errors.push("Referrer Cellphone is required");
     if (!formData.modeOfTransportation.trim()) errors.push("Mode of Transportation is required");
     
     // Transit Info validation (if included)
@@ -362,6 +371,7 @@ const ExternalReferral = () => {
         rr: parseInt(formData.latestVitalSigns.rr) || 0,
         temp: parseFloat(formData.latestVitalSigns.temp) || 0,
         o2_sat: parseInt(formData.latestVitalSigns.o2Sat) || 0,
+        vital_signs_time: formData.latestVitalSigns.timeTaken || null,
         gcs_score: formData.gcsScore,
         o2_support: formData.o2Support,
         admission_status: formData.admissionStatus,
@@ -385,9 +395,12 @@ const ExternalReferral = () => {
         
         // Referring Hospital
         referring_hospital: parseInt(formData.referringFacilityName) || 1,
+        hospital_doh_level: formData.hospitalDohLevel || null,
+        hospital_location: formData.hospitalLocation || null,
+        hospital_contact_numbers: formData.hospitalContactNumbers.length > 0 ? formData.hospitalContactNumbers : [],
         referrer_name: formData.referrerName,
         referrer_profession: formData.referrerProfession,
-        referrer_cellphone: formData.referrerCellphone,
+        referrer_cellphone: formData.hospitalContactNumbers.length > 0 ? formData.hospitalContactNumbers[0] : null,
         mode_of_transportation: formData.modeOfTransportation,
         
         // Consent
@@ -703,7 +716,7 @@ const ExternalReferral = () => {
             {/* Vital Signs */}
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Latest Vital Signs *</h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Blood Pressure
@@ -762,6 +775,17 @@ const ExternalReferral = () => {
                     placeholder="98"
                     value={formData.latestVitalSigns.o2Sat}
                     onChange={(e) => updateNestedFormData('latestVitalSigns', 'o2Sat', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Time Taken
+                  </label>
+                  <input
+                    type="time"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    value={formData.latestVitalSigns.timeTaken}
+                    onChange={(e) => updateNestedFormData('latestVitalSigns', 'timeTaken', e.target.value)}
                   />
                 </div>
               </div>
@@ -1066,6 +1090,82 @@ const ExternalReferral = () => {
                 )}
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    DOH Level *
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    value={formData.hospitalDohLevel}
+                    onChange={(e) => updateFormData('hospitalDohLevel', e.target.value)}
+                  >
+                    <option value="">Select DOH Level</option>
+                    <option value="primary">Primary</option>
+                    <option value="secondary">Secondary</option>
+                    <option value="tertiary">Tertiary</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Hospital Location (Mindanao) *
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    value={formData.hospitalLocation}
+                    onChange={(e) => updateFormData('hospitalLocation', e.target.value)}
+                  >
+                    <option value="">Select Location</option>
+                    <optgroup label="Region IX - Zamboanga Peninsula">
+                      <option value="Zamboanga City">Zamboanga City</option>
+                      <option value="Zamboanga del Norte">Zamboanga del Norte</option>
+                      <option value="Zamboanga del Sur">Zamboanga del Sur</option>
+                      <option value="Zamboanga Sibugay">Zamboanga Sibugay</option>
+                    </optgroup>
+                    <optgroup label="Region X - Northern Mindanao">
+                      <option value="Cagayan de Oro City">Cagayan de Oro City</option>
+                      <option value="Bukidnon">Bukidnon</option>
+                      <option value="Camiguin">Camiguin</option>
+                      <option value="Lanao del Norte">Lanao del Norte</option>
+                      <option value="Misamis Occidental">Misamis Occidental</option>
+                      <option value="Misamis Oriental">Misamis Oriental</option>
+                    </optgroup>
+                    <optgroup label="Region XI - Davao Region">
+                      <option value="Davao City">Davao City</option>
+                      <option value="Davao de Oro">Davao de Oro</option>
+                      <option value="Davao del Norte">Davao del Norte</option>
+                      <option value="Davao del Sur">Davao del Sur</option>
+                      <option value="Davao Occidental">Davao Occidental</option>
+                      <option value="Davao Oriental">Davao Oriental</option>
+                    </optgroup>
+                    <optgroup label="Region XII - SOCCSKSARGEN">
+                      <option value="General Santos City">General Santos City</option>
+                      <option value="Cotabato City">Cotabato City</option>
+                      <option value="North Cotabato">North Cotabato</option>
+                      <option value="Sarangani">Sarangani</option>
+                      <option value="South Cotabato">South Cotabato</option>
+                      <option value="Sultan Kudarat">Sultan Kudarat</option>
+                    </optgroup>
+                    <optgroup label="Region XIII - Caraga">
+                      <option value="Butuan City">Butuan City</option>
+                      <option value="Agusan del Norte">Agusan del Norte</option>
+                      <option value="Agusan del Sur">Agusan del Sur</option>
+                      <option value="Surigao del Norte">Surigao del Norte</option>
+                      <option value="Surigao del Sur">Surigao del Sur</option>
+                      <option value="Dinagat Islands">Dinagat Islands</option>
+                    </optgroup>
+                    <optgroup label="BARMM - Bangsamoro">
+                      <option value="Basilan">Basilan</option>
+                      <option value="Lanao del Sur">Lanao del Sur</option>
+                      <option value="Maguindanao">Maguindanao</option>
+                      <option value="Sulu">Sulu</option>
+                      <option value="Tawi-Tawi">Tawi-Tawi</option>
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Name of the Referrer *
@@ -1104,24 +1204,6 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Cellphone Number of the Referrer *
-                  {user && user.role === 'referrer' && referrerProfile && (
-                    <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
-                      (Auto-filled from your profile - editable)
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="tel"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  placeholder="09XXXXXXXXX"
-                  value={formData.referrerCellphone}
-                  onChange={(e) => updateFormData('referrerCellphone', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Mode of Transportation *
                 </label>
                 <input
@@ -1131,6 +1213,80 @@ const ExternalReferral = () => {
                   value={formData.modeOfTransportation}
                   onChange={(e) => updateFormData('modeOfTransportation', e.target.value)}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Hospital Contact Numbers (Hotline/Phone) *
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Add multiple contact numbers for the hospital. You can add hotlines, phone numbers, etc.
+                </p>
+                
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={currentContactNumber}
+                    onChange={(e) => setCurrentContactNumber(e.target.value)}
+                    placeholder="Enter contact number (e.g., 0912-345-6789)"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (currentContactNumber.trim()) {
+                          updateFormData('hospitalContactNumbers', [...formData.hospitalContactNumbers, currentContactNumber.trim()]);
+                          setCurrentContactNumber('');
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (currentContactNumber.trim()) {
+                        updateFormData('hospitalContactNumbers', [...formData.hospitalContactNumbers, currentContactNumber.trim()]);
+                        setCurrentContactNumber('');
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+                  >
+                    Add
+                  </Button>
+                </div>
+
+                {/* Display added contact numbers */}
+                {formData.hospitalContactNumbers.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Added Contact Numbers ({formData.hospitalContactNumbers.length}):
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.hospitalContactNumbers.map((number, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                        >
+                          {number}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateFormData('hospitalContactNumbers', formData.hospitalContactNumbers.filter((_, i) => i !== index));
+                            }}
+                            className="ml-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {formData.hospitalContactNumbers.length === 0 && (
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    Please add at least one contact number.
+                  </p>
+                )}
               </div>
             </div>
           </div>
