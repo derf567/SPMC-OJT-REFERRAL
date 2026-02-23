@@ -1,0 +1,42 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   📁 NOTIFICATION SOUNDS FOLDER                              ║
+║                                                              ║
+║   Place your .mp3 sound files in THIS folder                ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+🎵 REQUIRED FILES:
+   
+   ✓ chanak.mp3          ← Your custom chanak sound
+   ✓ default.mp3         ← Default notification sound
+   ✓ bell.mp3            ← Bell sound
+   ✓ chime.mp3           ← Chime sound
+   ✓ ding.mp3            ← Ding sound
+   ✓ beep.mp3            ← Beep sound
+
+📝 OPTIONAL FILES (for urgent notifications):
+   
+   ○ chanak-urgent.mp3   ← Urgent version of chanak
+   ○ bell-urgent.mp3     ← Urgent version of bell
+   ○ etc.
+
+═══════════════════════════════════════════════════════════════
+
+📍 CURRENT LOCATION:
+   SPMC/front-end/public/notification-sounds/
+
+🎯 QUICK START:
+   1. Copy your chanak.mp3 file to this folder
+   2. Refresh your browser
+   3. Click the speaker icon (🔊) in the app
+   4. Click the music note (🎵) to select sound
+   5. Choose "Chanak" and test it!
+
+💡 TIP: Keep sound files under 100KB and 1-3 seconds long
+
+═══════════════════════════════════════════════════════════════
+
+For detailed instructions, see:
+→ HOW_TO_ADD_CUSTOM_NOTIFICATION_SOUNDS.md (in project root)
+→ README.md (in this folder)
