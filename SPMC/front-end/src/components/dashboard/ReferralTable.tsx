@@ -805,6 +805,17 @@ export const ReferralTable = () => {
       return;
     }
 
+    // Check if department is selected (either from existing or newly selected)
+    const finalDepartment = selectedDepartment || selectedReferral.assigned_department;
+    if (!finalDepartment) {
+      toast({
+        variant: "destructive",
+        title: "Missing Department",
+        description: "Please select a department before accepting the referral.",
+      });
+      return;
+    }
+
     // Validate date and time for schedule_opd
     if (triageDecision === 'schedule_opd') {
       if (!scheduledDate || !scheduledTime) {
@@ -830,6 +841,14 @@ export const ReferralTable = () => {
     }
 
     try {
+      // If department was changed, update it first
+      if (selectedDepartment && selectedDepartment !== selectedReferral.assigned_department) {
+        await referralsAPI.changeDepartment(
+          selectedReferral.id || selectedReferral.referral_id, 
+          selectedDepartment
+        );
+      }
+
       await referralsAPI.acceptWithTriageDecision(
         selectedReferral.id || selectedReferral.referral_id,
         triageDecision,
@@ -862,6 +881,7 @@ export const ReferralTable = () => {
       setScheduledDate("");
       setScheduledTime("");
       setDateError("");
+      setSelectedDepartment(""); // Reset department selection
       
       // Success notification with triage decision
       const decisionEmoji = triageDecision === 'emergent' ? '🚨' : 
@@ -870,7 +890,9 @@ export const ReferralTable = () => {
                           triageDecision === 'urgent' ? 'URGENT' :
                           triageDecision.replace('_', ' ').toUpperCase();
       
-      let successMessage = `The referral has been accepted and marked as: ${decisionText}. Patient care team has been notified and appropriate care pathway initiated.`;
+      const deptName = DEPARTMENT_OPTIONS.find(d => d.value === finalDepartment)?.label || finalDepartment;
+      
+      let successMessage = `The referral has been accepted and marked as: ${decisionText}. Assigned to ${deptName}. Patient care team has been notified and appropriate care pathway initiated.`;
       
       if (triageDecision === 'schedule_opd') {
         const appointmentDate = new Date(scheduledDate).toLocaleDateString('en-US', {
@@ -879,7 +901,7 @@ export const ReferralTable = () => {
           month: 'long',
           day: 'numeric'
         });
-        successMessage = `The referral has been scheduled for OPD appointment on ${appointmentDate} at ${scheduledTime}. Patient will be notified of the appointment details.`;
+        successMessage = `The referral has been scheduled for OPD appointment on ${appointmentDate} at ${scheduledTime}. Assigned to ${deptName}. Patient will be notified of the appointment details.`;
       }
       
       toast({
@@ -1550,6 +1572,7 @@ export const ReferralTable = () => {
                   setScheduledDate("");
                   setScheduledTime("");
                   setDateError("");
+                  setSelectedDepartment("");
                 }}
               >
                 <X className="w-4 h-4" />
@@ -1558,6 +1581,45 @@ export const ReferralTable = () => {
 
             {/* Content */}
             <div className="p-6 space-y-4">
+              {/* Department Selection - Show current and allow change */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Assigned Department *
+                </label>
+                {selectedReferral.assigned_department && (
+                  <div className="mb-2 p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current Assignment:</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">
+                        {DEPARTMENT_OPTIONS.find(d => d.value === selectedReferral.assigned_department)?.icon || '🏥'}
+                      </span>
+                      <Badge className={`text-xs ${getDepartmentColorClasses(
+                        DEPARTMENT_OPTIONS.find(d => d.value === selectedReferral.assigned_department)?.color || 'gray',
+                        false
+                      )}`}>
+                        {DEPARTMENT_OPTIONS.find(d => d.value === selectedReferral.assigned_department)?.label || selectedReferral.assigned_department}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+                <select
+                  value={selectedDepartment || selectedReferral.assigned_department || ""}
+                  onChange={(e) => setSelectedDepartment(e.target.value)}
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  required
+                >
+                  <option value="">Select department...</option>
+                  {DEPARTMENT_OPTIONS.map((dept) => (
+                    <option key={dept.value} value={dept.value}>
+                      {dept.icon} {dept.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  You can change the department assignment if needed before finalizing the triage decision.
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Triage Decision *
@@ -1693,6 +1755,7 @@ export const ReferralTable = () => {
                   setScheduledDate("");
                   setScheduledTime("");
                   setDateError("");
+                  setSelectedDepartment("");
                 }}
               >
                 Cancel
@@ -1700,7 +1763,7 @@ export const ReferralTable = () => {
               <Button 
                 className="bg-green-600 hover:bg-green-700 text-white"
                 onClick={handleAcceptWithTriageDecision}
-                disabled={!triageDecision}
+                disabled={!triageDecision || !(selectedDepartment || selectedReferral?.assigned_department)}
               >
                 Accept & Apply Decision
               </Button>

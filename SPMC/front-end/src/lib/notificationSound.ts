@@ -1,16 +1,38 @@
 /**
  * Notification Sound Utility
- * Generates and plays notification sounds using Web Audio API
+ * Plays notification sounds using custom audio files or Web Audio API
  */
+
+// Available notification sounds
+export const NOTIFICATION_SOUNDS = {
+  default: '/notification-sounds/default.mp3',
+  chanak: '/notification-sounds/chanak.mp3',
+  bell: '/notification-sounds/bell.mp3',
+  chime: '/notification-sounds/chime.mp3',
+  ding: '/notification-sounds/ding.mp3',
+  beep: '/notification-sounds/beep.mp3',
+  // Fallback to generated sound if no file exists
+  generated: 'generated'
+} as const;
+
+export type NotificationSoundType = keyof typeof NOTIFICATION_SOUNDS;
 
 class NotificationSound {
   private audioContext: AudioContext | null = null;
   private enabled: boolean = true;
+  private selectedSound: NotificationSoundType = 'default';
+  private audioCache: Map<string, HTMLAudioElement> = new Map();
 
   constructor() {
     // Check if user has sound preference saved
     const savedPreference = localStorage.getItem('notificationSoundEnabled');
     this.enabled = savedPreference !== 'false'; // Default to true
+    
+    // Load selected sound preference
+    const savedSound = localStorage.getItem('notificationSoundType') as NotificationSoundType;
+    if (savedSound && NOTIFICATION_SOUNDS[savedSound]) {
+      this.selectedSound = savedSound;
+    }
   }
 
   /**
@@ -24,9 +46,79 @@ class NotificationSound {
   }
 
   /**
-   * Play a pleasant notification sound (two-tone chime)
+   * Play audio file from URL
+   */
+  private async playAudioFile(url: string, volume: number = 0.5) {
+    try {
+      // Check if audio is cached
+      let audio = this.audioCache.get(url);
+      
+      if (!audio) {
+        // Create new audio element
+        audio = new Audio(url);
+        audio.volume = volume;
+        
+        // Preload the audio
+        audio.preload = 'auto';
+        
+        // Cache it for future use
+        this.audioCache.set(url, audio);
+      }
+      
+      // Reset audio to start if it was already playing
+      audio.currentTime = 0;
+      audio.volume = volume;
+      
+      // Play the audio
+      await audio.play();
+    } catch (error) {
+      console.error('Error playing audio file:', error);
+      // Fallback to generated sound if file fails to load
+      this.playGeneratedNotification();
+    }
+  }
+
+  /**
+   * Set the notification sound type
+   */
+  setSound(soundType: NotificationSoundType) {
+    this.selectedSound = soundType;
+    localStorage.setItem('notificationSoundType', soundType);
+  }
+
+  /**
+   * Get current sound type
+   */
+  getSound(): NotificationSoundType {
+    return this.selectedSound;
+  }
+
+  /**
+   * Get available sounds
+   */
+  getAvailableSounds() {
+    return Object.keys(NOTIFICATION_SOUNDS) as NotificationSoundType[];
+  }
+
+  /**
+   * Play a notification sound based on selected type
    */
   playNotification() {
+    if (!this.enabled) return;
+
+    const soundUrl = NOTIFICATION_SOUNDS[this.selectedSound];
+    
+    if (soundUrl === 'generated' || this.selectedSound === 'generated') {
+      this.playGeneratedNotification();
+    } else {
+      this.playAudioFile(soundUrl, 0.5);
+    }
+  }
+
+  /**
+   * Play a generated notification sound (two-tone chime) - fallback
+   */
+  private playGeneratedNotification() {
     if (!this.enabled) return;
 
     try {
@@ -72,9 +164,29 @@ class NotificationSound {
   }
 
   /**
-   * Play an urgent notification sound (three rapid beeps)
+   * Play an urgent notification sound (three rapid beeps or custom urgent sound)
    */
   playUrgentNotification() {
+    if (!this.enabled) return;
+
+    // Try to play urgent variant if available
+    const urgentSoundUrl = `/notification-sounds/${this.selectedSound}-urgent.mp3`;
+    
+    // Check if urgent variant exists, otherwise use regular sound with higher volume
+    this.playAudioFile(urgentSoundUrl, 0.7).catch(() => {
+      // Fallback to regular sound or generated urgent sound
+      if (this.selectedSound === 'generated') {
+        this.playGeneratedUrgentNotification();
+      } else {
+        this.playAudioFile(NOTIFICATION_SOUNDS[this.selectedSound], 0.7);
+      }
+    });
+  }
+
+  /**
+   * Play generated urgent notification sound (three rapid beeps) - fallback
+   */
+  private playGeneratedUrgentNotification() {
     if (!this.enabled) return;
 
     try {
