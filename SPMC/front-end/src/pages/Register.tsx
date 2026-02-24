@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { authAPI } from "@/lib/api";
 import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
-import { Eye, EyeOff, User } from "lucide-react";
+import { Eye, EyeOff, Building2, ArrowLeft } from "lucide-react";
 
 const Register = () => {
   const [provinces, setProvinces] = useState<any[]>([]);
@@ -483,6 +483,17 @@ const Register = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      {/* Back Button - Top Left */}
+      <div className="fixed top-4 left-4 z-50">
+        <Link
+          to="/login"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg shadow-md hover:shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="font-medium">Back to Login</span>
+        </Link>
+      </div>
+
       {/* About Us Button - Top Right */}
       <div className="fixed top-4 right-4 z-50">
         <AboutUsDialog isDarkMode={false} />
@@ -502,34 +513,10 @@ const Register = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Referrer Type */}
+            {/* Account Credentials */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-                Account Type
-              </h3>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Referrer Type *
-                </label>
-                <select
-                  name="referrerType"
-                  value={formData.referrerType}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  required
-                >
-                  <option value="doctor">Doctor / Medical Professional</option>
-                  <option value="hospital_employee">Authorized Hospital Employee</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Personal Information Fields */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-                Personal Information
+                Account Credentials
               </h3>
               
               <div>
