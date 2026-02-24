@@ -199,6 +199,50 @@ const ReferralDetailModal = ({
 
         {/* Content */}
         <div className="p-6 space-y-6">
+          {/* Patient Information Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <User className="w-5 h-5 text-green-600" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Patient Information</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
+              {referral.patient_category && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Patient Category</label>
+                  <p className="text-sm text-gray-900 dark:text-white mt-1">
+                    {referral.patient_category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </p>
+                </div>
+              )}
+              {referral.hrn && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">HRN</label>
+                  <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.hrn}</p>
+                </div>
+              )}
+              {referral.birthday && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Birthday</label>
+                  <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.birthday}</p>
+                </div>
+              )}
+              {referral.admission_status && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Admission Status</label>
+                  <p className="text-sm text-gray-900 dark:text-white mt-1">
+                    {referral.admission_status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </p>
+                </div>
+              )}
+              {referral.current_address && (
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Address</label>
+                  <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.current_address}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Patient Status Section */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -300,50 +344,6 @@ const ReferralDetailModal = ({
                 )}
               </div>
             )}
-          </div>
-
-          {/* Patient Information Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <User className="w-5 h-5 text-green-600" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Patient Information</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
-              {referral.patient_category && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Patient Category</label>
-                  <p className="text-sm text-gray-900 dark:text-white mt-1">
-                    {referral.patient_category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                  </p>
-                </div>
-              )}
-              {referral.hrn && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">HRN</label>
-                  <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.hrn}</p>
-                </div>
-              )}
-              {referral.birthday && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Birthday</label>
-                  <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.birthday}</p>
-                </div>
-              )}
-              {referral.admission_status && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Admission Status</label>
-                  <p className="text-sm text-gray-900 dark:text-white mt-1">
-                    {referral.admission_status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                  </p>
-                </div>
-              )}
-              {referral.current_address && (
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Address</label>
-                  <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.current_address}</p>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Referring Hospital Section */}
