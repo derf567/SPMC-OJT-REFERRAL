@@ -71,6 +71,7 @@ interface ReferralFormData {
   // Consent & Transfer
   consentSecured: boolean;
   reasonForReferral: string;
+  otherReasonForReferral: string;
   
   // Transit Template
   includeTransitInfo: boolean;
@@ -129,6 +130,7 @@ const initialFormData: ReferralFormData = {
   
   consentSecured: false,
   reasonForReferral: "",
+  otherReasonForReferral: "",
   
   includeTransitInfo: false,
   transitInfo: {
@@ -321,6 +323,9 @@ const ExternalReferral = () => {
     // Step 3 - Specialty validation
     if (!formData.specialtyNeeded) errors.push("Specialty Needed is required");
     if (!formData.reasonForReferral.trim()) errors.push("Reason for Referral is required");
+    if (formData.reasonForReferral === "Others" && !formData.otherReasonForReferral.trim()) {
+      errors.push("Please specify the reason for referral");
+    }
     
     // Laboratory files validation (optional but recommended)
     if (formData.laboratoryFiles.length === 0) {
@@ -391,7 +396,7 @@ const ExternalReferral = () => {
         // Specialty Needed
         specialty_needed: parseInt(formData.specialtyNeeded) || 1,
         other_specialty: formData.otherSpecialty || null,
-        reason_for_referral: formData.reasonForReferral,
+        reason_for_referral: formData.reasonForReferral === "Others" ? formData.otherReasonForReferral : formData.reasonForReferral,
         
         // Referring Hospital
         referring_hospital: parseInt(formData.referringFacilityName) || 1,
@@ -920,14 +925,41 @@ const ExternalReferral = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Reason for Referral *
                 </label>
-                <textarea
+                <select
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  rows={4}
-                  placeholder="Explain why the patient needs to be referred to SPMC..."
                   value={formData.reasonForReferral}
-                  onChange={(e) => updateFormData('reasonForReferral', e.target.value)}
-                />
+                  onChange={(e) => {
+                    updateFormData('reasonForReferral', e.target.value);
+                    if (e.target.value !== "Others") {
+                      updateFormData('otherReasonForReferral', '');
+                    }
+                  }}
+                >
+                  <option value="">Select reason for referral...</option>
+                  <option value="Financial Constraints">Financial Constraints</option>
+                  <option value="Higher Facility Care">Higher Facility Care</option>
+                  <option value="Trauma Center">Trauma Center</option>
+                  <option value="Burn Unit">Burn Unit</option>
+                  <option value="Patients Choice">Patients Choice</option>
+                  <option value="Repatriation">Repatriation</option>
+                  <option value="Others">Others (Please Specify)</option>
+                </select>
               </div>
+
+              {formData.reasonForReferral === "Others" && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Please Specify Reason *
+                  </label>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    rows={3}
+                    placeholder="Please specify the reason for referral..."
+                    value={formData.otherReasonForReferral}
+                    onChange={(e) => updateFormData('otherReasonForReferral', e.target.value)}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
