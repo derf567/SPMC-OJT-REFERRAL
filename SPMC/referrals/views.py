@@ -99,6 +99,44 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         return queryset
     
+    def update(self, request, *args, **kwargs):
+        """Override update to check if referral can be edited"""
+        referral = self.get_object()
+        
+        # Only allow editing if status is 'pending' (not yet under triage)
+        if referral.status != 'pending':
+            return Response({
+                'error': 'Cannot edit referral. Referral is already under triage or has been processed.',
+                'status': referral.status
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Only allow the creator to edit their own referral
+        if referral.created_by != request.user:
+            return Response({
+                'error': 'You can only edit your own referrals'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        return super().update(request, *args, **kwargs)
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Override partial_update to check if referral can be edited"""
+        referral = self.get_object()
+        
+        # Only allow editing if status is 'pending' (not yet under triage)
+        if referral.status != 'pending':
+            return Response({
+                'error': 'Cannot edit referral. Referral is already under triage or has been processed.',
+                'status': referral.status
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Only allow the creator to edit their own referral
+        if referral.created_by != request.user:
+            return Response({
+                'error': 'You can only edit your own referrals'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        return super().partial_update(request, *args, **kwargs)
+    
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None):
         """Update referral status and create history record"""
