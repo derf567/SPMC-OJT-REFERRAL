@@ -198,7 +198,7 @@ const AdminDashboard = () => {
             </div>
           </Link>
         </div>
-
+    
         {/* Quick Actions */}
         <div className="grid grid-cols-1 gap-4">
           <Link to="/admin/approvals">
