@@ -15,6 +15,7 @@ class UserProfile(models.Model):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='edcc_personnel')
     department = models.CharField(max_length=100, blank=True, null=True)
     contact_number = models.CharField(max_length=20, blank=True, null=True)
+    is_view_only = models.BooleanField(default=False, help_text="User can only view, not modify data")
     
     # Additional fields for referrers
     profession = models.CharField(max_length=100, blank=True, null=True)
