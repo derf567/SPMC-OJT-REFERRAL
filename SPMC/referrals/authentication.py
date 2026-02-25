@@ -15,8 +15,6 @@ import json
 def login_view(request):
     """Login endpoint"""
     try:
-        from .models import ReferrerAccount
-        
         data = json.loads(request.body)
         username = data.get('username')
         password = data.get('password')
@@ -29,27 +27,11 @@ def login_view(request):
         user = authenticate(username=username, password=password)
         
         if user:
-            # Get or create user profile
-            profile, created = UserProfile.objects.get_or_create(user=user)
-            
-            # Check if user is a referrer and if their account is approved
-            if profile.role == 'referrer':
-                try:
-                    referrer_account = ReferrerAccount.objects.get(user=user)
-                    if referrer_account.approval_status == 'pending':
-                        return Response({
-                            'error': 'Your account is pending approval. Please wait for an administrator to review your registration.'
-                        }, status=status.HTTP_403_FORBIDDEN)
-                    elif referrer_account.approval_status == 'rejected':
-                        return Response({
-                            'error': 'Your account registration has been rejected. Please contact the administrator for more information.'
-                        }, status=status.HTTP_403_FORBIDDEN)
-                except ReferrerAccount.DoesNotExist:
-                    # If no ReferrerAccount exists, allow login (for legacy accounts)
-                    pass
-            
             login(request, user)
             token, created = Token.objects.get_or_create(user=user)
+            
+            # Get or create user profile
+            profile, created = UserProfile.objects.get_or_create(user=user)
             
             return Response({
                 'success': True,
@@ -69,11 +51,7 @@ def login_view(request):
                         'can_view_referrals': profile.can_view_referrals,
                         'can_triage_referrals': profile.can_triage_referrals,
                         'can_transfer_referrals': profile.can_transfer_referrals,
-                        'is_his_department': profile.is_his_department,
-                        'can_confirm_arrivals': profile.can_confirm_arrivals,
                         'is_admin_user': profile.is_admin_user,
-                        'is_view_only': profile.is_view_only,
-                        'department': profile.department,
                     }
                 }
             })
@@ -247,6 +225,17 @@ def comprehensive_register_view(request):
             position=data.get('position', ''),
         )
         
+        # Handle specialties for doctors
+        if referrer_type == 'doctor':
+            specialties_data = data.getlist('specialties') if hasattr(data, 'getlist') else data.get('specialties', [])
+            if isinstance(specialties_data, str):
+                specialties_data = [specialties_data]
+            
+            for specialty_name in specialties_data:
+                if specialty_name:
+                    specialty, created = Specialty.objects.get_or_create(name=specialty_name)
+                    referrer_account.specialties.add(specialty)
+        
         # Handle affiliate hospitals for doctors
         if referrer_type == 'doctor':
             hospitals_data = data.getlist('affiliate_hospitals') if hasattr(data, 'getlist') else data.get('affiliate_hospitals', [])
@@ -266,7 +255,7 @@ def comprehensive_register_view(request):
             for file_key, file_obj in files.items():
                 if file_key == 'documents':
                     # Determine document type based on referrer type
-                    doc_type = 'official_id'
+                    doc_type = 'legal_document' if referrer_type == 'hospital_account' else 'official_id'
                     
                     ReferrerDocument.objects.create(
                         referrer=referrer_account,
@@ -278,7 +267,7 @@ def comprehensive_register_view(request):
         
         return Response({
             'success': True,
-            'message': 'Registration submitted successfully. Your account is pending approval by an administrator.',
+            'message': 'Account created successfully. You can now login.',
             'user': {
                 'id': user.id,
                 'username': user.username,
@@ -341,11 +330,7 @@ def user_profile(request):
                     'can_view_referrals': profile.can_view_referrals,
                     'can_triage_referrals': profile.can_triage_referrals,
                     'can_transfer_referrals': profile.can_transfer_referrals,
-                    'is_his_department': profile.is_his_department,
-                    'can_confirm_arrivals': profile.can_confirm_arrivals,
                     'is_admin_user': profile.is_admin_user,
-                    'is_view_only': profile.is_view_only,
-                    'department': profile.department,
                 }
             }
         })

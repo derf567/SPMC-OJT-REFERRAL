@@ -42,22 +42,13 @@ class ReferrerDocumentSerializer(serializers.ModelSerializer):
 
 class ReferrerAccountSerializer(serializers.ModelSerializer):
     documents = ReferrerDocumentSerializer(many=True, read_only=True)
+    specialties = serializers.PrimaryKeyRelatedField(queryset=Specialty.objects.all(), many=True, required=False)
     affiliate_hospitals = serializers.PrimaryKeyRelatedField(queryset=ReferringHospital.objects.all(), many=True, required=False)
-    user = serializers.SerializerMethodField()
 
     class Meta:
         model = ReferrerAccount
         fields = ['id', 'user', 'first_name', 'middle_name', 'last_name', 'referrer_type',
-                  'affiliate_hospitals', 'position', 'age', 'address', 'gender', 
-                  'approval_status', 'created_at', 'documents']
-    
-    def get_user(self, obj):
-        return {
-            'id': obj.user.id,
-            'username': obj.user.username,
-            'email': obj.user.email,
-            'date_joined': obj.user.date_joined.isoformat() if obj.user.date_joined else None
-        }
+                  'specialties', 'affiliate_hospitals', 'position', 'age', 'address', 'gender', 'created_at', 'documents']
 
 
 class ReferrerRegistrationSerializer(serializers.Serializer):
@@ -69,6 +60,7 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
     middle_name = serializers.CharField(required=False, allow_blank=True)
     last_name = serializers.CharField()
     referrer_type = serializers.ChoiceField(choices=ReferrerAccount.REFERRER_TYPE_CHOICES)
+    specialties = serializers.ListField(child=serializers.IntegerField(), required=False)
     affiliate_hospitals = serializers.ListField(child=serializers.IntegerField(), required=False)
     hospital_name = serializers.CharField(required=False, allow_blank=True)
     position = serializers.CharField(required=False, allow_blank=True)
@@ -86,8 +78,17 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
         from django.contrib.auth.models import User
 
         docs = validated_data.pop('documents', [])
+        specialties = validated_data.pop('specialties', [])
         referrer_type = validated_data.get('referrer_type')
-        affiliate_hospitals = validated_data.pop('affiliate_hospitals', [])
+        if referrer_type == 'hospital_account':
+            hospital_name = validated_data.pop('hospital_name', '')
+            if hospital_name:
+                hospital, created = ReferringHospital.objects.get_or_create(name=hospital_name)
+                affiliate_hospitals = [hospital.id]
+            else:
+                affiliate_hospitals = []
+        else:
+            affiliate_hospitals = validated_data.pop('affiliate_hospitals', [])
         age = validated_data.pop('age', None)
         region = validated_data.pop('region', '')
         province = validated_data.pop('province', '')
@@ -102,11 +103,9 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
         password = validated_data.pop('password')
         email = validated_data.pop('email', '')
 
-        # Create user as inactive until approved
         user = User.objects.create_user(username=username, password=password, email=email,
                                         first_name=validated_data.get('first_name', ''),
-                                        last_name=validated_data.get('last_name', ''),
-                                        is_active=False)  # Set inactive until approved
+                                        last_name=validated_data.get('last_name', ''))
 
         # Create UserProfile with referrer role
         UserProfile.objects.create(
@@ -130,12 +129,14 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
             gender=gender
         )
 
+        if specialties:
+            referrer.specialties.set(Specialty.objects.filter(id__in=specialties))
         if affiliate_hospitals:
             referrer.affiliate_hospitals.set(ReferringHospital.objects.filter(id__in=affiliate_hospitals))
 
         # create documents
         for f in docs:
-            doc_type = 'official_id' if referrer_type in ['doctor', 'hospital_employee'] else 'other'
+            doc_type = 'official_id' if referrer_type in ['doctor', 'hospital_employee'] else 'legal_document' if referrer_type == 'hospital_account' else 'other'
             ReferrerDocument.objects.create(
                 referrer=referrer,
                 document_type=doc_type,
@@ -171,7 +172,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'reason_for_referral', 'management_done',
             
             # Vital signs
-            'bp', 'hr', 'rr', 'temp', 'o2_sat', 'gcs_score', 'o2_support', 'vital_signs_time',
+            'bp', 'hr', 'rr', 'temp', 'o2_sat', 'gcs_score', 'o2_support',
             
             # Medical status
             'admission_status', 'rtpcr_result',
@@ -179,9 +180,6 @@ class ReferralListSerializer(serializers.ModelSerializer):
             # Specialty and referrer info
             'specialty_needed_name', 'referring_hospital_name', 'referrer_name', 
             'referrer_profession', 'referrer_cellphone', 'mode_of_transportation',
-            
-            # Hospital information (new fields)
-            'hospital_doh_level', 'hospital_location', 'hospital_contact_numbers',
             
             # System fields
             'created_by_name', 'assigned_to_name', 'consent_secured',
@@ -191,9 +189,6 @@ class ReferralListSerializer(serializers.ModelSerializer):
             
             # Triage decision (if available)
             'triage_decision', 'triage_notes', 'scheduled_date', 'scheduled_time',
-            
-            # Transit decision fields
-            'transit_decision', 'transit_scheduled_date', 'transit_scheduled_time', 'transit_decision_at',
             
             # Department assignment
             'assigned_department'
