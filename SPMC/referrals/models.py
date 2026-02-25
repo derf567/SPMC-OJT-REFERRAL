@@ -25,6 +25,16 @@ class UserProfile(models.Model):
     hospital_name = models.CharField(max_length=200, blank=True, null=True)
     hospital_location = models.CharField(max_length=200, blank=True, null=True)
     is_inside_davao = models.BooleanField(default=True)
+    contact_numbers = models.JSONField(default=list, blank=True, help_text="List of hospital contact numbers")
+    hospital_doh_level = models.CharField(max_length=20, blank=True, null=True, help_text="DOH Level: primary, secondary, or tertiary")
+    
+    # Detailed address fields
+    hospital_region = models.CharField(max_length=100, blank=True, null=True, help_text="Region")
+    hospital_street = models.CharField(max_length=200, blank=True, null=True, help_text="Street address")
+    hospital_barangay = models.CharField(max_length=100, blank=True, null=True, help_text="Barangay")
+    hospital_district = models.CharField(max_length=100, blank=True, null=True, help_text="District")
+    hospital_city = models.CharField(max_length=100, blank=True, null=True, help_text="City")
+    hospital_province = models.CharField(max_length=100, blank=True, null=True, help_text="Province")
     
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.get_role_display()}"

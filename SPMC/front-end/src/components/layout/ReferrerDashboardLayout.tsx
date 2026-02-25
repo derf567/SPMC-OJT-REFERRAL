@@ -215,10 +215,28 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
   };
 
   const getUserInitials = () => {
+    // For hospital accounts, use hospital name initials
+    if (user?.hospital_name) {
+      const words = user.hospital_name.split(' ');
+      if (words.length >= 2) {
+        return `${words[0].charAt(0)}${words[1].charAt(0)}`;
+      }
+      return user.hospital_name.substring(0, 2).toUpperCase();
+    }
+    // Fallback to user name
     if (user?.first_name && user?.last_name) {
       return `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`;
     }
     return user?.username?.substring(0, 2).toUpperCase() || 'U';
+  };
+
+  const getDisplayName = () => {
+    // For hospital accounts, show hospital name
+    if (user?.hospital_name) {
+      return user.hospital_name;
+    }
+    // Fallback to user full name or username
+    return user?.full_name || user?.first_name || user?.username;
   };
 
   return (
@@ -331,7 +349,7 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
                     "text-sm font-medium",
                     isDarkMode ? "text-gray-300" : "text-gray-600"
                   )}>
-                    Welcome back, {user?.first_name || user?.username}
+                    Welcome back, {getDisplayName()}
                   </span>
                 </div>
               </div>
@@ -452,11 +470,11 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
                       <p className={cn(
                         "text-sm font-medium transition-colors duration-300",
                         isDarkMode ? "text-white" : "text-gray-900"
-                      )}>{user?.full_name || user?.username}</p>
+                      )}>{getDisplayName()}</p>
                       <p className={cn(
                         "text-xs transition-colors duration-300",
                         isDarkMode ? "text-gray-400" : "text-gray-500"
-                      )}>Referrer</p>
+                      )}>{user?.hospital_name ? 'Hospital' : 'Referrer'}</p>
                     </div>
                     <ChevronDown className="w-4 h-4" />
                   </Button>

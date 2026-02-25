@@ -22,6 +22,19 @@ interface User {
     is_view_only: boolean;
     department: string;
   };
+  // Hospital account fields (for referrer users with hospital accounts)
+  hospital_name?: string;
+  hospital_location?: string;
+  is_inside_davao?: boolean;
+  contact_numbers?: string[];
+  hospital_doh_level?: string;
+  // Detailed address fields
+  hospital_region?: string;
+  hospital_street?: string;
+  hospital_barangay?: string;
+  hospital_district?: string;
+  hospital_city?: string;
+  hospital_province?: string;
 }
 
 interface AuthContextType {
