@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { externalReferralsAPI, referrerAPI } from "@/lib/api";
+import { externalReferralsAPI, referrerAPI, referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { 
   fetchRegions, 
@@ -170,6 +170,7 @@ const initialFormData: ReferralFormData = {
 };
 
 const ExternalReferral = () => {
+  const { id } = useParams(); // Get referral ID from URL if editing
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<ReferralFormData>(initialFormData);
   const [hospitals, setHospitals] = useState<any[]>([]);
@@ -177,6 +178,8 @@ const ExternalReferral = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [referrerProfile, setReferrerProfile] = useState<any>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [originalReferral, setOriginalReferral] = useState<any>(null);
   
   // PSGC API state
   const [regions, setRegions] = useState<Region[]>([]);
@@ -260,6 +263,116 @@ const ExternalReferral = () => {
 
     loadInitialData();
   }, [user, toast]);
+
+  // Load referral data if editing
+  useEffect(() => {
+    const loadReferralData = async () => {
+      if (id && user) {
+        try {
+          setLoading(true);
+          const referralData = await referralsAPI.getById(id);
+          
+          // Check if referral can be edited (must be pending status)
+          if (referralData.status !== 'pending') {
+            toast({
+              title: "Cannot Edit",
+              description: "This referral is already under triage and cannot be edited. You can only view it.",
+              variant: "destructive",
+            });
+            navigate('/referrer/referred');
+            return;
+          }
+          
+          // Check if user owns this referral
+          if (referralData.created_by !== user.id) {
+            toast({
+              title: "Access Denied",
+              description: "You can only edit your own referrals.",
+              variant: "destructive",
+            });
+            navigate('/referrer/referred');
+            return;
+          }
+          
+          setIsEditMode(true);
+          setOriginalReferral(referralData);
+          
+          // Populate form with existing data
+          setFormData({
+            chiefComplaint: referralData.chief_complaint || '',
+            pertinentHistory: referralData.pertinent_history || '',
+            pertinentPhysicalExam: referralData.pertinent_physical_exam || '',
+            latestVitalSigns: {
+              bp: referralData.bp || '',
+              hr: referralData.hr?.toString() || '',
+              rr: referralData.rr?.toString() || '',
+              temp: referralData.temp?.toString() || '',
+              o2Sat: referralData.o2_sat?.toString() || '',
+              timeTaken: referralData.vital_signs_time || ''
+            },
+            gcsScore: referralData.gcs_score || '',
+            o2Support: referralData.o2_support || '',
+            admissionStatus: referralData.admission_status || '',
+            rtpcrResult: referralData.rtpcr_result || '',
+            workingImpression: referralData.working_impression || '',
+            managementDone: referralData.management_done || '',
+            
+            patientCategory: referralData.patient_category || '',
+            hrn: referralData.hrn || '',
+            patientFirstName: referralData.patient_first_name || '',
+            patientMiddleName: referralData.patient_middle_name || '',
+            patientLastName: referralData.patient_last_name || '',
+            patientSuffix: referralData.patient_suffix || '',
+            currentAddress: referralData.current_address || '',
+            birthday: referralData.birthday || '',
+            age: referralData.age?.toString() || '',
+            gender: referralData.gender || '',
+            
+            specialtyNeeded: referralData.specialty_needed?.toString() || '',
+            otherSpecialty: '',
+            
+            laboratoryFiles: [],
+            
+            isInsideDavaoCity: referralData.referring_hospital_is_inside_davao || true,
+            hospitalLocation: referralData.hospital_location || '',
+            referringFacilityName: referralData.referring_hospital_name || '',
+            hospitalDohLevel: referralData.hospital_doh_level || '',
+            hospitalContactNumbers: referralData.hospital_contact_numbers || [],
+            hospitalRegion: referralData.hospital_region || '',
+            hospitalStreet: referralData.hospital_street || '',
+            hospitalBarangay: referralData.hospital_barangay || '',
+            hospitalDistrict: referralData.hospital_district || '',
+            hospitalCity: referralData.hospital_city || '',
+            hospitalProvince: referralData.hospital_province || '',
+            referrerName: referralData.referrer_name || '',
+            referrerProfession: referralData.referrer_profession || '',
+            referrerCellphone: referralData.referrer_cellphone || '',
+            modeOfTransportation: referralData.mode_of_transportation || '',
+            
+            consentSecured: referralData.consent_secured || false,
+            reasonForReferral: referralData.reason_for_referral || '',
+            otherReasonForReferral: '',
+            
+            includeTransitInfo: false,
+            transitInfo: initialFormData.transitInfo
+          });
+          
+        } catch (error: any) {
+          console.error('Error loading referral:', error);
+          toast({
+            title: "Error",
+            description: error.message || "Failed to load referral data.",
+            variant: "destructive",
+          });
+          navigate('/referrer/referred');
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadReferralData();
+  }, [id, user, navigate, toast]);
 
   // Load regions on component mount
   useEffect(() => {
@@ -526,13 +639,22 @@ const ExternalReferral = () => {
       // For now, we'll submit the referral without files
       // In a full implementation, files would be uploaded separately or as FormData
       
-      const response = await externalReferralsAPI.create(apiData);
+      let response;
+      if (isEditMode && id) {
+        // Update existing referral
+        response = await referralsAPI.update(id, apiData);
+      } else {
+        // Create new referral
+        response = await externalReferralsAPI.create(apiData);
+      }
       
-      let successMessage = `Referral submitted successfully! Reference ID: ${response.referral_id}\n\nYour referral has been sent to SPMC Emergency Dispatch and Communication Center for review.`;
+      let successMessage = isEditMode 
+        ? `Referral updated successfully! Reference ID: ${response.referral_id || originalReferral?.referral_id}\n\nYour changes have been saved.`
+        : `Referral submitted successfully! Reference ID: ${response.referral_id}\n\nYour referral has been sent to SPMC Emergency Dispatch and Communication Center for review.`;
       
       // Add tracking message for logged-in referrer users
       if (user && user.role === 'referrer') {
-        successMessage += `\n\n✅ This referral is now tracked in your referrer dashboard. You can monitor its progress by visiting your dashboard.`;
+        successMessage += `\n\n✅ This referral is tracked in your referrer dashboard. You can monitor its progress by visiting your dashboard.`;
       }
       
       if (formData.laboratoryFiles.length > 0) {
@@ -1699,13 +1821,31 @@ const ExternalReferral = () => {
                 Back
               </Button>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Patient Referral Form</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {isEditMode ? 'Edit Patient Referral' : 'Patient Referral Form'}
+            </h2>
             <p className="text-gray-500 dark:text-gray-400 mt-1">
-              Submit a referral request to Southern Philippines Medical Center
+              {isEditMode 
+                ? `Editing referral ${originalReferral?.referral_id} - You can only edit referrals that are still pending`
+                : 'Submit a referral request to Southern Philippines Medical Center'
+              }
             </p>
             
+            {/* Edit mode warning */}
+            {isEditMode && (
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Info className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-amber-800 dark:text-amber-200">
+                    <p className="font-medium">⚠️ Editing Mode</p>
+                    <p>You are editing an existing referral. Once this referral is under triage (status changes from "Pending"), you will no longer be able to edit it.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Message for logged-in referrer users */}
-            {user && user.role === 'referrer' && (
+            {user && user.role === 'referrer' && !isEditMode && (
               <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <div className="flex items-start gap-2">
                   <Info className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
@@ -1816,7 +1956,7 @@ const ExternalReferral = () => {
                     ) : (
                       <>
                         <CheckCircle className="w-4 h-4" />
-                        Submit Referral
+                        {isEditMode ? 'Update Referral' : 'Submit Referral'}
                       </>
                     )}
                   </Button>

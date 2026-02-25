@@ -9,6 +9,8 @@ import DashboardRedirect from "@/components/auth/DashboardRedirect";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import ExternalReferral from "./pages/ExternalReferral";
+import { ReferralView } from "./pages/ReferralView";
+import { ReferralEdit } from "./pages/ReferralEdit";
 import Register from "./pages/Register";
 import ReferrerDashboard from "./pages/ReferrerDashboard";
 import ActiveReferrals from "./pages/ActiveReferrals";
@@ -37,6 +39,16 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/referral" element={<ExternalReferral />} />
+            <Route path="/referral/edit/:id" element={
+              <ProtectedRoute>
+                <ReferralEdit />
+              </ProtectedRoute>
+            } />
+            <Route path="/referral/view/:id" element={
+              <ProtectedRoute>
+                <ReferralView />
+              </ProtectedRoute>
+            } />
             
             {/* Dashboard redirect route - determines which dashboard to show based on user role */}
             <Route path="/" element={
