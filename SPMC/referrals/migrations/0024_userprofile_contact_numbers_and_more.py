@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('referrals', '0023_alter_referral_referrer_cellphone'),
+        ('referrals', '0012_referral_transferred_at_referral_transferred_by_and_more'),
     ]
 
     operations = [
