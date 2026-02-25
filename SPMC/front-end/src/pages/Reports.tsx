@@ -6,15 +6,6 @@ import { referralsAPI } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import { Chart, ChartConfiguration, registerables } from 'chart.js';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { 
   Calendar, 
   BarChart3, 
@@ -22,15 +13,8 @@ import {
   TrendingUp,
   Building2,
   Users,
-  Filter,
-  Download,
-  FileText,
-  Image,
-  ChevronDown
+  Filter
 } from "lucide-react";
-
-// Register Chart.js components
-Chart.register(...registerables);
 
 interface ReportsData {
   summary: {
