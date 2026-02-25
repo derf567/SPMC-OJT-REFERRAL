@@ -63,6 +63,13 @@ interface ReferralFormData {
   referringFacilityName: string;
   hospitalDohLevel: string;
   hospitalContactNumbers: string[];
+  // Detailed address fields
+  hospitalRegion: string;
+  hospitalStreet: string;
+  hospitalBarangay: string;
+  hospitalDistrict: string;
+  hospitalCity: string;
+  hospitalProvince: string;
   referrerName: string;
   referrerProfession: string;
   referrerCellphone: string;
@@ -123,6 +130,12 @@ const initialFormData: ReferralFormData = {
   referringFacilityName: "",
   hospitalDohLevel: "",
   hospitalContactNumbers: [],
+  hospitalRegion: "",
+  hospitalStreet: "",
+  hospitalBarangay: "",
+  hospitalDistrict: "",
+  hospitalCity: "",
+  hospitalProvince: "",
   referrerName: "",
   referrerProfession: "",
   referrerCellphone: "",
@@ -186,14 +199,26 @@ const ExternalReferral = () => {
             const profileData = await referrerAPI.getMyProfile();
             setReferrerProfile(profileData);
             
-            // Auto-fill referrer information
+            // Auto-fill hospital information from logged-in account
             setFormData(prev => ({
               ...prev,
-              referrerName: profileData.referrer_name || '',
-              referrerProfession: profileData.specialties_text || profileData.referrer_profession || '',
-              referrerCellphone: profileData.referrer_cellphone || '',
-              // For doctors, set the first affiliate hospital as default if available
-              ...(profileData.referrer_type === 'doctor' && profileData.affiliate_hospitals?.length > 0 && {
+              // For hospital accounts, auto-fill hospital information
+              ...(user.hospital_name && {
+                referringFacilityName: user.hospital_name,
+                hospitalLocation: user.hospital_location || '',
+                isInsideDavaoCity: user.is_inside_davao !== undefined ? user.is_inside_davao : true,
+                hospitalContactNumbers: user.contact_numbers || [],
+                hospitalDohLevel: user.hospital_doh_level || '',
+                // Detailed address fields
+                hospitalRegion: user.hospital_region || '',
+                hospitalStreet: user.hospital_street || '',
+                hospitalBarangay: user.hospital_barangay || '',
+                hospitalDistrict: user.hospital_district || '',
+                hospitalCity: user.hospital_city || '',
+                hospitalProvince: user.hospital_province || '',
+              }),
+              // For doctors with affiliate hospitals
+              ...(profileData.referrer_type === 'doctor' && profileData.affiliate_hospitals?.length > 0 && !user.hospital_name && {
                 referringFacilityName: profileData.affiliate_hospitals[0].id.toString(),
                 isInsideDavaoCity: profileData.affiliate_hospitals[0].is_inside_davao_city,
                 hospitalLocation: profileData.affiliate_hospitals[0].location || ''
@@ -1028,9 +1053,15 @@ const ExternalReferral = () => {
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Hospital Location Radio Buttons */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                   Hospital Location *
+                  {user && user.hospital_name && (
+                    <span className="text-xs text-green-600 dark:text-green-400 ml-2">
+                      ✓ Auto-filled
+                    </span>
+                  )}
                 </label>
                 <div className="space-y-3">
                   <label className="flex items-center space-x-2">
@@ -1040,6 +1071,7 @@ const ExternalReferral = () => {
                       className="text-blue-600 focus:ring-blue-500"
                       checked={formData.isInsideDavaoCity}
                       onChange={() => updateFormData('isInsideDavaoCity', true)}
+                      disabled={!!user?.hospital_name}
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300">
                       Inside Davao City
@@ -1052,6 +1084,7 @@ const ExternalReferral = () => {
                       className="text-blue-600 focus:ring-blue-500"
                       checked={!formData.isInsideDavaoCity}
                       onChange={() => updateFormData('isInsideDavaoCity', false)}
+                      disabled={!!user?.hospital_name}
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300">
                       Outside Davao City
@@ -1060,41 +1093,29 @@ const ExternalReferral = () => {
                 </div>
               </div>
 
-              {formData.isInsideDavaoCity && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Choose Location in Davao City
-                  </label>
-                  <select 
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                    value={formData.hospitalLocation}
-                    onChange={(e) => updateFormData('hospitalLocation', e.target.value)}
-                  >
-                    <option value="">Select location</option>
-                    {davaoLocations.map(location => (
-                      <option key={location} value={location}>{location}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
+              {/* Hospital Name */}
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Complete Name of Referring Facility *
-                  {user && user.role === 'referrer' && referrerProfile && (
-                    <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
-                      (Auto-filled from your profile)
+                  {user && user.hospital_name && (
+                    <span className="text-xs text-green-600 dark:text-green-400 ml-2">
+                      ✓ Auto-filled from hospital account
                     </span>
                   )}
                 </label>
-                {user && user.role === 'referrer' && referrerProfile?.referrer_type === 'doctor' && referrerProfile?.affiliate_hospitals?.length > 0 ? (
-                  // For doctors: Show dropdown of affiliate hospitals
+                {user && user.hospital_name ? (
+                  <input
+                    type="text"
+                    value={user.hospital_name}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
+                  />
+                ) : user && user.role === 'referrer' && referrerProfile?.referrer_type === 'doctor' && referrerProfile?.affiliate_hospitals?.length > 0 ? (
                   <select 
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
                     value={formData.referringFacilityName}
                     onChange={(e) => {
                       updateFormData('referringFacilityName', e.target.value);
-                      // Update location info when hospital changes
                       const selectedHospital = referrerProfile.affiliate_hospitals.find(h => h.id.toString() === e.target.value);
                       if (selectedHospital) {
                         updateFormData('isInsideDavaoCity', selectedHospital.is_inside_davao_city);
@@ -1108,7 +1129,6 @@ const ExternalReferral = () => {
                     ))}
                   </select>
                 ) : (
-                  // For non-doctors or anonymous users: Show all hospitals
                   <select 
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
                     value={formData.referringFacilityName}
@@ -1122,11 +1142,24 @@ const ExternalReferral = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    DOH Level *
-                  </label>
+              {/* DOH Level - Auto-filled and read-only for hospital accounts */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  DOH Level *
+                  {user && user.hospital_doh_level && (
+                    <span className="text-xs text-green-600 dark:text-green-400 ml-2">
+                      ✓ Auto-filled
+                    </span>
+                  )}
+                </label>
+                {user && user.hospital_doh_level ? (
+                  <input
+                    type="text"
+                    value={user.hospital_doh_level.charAt(0).toUpperCase() + user.hospital_doh_level.slice(1)}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
+                  />
+                ) : (
                   <select
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
                     value={formData.hospitalDohLevel}
@@ -1137,67 +1170,133 @@ const ExternalReferral = () => {
                     <option value="secondary">Secondary</option>
                     <option value="tertiary">Tertiary</option>
                   </select>
-                </div>
+                )}
+              </div>
+            </div>
 
+            {/* Detailed Address Fields - Auto-filled for hospital accounts */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg border border-blue-200 dark:border-blue-800">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                Hospital Address
+                {user && user.hospital_name && (
+                  <span className="text-xs text-green-600 dark:text-green-400 ml-2">
+                    ✓ Auto-filled
+                  </span>
+                )}
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Region */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Hospital Location (Mindanao) *
+                    Region *
                   </label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                    value={formData.hospitalLocation}
-                    onChange={(e) => updateFormData('hospitalLocation', e.target.value)}
-                  >
-                    <option value="">Select Location</option>
-                    <optgroup label="Region IX - Zamboanga Peninsula">
-                      <option value="Zamboanga City">Zamboanga City</option>
-                      <option value="Zamboanga del Norte">Zamboanga del Norte</option>
-                      <option value="Zamboanga del Sur">Zamboanga del Sur</option>
-                      <option value="Zamboanga Sibugay">Zamboanga Sibugay</option>
-                    </optgroup>
-                    <optgroup label="Region X - Northern Mindanao">
-                      <option value="Cagayan de Oro City">Cagayan de Oro City</option>
-                      <option value="Bukidnon">Bukidnon</option>
-                      <option value="Camiguin">Camiguin</option>
-                      <option value="Lanao del Norte">Lanao del Norte</option>
-                      <option value="Misamis Occidental">Misamis Occidental</option>
-                      <option value="Misamis Oriental">Misamis Oriental</option>
-                    </optgroup>
-                    <optgroup label="Region XI - Davao Region">
-                      <option value="Davao City">Davao City</option>
-                      <option value="Davao de Oro">Davao de Oro</option>
-                      <option value="Davao del Norte">Davao del Norte</option>
-                      <option value="Davao del Sur">Davao del Sur</option>
-                      <option value="Davao Occidental">Davao Occidental</option>
-                      <option value="Davao Oriental">Davao Oriental</option>
-                    </optgroup>
-                    <optgroup label="Region XII - SOCCSKSARGEN">
-                      <option value="General Santos City">General Santos City</option>
-                      <option value="Cotabato City">Cotabato City</option>
-                      <option value="North Cotabato">North Cotabato</option>
-                      <option value="Sarangani">Sarangani</option>
-                      <option value="South Cotabato">South Cotabato</option>
-                      <option value="Sultan Kudarat">Sultan Kudarat</option>
-                    </optgroup>
-                    <optgroup label="Region XIII - Caraga">
-                      <option value="Butuan City">Butuan City</option>
-                      <option value="Agusan del Norte">Agusan del Norte</option>
-                      <option value="Agusan del Sur">Agusan del Sur</option>
-                      <option value="Surigao del Norte">Surigao del Norte</option>
-                      <option value="Surigao del Sur">Surigao del Sur</option>
-                      <option value="Dinagat Islands">Dinagat Islands</option>
-                    </optgroup>
-                    <optgroup label="BARMM - Bangsamoro">
-                      <option value="Basilan">Basilan</option>
-                      <option value="Lanao del Sur">Lanao del Sur</option>
-                      <option value="Maguindanao">Maguindanao</option>
-                      <option value="Sulu">Sulu</option>
-                      <option value="Tawi-Tawi">Tawi-Tawi</option>
-                    </optgroup>
-                  </select>
+                  <input
+                    type="text"
+                    value={formData.hospitalRegion}
+                    onChange={(e) => updateFormData('hospitalRegion', e.target.value)}
+                    readOnly={!!user?.hospital_region}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                      user?.hospital_region 
+                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
+                        : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+                    }`}
+                    placeholder="e.g., Region XI (Davao Region)"
+                  />
+                </div>
+
+                {/* Province */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Province *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.hospitalProvince}
+                    onChange={(e) => updateFormData('hospitalProvince', e.target.value)}
+                    readOnly={!!user?.hospital_province}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                      user?.hospital_province 
+                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
+                        : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+                    }`}
+                    placeholder="e.g., Davao del Sur"
+                  />
+                </div>
+
+                {/* City */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    City / Municipality *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.hospitalCity}
+                    onChange={(e) => updateFormData('hospitalCity', e.target.value)}
+                    readOnly={!!user?.hospital_city}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                      user?.hospital_city 
+                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
+                        : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+                    }`}
+                    placeholder="e.g., Davao City"
+                  />
+                </div>
+
+                {/* Barangay */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Barangay *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.hospitalBarangay}
+                    onChange={(e) => updateFormData('hospitalBarangay', e.target.value)}
+                    readOnly={!!user?.hospital_barangay}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                      user?.hospital_barangay 
+                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
+                        : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+                    }`}
+                    placeholder="e.g., Bajada"
+                  />
+                </div>
+
+                {/* Complete Address (Street, District) */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Complete Hospital Address (Street, Building, District) *
+                  </label>
+                  <textarea
+                    value={formData.hospitalStreet + (formData.hospitalDistrict ? ', ' + formData.hospitalDistrict : '')}
+                    onChange={(e) => {
+                      // For auto-filled fields, don't allow editing
+                      if (!user?.hospital_street) {
+                        // Split by comma to separate street and district
+                        const parts = e.target.value.split(',').map(p => p.trim());
+                        updateFormData('hospitalStreet', parts[0] || '');
+                        updateFormData('hospitalDistrict', parts[1] || '');
+                      }
+                    }}
+                    readOnly={!!user?.hospital_street}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                      user?.hospital_street 
+                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
+                        : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+                    }`}
+                    rows={2}
+                    placeholder="e.g., J.P. Laurel Avenue, Poblacion District"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Include street name, building number, district, and any landmarks
+                  </p>
                 </div>
               </div>
+            </div>
 
+            {/* Referrer Information and Contact Numbers */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Name of the Referrer *
@@ -1250,6 +1349,11 @@ const ExternalReferral = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Hospital Contact Numbers (Hotline/Phone) *
+                  {user && user.contact_numbers && user.contact_numbers.length > 0 && (
+                    <span className="text-xs text-green-600 dark:text-green-400 ml-2">
+                      ✓ Auto-filled
+                    </span>
+                  )}
                 </label>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                   Add multiple contact numbers for the hospital. You can add hotlines, phone numbers, etc.
@@ -1286,7 +1390,6 @@ const ExternalReferral = () => {
                   </Button>
                 </div>
 
-                {/* Display added contact numbers */}
                 {formData.hospitalContactNumbers.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300">

@@ -74,7 +74,20 @@ def login_view(request):
                         'is_admin_user': profile.is_admin_user,
                         'is_view_only': profile.is_view_only,
                         'department': profile.department,
-                    }
+                    },
+                    # Hospital account fields (for referrer users)
+                    'hospital_name': profile.hospital_name,
+                    'hospital_location': profile.hospital_location,
+                    'is_inside_davao': profile.is_inside_davao,
+                    'contact_numbers': profile.contact_numbers if hasattr(profile, 'contact_numbers') else [],
+                    'hospital_doh_level': profile.hospital_doh_level if hasattr(profile, 'hospital_doh_level') else None,
+                    # Detailed address fields
+                    'hospital_region': profile.hospital_region if hasattr(profile, 'hospital_region') else None,
+                    'hospital_street': profile.hospital_street if hasattr(profile, 'hospital_street') else None,
+                    'hospital_barangay': profile.hospital_barangay if hasattr(profile, 'hospital_barangay') else None,
+                    'hospital_district': profile.hospital_district if hasattr(profile, 'hospital_district') else None,
+                    'hospital_city': profile.hospital_city if hasattr(profile, 'hospital_city') else None,
+                    'hospital_province': profile.hospital_province if hasattr(profile, 'hospital_province') else None,
                 }
             })
         else:
@@ -346,7 +359,20 @@ def user_profile(request):
                     'is_admin_user': profile.is_admin_user,
                     'is_view_only': profile.is_view_only,
                     'department': profile.department,
-                }
+                },
+                # Hospital account fields (for referrer users)
+                'hospital_name': profile.hospital_name,
+                'hospital_location': profile.hospital_location,
+                'is_inside_davao': profile.is_inside_davao,
+                'contact_numbers': profile.contact_numbers if hasattr(profile, 'contact_numbers') else [],
+                'hospital_doh_level': profile.hospital_doh_level if hasattr(profile, 'hospital_doh_level') else None,
+                # Detailed address fields
+                'hospital_region': profile.hospital_region if hasattr(profile, 'hospital_region') else None,
+                'hospital_street': profile.hospital_street if hasattr(profile, 'hospital_street') else None,
+                'hospital_barangay': profile.hospital_barangay if hasattr(profile, 'hospital_barangay') else None,
+                'hospital_district': profile.hospital_district if hasattr(profile, 'hospital_district') else None,
+                'hospital_city': profile.hospital_city if hasattr(profile, 'hospital_city') else None,
+                'hospital_province': profile.hospital_province if hasattr(profile, 'hospital_province') else None,
             }
         })
     else:
