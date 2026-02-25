@@ -6,6 +6,15 @@ import { referralsAPI } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { Chart, ChartConfiguration, registerables } from 'chart.js';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { 
   Calendar, 
   BarChart3, 
@@ -13,8 +22,15 @@ import {
   TrendingUp,
   Building2,
   Users,
-  Filter
+  Filter,
+  Download,
+  FileText,
+  Image,
+  ChevronDown
 } from "lucide-react";
+
+// Register Chart.js components
+Chart.register(...registerables);
 
 interface ReportsData {
   summary: {
@@ -164,6 +180,521 @@ const Reports = () => {
     fetchAllFilteredData();
   }, [globalFilter, globalYear, globalMonth, globalWeek, weekFilterMonth]);
 
+  // Helper function to generate chart as image
+  const generateChartImage = async (config: ChartConfiguration): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 800;
+        canvas.height = 400;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          console.error('Failed to get canvas context');
+          resolve('');
+          return;
+        }
+
+        const chart = new Chart(ctx, config);
+        
+        // Wait for chart to render
+        setTimeout(() => {
+          try {
+            const imageData = canvas.toDataURL('image/png');
+            chart.destroy();
+            resolve(imageData);
+          } catch (err) {
+            console.error('Error converting chart to image:', err);
+            chart.destroy();
+            resolve('');
+          }
+        }, 500);
+      } catch (err) {
+        console.error('Error creating chart:', err);
+        resolve('');
+      }
+    });
+  };
+
+  // Download all reports as PDF
+  const handleDownloadReports = async (includeGraphs: boolean) => {
+    try {
+      // Show loading toast
+      toast({
+        title: "Generating Report",
+        description: "Please wait while we generate your PDF...",
+      });
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      let yPosition = 20;
+
+      // Helper function to check if we need a new page
+      const checkNewPage = (requiredSpace: number) => {
+        if (yPosition + requiredSpace > pageHeight - 20) {
+          pdf.addPage();
+          yPosition = 20;
+          return true;
+        }
+        return false;
+      };
+
+      // Header
+      pdf.setFontSize(20);
+      pdf.setTextColor(37, 99, 235);
+      pdf.text('SPMC REFERRAL SYSTEM', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 10;
+      
+      pdf.setFontSize(16);
+      pdf.text('Comprehensive Report', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 15;
+
+      // Metadata
+      pdf.setFontSize(9);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Generated: ${new Date().toLocaleString()}`, 15, yPosition);
+      yPosition += 5;
+      pdf.text(`Filter: ${globalFilter.toUpperCase()} | Year: ${globalYear}${globalMonth ? ` | Month: ${globalMonth}` : ''}${globalWeek ? ` | Week: ${globalWeek}` : ''}`, 15, yPosition);
+      yPosition += 5;
+      pdf.text(`Report Type: ${includeGraphs ? 'With Graphs' : 'Without Graphs'}`, 15, yPosition);
+      yPosition += 10;
+
+      // Summary Statistics
+      checkNewPage(60);
+      pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Summary Statistics', 15, yPosition);
+      yPosition += 8;
+
+      const summaryData = [
+        ['Total Referrals', reportsData?.summary.total_referrals || 0],
+        ['Coordinated Referrals', reportsData?.summary.successful_referrals || 0],
+        ['Pending Referrals', reportsData?.summary.pending_referrals || 0],
+        ['Cancelled Referrals', reportsData?.summary.cancelled_referrals || 0],
+        ['Coordination Rate', `${reportsData?.summary.coordination_rate || 0}%`],
+        ['Cancellation Rate', `${reportsData?.summary.cancellation_rate || 0}%`],
+        ['Recent Referrals (7 days)', reportsData?.summary.recent_referrals || 0],
+        ['Avg Processing Time', `${reportsData?.summary.avg_processing_time_hours || 0}h`],
+      ];
+
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['Metric', 'Value']],
+        body: summaryData,
+        theme: 'grid',
+        headStyles: { fillColor: [37, 99, 235] },
+        margin: { left: 15, right: 15 },
+      });
+
+      yPosition = (pdf as any).lastAutoTable.finalY + 10;
+
+      // Referrals by Time Period
+      checkNewPage(40);
+      pdf.setFontSize(14);
+      pdf.text(`Referrals by ${globalFilter.charAt(0).toUpperCase() + globalFilter.slice(1)}`, 15, yPosition);
+      yPosition += 8;
+
+      if (includeGraphs && referralsByTime.length > 0) {
+        try {
+          const chartImage = await generateChartImage({
+            type: 'line',
+            data: {
+              labels: referralsByTime.map(item => item.period),
+              datasets: [{
+                label: 'Referrals',
+                data: referralsByTime.map(item => item.count),
+                borderColor: 'rgb(37, 99, 235)',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                tension: 0.4,
+                fill: true,
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false },
+                title: { display: false }
+              },
+              scales: {
+                y: { beginAtZero: true }
+              }
+            }
+          });
+          
+          if (chartImage) {
+            checkNewPage(80);
+            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
+            yPosition += 75;
+          }
+        } catch (err) {
+          console.error('Error generating time chart:', err);
+        }
+      }
+
+      const timeData = referralsByTime.map(item => [item.period, item.count]);
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['Period', 'Count']],
+        body: timeData,
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235] },
+        margin: { left: 15, right: 15 },
+      });
+
+      yPosition = (pdf as any).lastAutoTable.finalY + 10;
+
+      // Top Departments
+      checkNewPage(40);
+      pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Top Departments', 15, yPosition);
+      yPosition += 8;
+
+      if (includeGraphs && departmentData.length > 0) {
+        try {
+          const colors = [
+            'rgb(37, 99, 235)', 'rgb(16, 185, 129)', 'rgb(245, 158, 11)',
+            'rgb(239, 68, 68)', 'rgb(139, 92, 246)', 'rgb(236, 72, 153)',
+            'rgb(20, 184, 166)', 'rgb(251, 146, 60)'
+          ];
+          
+          const chartImage = await generateChartImage({
+            type: 'pie',
+            data: {
+              labels: departmentData.map(dept => dept.department),
+              datasets: [{
+                data: departmentData.map(dept => dept.count),
+                backgroundColor: colors.slice(0, departmentData.length),
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { 
+                  position: 'right',
+                  labels: { boxWidth: 15, font: { size: 10 } }
+                }
+              }
+            }
+          });
+          
+          if (chartImage) {
+            checkNewPage(80);
+            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
+            yPosition += 75;
+          }
+        } catch (err) {
+          console.error('Error generating department chart:', err);
+        }
+      }
+
+      const deptData = departmentData.map((dept, idx) => [idx + 1, dept.department, dept.count]);
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['#', 'Department', 'Count']],
+        body: deptData,
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235] },
+        margin: { left: 15, right: 15 },
+      });
+
+      yPosition = (pdf as any).lastAutoTable.finalY + 10;
+
+      // Top Hospitals
+      checkNewPage(40);
+      pdf.setFontSize(14);
+      pdf.text('Top Hospitals', 15, yPosition);
+      yPosition += 8;
+
+      if (includeGraphs && hospitalsData.length > 0) {
+        try {
+          const chartImage = await generateChartImage({
+            type: 'bar',
+            data: {
+              labels: hospitalsData.map(hosp => hosp.name.substring(0, 20) + (hosp.name.length > 20 ? '...' : '')),
+              datasets: [{
+                label: 'Referrals',
+                data: hospitalsData.map(hosp => hosp.count),
+                backgroundColor: 'rgba(34, 197, 94, 0.8)',
+              }]
+            },
+            options: {
+              responsive: true,
+              indexAxis: 'y',
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                x: { beginAtZero: true }
+              }
+            }
+          });
+          
+          if (chartImage) {
+            checkNewPage(80);
+            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
+            yPosition += 75;
+          }
+        } catch (err) {
+          console.error('Error generating hospital chart:', err);
+        }
+      }
+
+      const hospData = hospitalsData.map((hosp, idx) => [idx + 1, hosp.name, hosp.count, `${hosp.percentage}%`]);
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['#', 'Hospital Name', 'Count', 'Percentage']],
+        body: hospData,
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235] },
+        margin: { left: 15, right: 15 },
+      });
+
+      yPosition = (pdf as any).lastAutoTable.finalY + 10;
+
+      // Top Specialties
+      checkNewPage(40);
+      pdf.setFontSize(14);
+      pdf.text('Top Specialties', 15, yPosition);
+      yPosition += 8;
+
+      if (includeGraphs && specialtiesData.length > 0) {
+        try {
+          const chartImage = await generateChartImage({
+            type: 'bar',
+            data: {
+              labels: specialtiesData.map(spec => spec.name),
+              datasets: [{
+                label: 'Referrals',
+                data: specialtiesData.map(spec => spec.count),
+                backgroundColor: 'rgba(37, 99, 235, 0.8)',
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                y: { beginAtZero: true }
+              }
+            }
+          });
+          
+          if (chartImage) {
+            checkNewPage(80);
+            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
+            yPosition += 75;
+          }
+        } catch (err) {
+          console.error('Error generating specialty chart:', err);
+        }
+      }
+
+      const specData = specialtiesData.map((spec, idx) => [idx + 1, spec.name, spec.count]);
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['#', 'Specialty', 'Count']],
+        body: specData,
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235] },
+        margin: { left: 15, right: 15 },
+      });
+
+      yPosition = (pdf as any).lastAutoTable.finalY + 10;
+
+      // Coordinated Referrals
+      checkNewPage(40);
+      pdf.setFontSize(14);
+      pdf.text('Coordinated Referrals', 15, yPosition);
+      yPosition += 8;
+
+      const coordData = coordinatedData.slice(0, 50).map(item => [
+        item.patient_name,
+        item.specialty,
+        item.department,
+        item.date_received
+      ]);
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['Patient Name', 'Specialty', 'Department', 'Date Received']],
+        body: coordData,
+        theme: 'striped',
+        headStyles: { fillColor: [34, 197, 94] },
+        margin: { left: 15, right: 15 },
+        styles: { fontSize: 8 },
+      });
+
+      if (coordinatedData.length > 50) {
+        yPosition = (pdf as any).lastAutoTable.finalY + 5;
+        pdf.setFontSize(9);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(`... and ${coordinatedData.length - 50} more`, 15, yPosition);
+      }
+
+      yPosition = (pdf as any).lastAutoTable.finalY + 10;
+
+      // Uncoordinated Referrals
+      checkNewPage(40);
+      pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Uncoordinated Referrals', 15, yPosition);
+      yPosition += 8;
+
+      const uncoordData = uncoordinatedData.slice(0, 50).map(item => [
+        item.patient_name,
+        item.reason.substring(0, 30) + (item.reason.length > 30 ? '...' : ''),
+        item.specialty,
+        item.date_cancelled
+      ]);
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['Patient Name', 'Reason', 'Specialty', 'Date Cancelled']],
+        body: uncoordData,
+        theme: 'striped',
+        headStyles: { fillColor: [239, 68, 68] },
+        margin: { left: 15, right: 15 },
+        styles: { fontSize: 8 },
+      });
+
+      if (uncoordinatedData.length > 50) {
+        yPosition = (pdf as any).lastAutoTable.finalY + 5;
+        pdf.setFontSize(9);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(`... and ${uncoordinatedData.length - 50} more`, 15, yPosition);
+      }
+
+      yPosition = (pdf as any).lastAutoTable.finalY + 10;
+
+      // Status Distribution
+      checkNewPage(40);
+      pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Status Distribution', 15, yPosition);
+      yPosition += 8;
+
+      if (includeGraphs && reportsData?.status_distribution && reportsData.status_distribution.length > 0) {
+        try {
+          const colors = [
+            'rgb(34, 197, 94)', 'rgb(251, 191, 36)', 'rgb(239, 68, 68)',
+            'rgb(37, 99, 235)', 'rgb(139, 92, 246)', 'rgb(236, 72, 153)'
+          ];
+          
+          const chartImage = await generateChartImage({
+            type: 'doughnut',
+            data: {
+              labels: reportsData.status_distribution.map(status => status.status),
+              datasets: [{
+                data: reportsData.status_distribution.map(status => status.count),
+                backgroundColor: colors.slice(0, reportsData.status_distribution.length),
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { 
+                  position: 'right',
+                  labels: { boxWidth: 15, font: { size: 10 } }
+                }
+              }
+            }
+          });
+          
+          if (chartImage) {
+            checkNewPage(80);
+            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
+            yPosition += 75;
+          }
+        } catch (err) {
+          console.error('Error generating status chart:', err);
+        }
+      }
+
+      const statusData = reportsData?.status_distribution.map(status => [status.status, status.count]) || [];
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['Status', 'Count']],
+        body: statusData,
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235] },
+        margin: { left: 15, right: 15 },
+      });
+
+      yPosition = (pdf as any).lastAutoTable.finalY + 10;
+
+      // Priority Distribution
+      checkNewPage(40);
+      pdf.setFontSize(14);
+      pdf.text('Priority Distribution', 15, yPosition);
+      yPosition += 8;
+
+      if (includeGraphs && reportsData?.priority_distribution && reportsData.priority_distribution.length > 0) {
+        try {
+          const colors = [
+            'rgb(239, 68, 68)', 'rgb(251, 191, 36)', 'rgb(34, 197, 94)', 'rgb(37, 99, 235)'
+          ];
+          
+          const chartImage = await generateChartImage({
+            type: 'pie',
+            data: {
+              labels: reportsData.priority_distribution.map(priority => priority.priority),
+              datasets: [{
+                data: reportsData.priority_distribution.map(priority => priority.count),
+                backgroundColor: colors.slice(0, reportsData.priority_distribution.length),
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { 
+                  position: 'right',
+                  labels: { boxWidth: 15, font: { size: 10 } }
+                }
+              }
+            }
+          });
+          
+          if (chartImage) {
+            checkNewPage(80);
+            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
+            yPosition += 75;
+          }
+        } catch (err) {
+          console.error('Error generating priority chart:', err);
+        }
+      }
+
+      const priorityData = reportsData?.priority_distribution.map(priority => [priority.priority, priority.count]) || [];
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['Priority', 'Count']],
+        body: priorityData,
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235] },
+        margin: { left: 15, right: 15 },
+      });
+
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const filename = `SPMC_Report_${includeGraphs ? 'WithGraphs' : 'WithoutGraphs'}_${timestamp}.pdf`;
+
+      // Save the PDF
+      pdf.save(filename);
+
+      toast({
+        title: "Success",
+        description: `Report downloaded as ${filename}`,
+      });
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast({
+        title: "Error",
+        description: `Failed to generate report: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
   // Determine which layout to use based on user role
   const Layout = user?.permissions?.is_admin_user ? AdminDashboardLayout : DashboardLayout;
 
@@ -211,70 +742,44 @@ const Reports = () => {
           </div>
           
           {/* Global Filter */}
-          <div className="flex items-center gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Global Filter:</span>
-            </div>
-            <div className="flex gap-2">
-              {(['week', 'month', 'year'] as TimeFilter[]).map((filter) => (
-                <Button
-                  key={filter}
-                  variant={globalFilter === filter ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setGlobalFilter(filter)}
-                  className="text-sm"
-                >
-                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                </Button>
-              ))}
-            </div>
-            
-            {/* Year Selector */}
-            {globalFilter !== 'year' && (
-              <select
-                value={globalYear}
-                onChange={(e) => setGlobalYear(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                {availableYears.map(year => (
-                  <option key={year} value={year}>{year}</option>
+          <div className="flex items-center justify-between gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg">
+            <div className="flex items-center gap-3 flex-wrap flex-1">
+              <div className="flex items-center gap-2">
+                <Filter className="w-5 h-5 text-blue-600" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Global Filter:</span>
+              </div>
+              <div className="flex gap-2">
+                {(['week', 'month', 'year'] as TimeFilter[]).map((filter) => (
+                  <Button
+                    key={filter}
+                    variant={globalFilter === filter ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setGlobalFilter(filter)}
+                    className="text-sm"
+                  >
+                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                  </Button>
                 ))}
-              </select>
-            )}
-            
-            {/* Month Selector */}
-            {globalFilter === 'month' && (
-              <select
-                value={globalMonth}
-                onChange={(e) => setGlobalMonth(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value={0}>All Months</option>
-                <option value={1}>January</option>
-                <option value={2}>February</option>
-                <option value={3}>March</option>
-                <option value={4}>April</option>
-                <option value={5}>May</option>
-                <option value={6}>June</option>
-                <option value={7}>July</option>
-                <option value={8}>August</option>
-                <option value={9}>September</option>
-                <option value={10}>October</option>
-                <option value={11}>November</option>
-                <option value={12}>December</option>
-              </select>
-            )}
-            
-            {/* Week Selector */}
-            {globalFilter === 'week' && (
-              <>
+              </div>
+              
+              {/* Year Selector */}
+              {globalFilter !== 'year' && (
                 <select
-                  value={weekFilterMonth}
-                  onChange={(e) => {
-                    setWeekFilterMonth(Number(e.target.value));
-                    setGlobalWeek(0); // Reset week when month changes
-                  }}
+                  value={globalYear}
+                  onChange={(e) => setGlobalYear(Number(e.target.value))}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              )}
+              
+              {/* Month Selector */}
+              {globalFilter === 'month' && (
+                <select
+                  value={globalMonth}
+                  onChange={(e) => setGlobalMonth(Number(e.target.value))}
                   className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   <option value={0}>All Months</option>
@@ -291,31 +796,90 @@ const Reports = () => {
                   <option value={11}>November</option>
                   <option value={12}>December</option>
                 </select>
+              )}
+              
+              {/* Week Selector */}
+              {globalFilter === 'week' && (
+                <>
+                  <select
+                    value={weekFilterMonth}
+                    onChange={(e) => {
+                      setWeekFilterMonth(Number(e.target.value));
+                      setGlobalWeek(0); // Reset week when month changes
+                    }}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value={0}>All Months</option>
+                    <option value={1}>January</option>
+                    <option value={2}>February</option>
+                    <option value={3}>March</option>
+                    <option value={4}>April</option>
+                    <option value={5}>May</option>
+                    <option value={6}>June</option>
+                    <option value={7}>July</option>
+                    <option value={8}>August</option>
+                    <option value={9}>September</option>
+                    <option value={10}>October</option>
+                    <option value={11}>November</option>
+                    <option value={12}>December</option>
+                  </select>
+                  <select
+                    value={globalWeek}
+                    onChange={(e) => setGlobalWeek(Number(e.target.value))}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value={0}>All Weeks</option>
+                    {Array.from({ length: 52 }, (_, i) => i + 1).map(week => (
+                      <option key={week} value={week}>Week {week}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+              
+              {/* Year Selector for Year filter */}
+              {globalFilter === 'year' && (
                 <select
-                  value={globalWeek}
-                  onChange={(e) => setGlobalWeek(Number(e.target.value))}
+                  value={globalYear}
+                  onChange={(e) => setGlobalYear(Number(e.target.value))}
                   className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  <option value={0}>All Weeks</option>
-                  {Array.from({ length: 52 }, (_, i) => i + 1).map(week => (
-                    <option key={week} value={week}>Week {week}</option>
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
                   ))}
                 </select>
-              </>
-            )}
+              )}
+            </div>
             
-            {/* Year Selector for Year filter */}
-            {globalFilter === 'year' && (
-              <select
-                value={globalYear}
-                onChange={(e) => setGlobalYear(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                {availableYears.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-            )}
+            {/* Download Button with Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Report
+                  <ChevronDown className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={() => handleDownloadReports(true)}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Image className="w-4 h-4" />
+                  <span>With Graphs</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDownloadReports(false)}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Without Graphs</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         
