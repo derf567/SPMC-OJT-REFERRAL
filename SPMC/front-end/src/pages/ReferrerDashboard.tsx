@@ -704,6 +704,22 @@ const ReferrerDashboard = () => {
                   {referral.status === 'completed' ? '✅' : '❌'}
                 </span>
               )}
+              {/* Show Edit button only if status is pending */}
+              {referral.status === 'pending' && (
+                <Link 
+                  to={`/referral/edit/${referral.id}`}
+                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 text-xs underline font-medium"
+                >
+                  ✏️ Edit
+                </Link>
+              )}
+              {/* Show View button for all referrals */}
+              <Link
+                to={`/referral/view/${referral.id}`}
+                className="text-green-600 hover:text-green-800 dark:text-green-400 text-xs underline font-medium"
+              >
+                👁️ View
+              </Link>
               <button
                 onClick={() => openTimelineModal(referral)}
                 className="text-blue-600 hover:text-blue-800 dark:text-blue-400 text-xs underline"
