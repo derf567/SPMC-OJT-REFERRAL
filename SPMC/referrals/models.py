@@ -7,11 +7,8 @@ class UserProfile(models.Model):
     ROLE_CHOICES = [
         ('edcc_personnel', 'EDCC Personnel'),
         ('call_triage', 'EDMAR/EDHO (Call Triage)'),
-        ('his_department', 'HIS Department'),
-        ('view_only', 'View Only (Department Doctor)'),
         ('admin', 'Administrator'),
         ('referrer', 'Referrer'),
-        ('department_user', 'Department User'),
     ]
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
@@ -60,45 +57,17 @@ class UserProfile(models.Model):
         return self.role == 'edcc_personnel'
     
     @property
-    def is_his_department(self):
-        """Check if user is HIS department"""
-        return self.role == 'his_department'
-    
-    @property
-    def can_confirm_arrivals(self):
-        """HIS Department can confirm referral arrivals"""
-        return self.role == 'his_department'
-    
-    @property
     def is_admin_user(self):
         """Check if user is admin"""
         return self.role == 'admin' or self.user.is_superuser
-    
-    @property
-    def is_department_user(self):
-        """Check if user is a department user"""
-        return self.role == 'department_user'
-    
-    @property
-    def is_view_only(self):
-        """Check if user is view only (department doctor)"""
-        return self.role == 'view_only'
 
 class ReferringHospital(models.Model):
     """Model for referring hospitals/facilities"""
-    DOH_LEVEL_CHOICES = [
-        ('primary', 'Primary'),
-        ('secondary', 'Secondary'),
-        ('tertiary', 'Tertiary'),
-    ]
-    
     name = models.CharField(max_length=200)
-    doh_level = models.CharField(max_length=20, choices=DOH_LEVEL_CHOICES, blank=True, null=True)
     is_inside_davao_city = models.BooleanField(default=True)
-    location = models.CharField(max_length=100, blank=True, null=True, help_text="City/Province (e.g., Surigao, Agusan)")
+    location = models.CharField(max_length=100, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     contact_number = models.CharField(max_length=20, blank=True, null=True)
-    contact_numbers = models.JSONField(default=list, blank=True, help_text="List of contact numbers (hotlines, phone numbers)")
     
     def __str__(self):
         return self.name
@@ -196,7 +165,6 @@ class Referral(models.Model):
     rr = models.IntegerField(verbose_name="Respiratory Rate")
     temp = models.DecimalField(max_digits=4, decimal_places=1, verbose_name="Temperature")
     o2_sat = models.IntegerField(verbose_name="O2 Saturation")
-    vital_signs_time = models.TimeField(blank=True, null=True, verbose_name="Time Vital Signs Taken")
     
     gcs_score = models.CharField(max_length=50, verbose_name="GCS Score or AVPU")
     o2_support = models.CharField(max_length=100, verbose_name="O2 Support")
@@ -223,12 +191,9 @@ class Referral(models.Model):
     
     # Referring Hospital Information
     referring_hospital = models.ForeignKey(ReferringHospital, on_delete=models.CASCADE)
-    hospital_doh_level = models.CharField(max_length=20, blank=True, null=True, help_text="DOH Level: Primary, Secondary, or Tertiary")
-    hospital_location = models.CharField(max_length=200, blank=True, null=True, help_text="Hospital location in Mindanao")
-    hospital_contact_numbers = models.JSONField(default=list, blank=True, help_text="List of hospital contact numbers")
     referrer_name = models.CharField(max_length=200)
     referrer_profession = models.CharField(max_length=100)
-    referrer_cellphone = models.CharField(max_length=20, blank=True, null=True)
+    referrer_cellphone = models.CharField(max_length=20)
     mode_of_transportation = models.CharField(max_length=100)
     
     # Consent
@@ -260,18 +225,6 @@ class Referral(models.Model):
     # Outpatient scheduling (for schedule_opd triage decisions)
     scheduled_date = models.DateField(blank=True, null=True, help_text="Scheduled appointment date for OPD")
     scheduled_time = models.TimeField(blank=True, null=True, help_text="Scheduled appointment time for OPD")
-    
-    # Transit decision fields (for referrer response to triage calls)
-    transit_decision = models.CharField(
-        max_length=20, 
-        choices=[('now', 'Transport Now'), ('scheduled', 'Scheduled Transport')],
-        blank=True, 
-        null=True,
-        help_text="Referrer's decision on when to transport patient"
-    )
-    transit_scheduled_date = models.DateField(blank=True, null=True, help_text="When referrer wants to schedule transport")
-    transit_scheduled_time = models.TimeField(blank=True, null=True, help_text="Time referrer wants to schedule transport")
-    transit_decision_at = models.DateTimeField(blank=True, null=True, help_text="When referrer made transit decision")
     
     class Meta:
         ordering = ['-created_at']
@@ -347,13 +300,8 @@ class ReferrerAccount(models.Model):
     REFERRER_TYPE_CHOICES = [
         ('doctor', 'Doctor / Medical Professional'),
         ('hospital_employee', 'Authorized Hospital Employee'),
+        ('hospital_account', 'Hospital Account'),
         ('other', 'Other'),
-    ]
-
-    APPROVAL_STATUS_CHOICES = [
-        ('pending', 'Pending Approval'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='referrer_profile')
@@ -361,7 +309,6 @@ class ReferrerAccount(models.Model):
     middle_name = models.CharField(max_length=100, blank=True, null=True)
     last_name = models.CharField(max_length=100)
     referrer_type = models.CharField(max_length=30, choices=REFERRER_TYPE_CHOICES)
-    approval_status = models.CharField(max_length=20, choices=APPROVAL_STATUS_CHOICES, default='pending')
 
     # Common fields
     GENDER_CHOICES = [
@@ -374,13 +321,8 @@ class ReferrerAccount(models.Model):
     address = models.TextField(blank=True, null=True)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
 
-    # Hospital Information (for all referrer types)
-    hospital_name = models.CharField(max_length=200, blank=True, null=True, help_text="Name of referring hospital")
-    hospital_doh_level = models.CharField(max_length=20, blank=True, null=True, help_text="DOH Level: Primary, Secondary, or Tertiary")
-    hospital_location = models.CharField(max_length=200, blank=True, null=True, help_text="Hospital location (City/Province in Mindanao)")
-    contact_numbers = models.JSONField(default=list, blank=True, help_text="List of contact numbers")
-
     # Doctor-specific
+    specialties = models.ManyToManyField(Specialty, blank=True, related_name='referrers')
     affiliate_hospitals = models.ManyToManyField(ReferringHospital, blank=True, related_name='affiliated_referrers')
 
     # Hospital employee-specific

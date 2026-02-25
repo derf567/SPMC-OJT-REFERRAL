@@ -7,7 +7,6 @@ from django.db.models import Q, Count, Max
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
-from datetime import datetime
 from .models import ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory
 from .serializers import (
     ReferringHospitalSerializer, SpecialtySerializer, ReferralListSerializer,
@@ -83,13 +82,6 @@ class ReferralViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
-        
-        # Filter by department for department users and view-only users
-        user_profile = getattr(self.request.user, 'profile', None)
-        if user_profile and user_profile.department:
-            # Department users and view-only users can only see referrals assigned to their department
-            if user_profile.is_department_user or user_profile.is_view_only:
-                queryset = queryset.filter(assigned_department=user_profile.department)
         
         # Filter by date range if provided
         start_date = self.request.query_params.get('start_date')
@@ -293,321 +285,132 @@ class ReferralViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def accept_with_triage_decision(self, request, pk=None):
         """Accept referral with triage decision (Triage user action)"""
-        try:
-            referral = self.get_object()
-            
-            # Check if user has permission to triage referrals
-            if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
-                return Response({
-                    'error': 'You do not have permission to make triage decisions'
-                }, status=status.HTTP_403_FORBIDDEN)
-            
-            # Only allow triage decisions for waiting referrals
-            if referral.status != 'waiting':
-                return Response({
-                    'error': 'Can only make triage decisions for referrals in waiting status'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Get triage decision from request data
-            triage_decision = request.data.get('triage_decision')
-            triage_notes = request.data.get('triage_notes', '')
-            scheduled_date = request.data.get('scheduled_date')
-            scheduled_time = request.data.get('scheduled_time')
-            
-            if not triage_decision:
-                return Response({
-                    'error': 'Triage decision is required'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Validate triage decision
-            valid_decisions = [choice[0] for choice in Referral.TRIAGE_DECISION_CHOICES]
-            if triage_decision not in valid_decisions:
-                return Response({
-                    'error': 'Invalid triage decision'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Validate scheduled date/time for schedule_opd
-            if triage_decision == 'schedule_opd':
-                if not scheduled_date or not scheduled_time:
-                    return Response({
-                        'error': 'Scheduled date and time are required for OPD appointments'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-                # Validate date is not in the past
-                try:
-                    scheduled_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
-                    
-                    # Try to parse time in multiple formats
-                    scheduled_time_obj = None
-                    time_formats = ['%H:%M', '%I:%M %p', '%I:%M%p']  # 24-hour, 12-hour with space, 12-hour without space
-                    
-                    for time_format in time_formats:
-                        try:
-                            scheduled_time_obj = datetime.strptime(scheduled_time, time_format).time()
-                            break
-                        except ValueError:
-                            continue
-                    
-                    if scheduled_time_obj is None:
-                        return Response({
-                            'error': f'Invalid time format. Please use HH:MM or HH:MM AM/PM format. Received: {scheduled_time}'
-                        }, status=status.HTTP_400_BAD_REQUEST)
-                    
-                    # Create timezone-aware datetime for comparison
-                    scheduled_datetime = timezone.make_aware(
-                        datetime.combine(scheduled_date_obj, scheduled_time_obj)
-                    )
-                    
-                    if scheduled_datetime < timezone.now():
-                        return Response({
-                            'error': 'Cannot schedule appointments in the past'
-                        }, status=status.HTTP_400_BAD_REQUEST)
-                except ValueError as e:
-                    return Response({
-                        'error': f'Invalid date or time format: {str(e)}'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                except Exception as e:
-                    return Response({
-                        'error': f'Error validating date/time: {str(e)}'
-                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-            # Update referral with triage decision
-            old_status = referral.status
-            referral.triage_decision = triage_decision
-            referral.triage_notes = triage_notes
-            referral.triaged_by = request.user
-            referral.triaged_at = timezone.now()
-            
-            # Set status based on triage decision
-            if triage_decision == 'emergent':
-                # For emergent cases, automatically mark as in_transit
-                # Referrer should transfer patient immediately without scheduling
-                referral.status = 'in_transit'
-                referral.is_emergent = True
-                referral.transit_decision = 'now'  # Automatically set to immediate transfer
-                referral.transit_decision_at = timezone.now()
-            elif triage_decision == 'urgent':
-                # For urgent cases, referrer needs to decide on transport timing
-                referral.status = 'urgent'
-                referral.is_urgent = True
-            elif triage_decision == 'schedule_opd':
-                referral.status = 'schedule_opd'
-                referral.scheduled_date = scheduled_date
-                # Convert time to proper format if needed
-                time_formats = ['%H:%M', '%I:%M %p', '%I:%M%p']
-                time_parsed = False
-                for time_format in time_formats:
-                    try:
-                        time_obj = datetime.strptime(scheduled_time, time_format).time()
-                        referral.scheduled_time = time_obj
-                        time_parsed = True
-                        break
-                    except ValueError:
-                        continue
-                
-                if not time_parsed:
-                    return Response({
-                        'error': f'Could not parse time format: {scheduled_time}'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-            
-            referral.save()
-            
-            # Create status history record
-            decision_display = dict(Referral.TRIAGE_DECISION_CHOICES).get(triage_decision, triage_decision)
-            
-            if triage_decision == 'emergent':
-                history_notes = f'Triage decision: {decision_display}. Patient requires immediate emergency care - automatically marked for immediate transfer.'
-            else:
-                history_notes = f'Triage decision: {decision_display}'
-            
-            if triage_notes:
-                history_notes += f'. Notes: {triage_notes}'
-            if triage_decision == 'schedule_opd':
-                history_notes += f'. Scheduled for {scheduled_date} at {scheduled_time}'
-                
-            ReferralStatusHistory.objects.create(
-                referral=referral,
-                old_status=old_status,
-                new_status=referral.status,
-                changed_by=request.user,
-                notes=history_notes
-            )
-            
-            # Prepare response data
-            response_data = {
-                'message': f'Referral accepted with triage decision: {decision_display}',
-                'triage_decision': triage_decision,
-                'new_status': referral.status,
-                'triaged_by': request.user.get_full_name(),
-                'triaged_at': referral.triaged_at.isoformat() if referral.triaged_at else None
-            }
-            
-            if triage_decision == 'emergent':
-                response_data['transit_decision'] = 'now'
-                response_data['message'] = f'Referral accepted with triage decision: {decision_display}. Patient marked for immediate transfer.'
-            elif triage_decision == 'schedule_opd':
-                response_data['scheduled_date'] = str(referral.scheduled_date) if referral.scheduled_date else None
-                response_data['scheduled_time'] = str(referral.scheduled_time) if referral.scheduled_time else None
-            
-            return Response(response_data)
-            
-        except Exception as e:
-            # Log the error for debugging
-            import traceback
-            traceback.print_exc()
-            return Response({
-                'error': f'An unexpected error occurred: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=True, methods=['post'])
-    def respond_to_triage_call(self, request, pk=None):
-        """Referrer responds to triage call with transit decision"""
         referral = self.get_object()
         
-        # Check if user is the referrer who created this referral
-        if referral.created_by != request.user:
+        # Check if user has permission to triage referrals
+        if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
             return Response({
-                'error': 'You can only respond to triage calls for your own referrals'
+                'error': 'You do not have permission to make triage decisions'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Only allow response for urgent referrals that haven't been responded to yet
-        if referral.status != 'urgent' or referral.triage_decision != 'urgent':
+        # Only allow triage decisions for waiting referrals
+        if referral.status != 'waiting':
             return Response({
-                'error': 'This referral is not awaiting a triage call response'
+                'error': 'Can only make triage decisions for referrals in waiting status'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        if referral.transit_decision:
-            return Response({
-                'error': 'Transit decision has already been made for this referral'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Get transit decision from request data
-        transit_decision = request.data.get('transit_decision')
+        # Get triage decision from request data
+        triage_decision = request.data.get('triage_decision')
+        triage_notes = request.data.get('triage_notes', '')
         scheduled_date = request.data.get('scheduled_date')
         scheduled_time = request.data.get('scheduled_time')
         
-        if not transit_decision or transit_decision not in ['now', 'scheduled']:
+        if not triage_decision:
             return Response({
-                'error': 'Valid transit decision is required (now or scheduled)'
+                'error': 'Triage decision is required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validate scheduled date/time for scheduled transport
-        if transit_decision == 'scheduled':
+        # Validate triage decision
+        valid_decisions = [choice[0] for choice in Referral.TRIAGE_DECISION_CHOICES]
+        if triage_decision not in valid_decisions:
+            return Response({
+                'error': 'Invalid triage decision'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate scheduled date/time for schedule_opd
+        if triage_decision == 'schedule_opd':
             if not scheduled_date or not scheduled_time:
                 return Response({
-                    'error': 'Scheduled date and time are required for scheduled transport'
+                    'error': 'Scheduled date and time are required for OPD appointments'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Validate date is not in the past
             from datetime import datetime
             try:
-                scheduled_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
-                
-                # Try to parse time in multiple formats
-                scheduled_time_obj = None
-                time_formats = ['%H:%M', '%I:%M %p', '%I:%M%p']  # 24-hour, 12-hour with space, 12-hour without space
-                
-                for time_format in time_formats:
-                    try:
-                        scheduled_time_obj = datetime.strptime(scheduled_time, time_format).time()
-                        break
-                    except ValueError:
-                        continue
-                
-                if scheduled_time_obj is None:
-                    return Response({
-                        'error': f'Invalid time format. Please use HH:MM or HH:MM AM/PM format. Received: {scheduled_time}'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-                # Create timezone-aware datetime for comparison
-                scheduled_datetime = timezone.make_aware(
-                    datetime.combine(scheduled_date_obj, scheduled_time_obj)
+                scheduled_datetime = datetime.combine(
+                    datetime.strptime(scheduled_date, '%Y-%m-%d').date(),
+                    datetime.strptime(scheduled_time, '%H:%M').time()
                 )
-                
                 if scheduled_datetime < timezone.now():
                     return Response({
-                        'error': 'Cannot schedule transport in the past'
+                        'error': 'Cannot schedule appointments in the past'
                     }, status=status.HTTP_400_BAD_REQUEST)
-            except ValueError as e:
+            except ValueError:
                 return Response({
-                    'error': f'Invalid date or time format: {str(e)}'
+                    'error': 'Invalid date or time format'
                 }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Update referral with transit decision
+        # Update referral with triage decision
         old_status = referral.status
-        referral.transit_decision = transit_decision
-        referral.transit_decision_at = timezone.now()
+        referral.triage_decision = triage_decision
+        referral.triage_notes = triage_notes
+        referral.triaged_by = request.user
+        referral.triaged_at = timezone.now()
         
-        if transit_decision == 'now':
-            referral.status = 'in_transit'
-        elif transit_decision == 'scheduled':
-            referral.transit_scheduled_date = scheduled_date
-            # Convert time to proper format if needed
-            from datetime import datetime
-            time_formats = ['%H:%M', '%I:%M %p', '%I:%M%p']
-            for time_format in time_formats:
-                try:
-                    time_obj = datetime.strptime(scheduled_time, time_format).time()
-                    referral.transit_scheduled_time = time_obj
-                    break
-                except ValueError:
-                    continue
-            # Keep status as urgent until scheduled time
+        # Set status based on triage decision
+        if triage_decision == 'emergent':
+            referral.status = 'emergent'
+            referral.is_emergent = True
+        elif triage_decision == 'urgent':
+            referral.status = 'urgent'
+            referral.is_urgent = True
+        elif triage_decision == 'schedule_opd':
+            referral.status = 'schedule_opd'
+            referral.scheduled_date = scheduled_date
+            referral.scheduled_time = scheduled_time
         
         referral.save()
         
         # Create status history record
-        if transit_decision == 'now':
-            history_notes = 'Referrer decided to transport patient immediately'
-            new_status = 'in_transit'
-        else:
-            history_notes = f'Referrer scheduled transport for {scheduled_date} at {scheduled_time}'
-            new_status = referral.status
-        
+        decision_display = dict(Referral.TRIAGE_DECISION_CHOICES).get(triage_decision, triage_decision)
+        history_notes = f'Triage decision: {decision_display}'
+        if triage_notes:
+            history_notes += f'. Notes: {triage_notes}'
+        if triage_decision == 'schedule_opd':
+            history_notes += f'. Scheduled for {scheduled_date} at {scheduled_time}'
+            
         ReferralStatusHistory.objects.create(
             referral=referral,
             old_status=old_status,
-            new_status=new_status,
+            new_status=referral.status,
             changed_by=request.user,
             notes=history_notes
         )
         
         # Prepare response data
         response_data = {
-            'message': f'Transit decision recorded: {transit_decision}',
-            'transit_decision': transit_decision,
+            'message': f'Referral accepted with triage decision: {decision_display}',
+            'triage_decision': triage_decision,
             'new_status': referral.status,
-            'decided_at': referral.transit_decision_at.isoformat() if referral.transit_decision_at else None
+            'triaged_by': request.user.get_full_name(),
+            'triaged_at': referral.triaged_at
         }
         
-        if transit_decision == 'scheduled':
-            response_data['transit_scheduled_date'] = str(referral.transit_scheduled_date) if referral.transit_scheduled_date else None
-            response_data['transit_scheduled_time'] = str(referral.transit_scheduled_time) if referral.transit_scheduled_time else None
+        if triage_decision == 'schedule_opd':
+            response_data['scheduled_date'] = referral.scheduled_date
+            response_data['scheduled_time'] = referral.scheduled_time
         
         return Response(response_data)
     
     @action(detail=False, methods=['get'])
     def dashboard_stats(self, request):
         """Get dashboard statistics"""
-        # Get base queryset (will be filtered by department if user is department user)
-        base_queryset = self.get_queryset()
-        
-        total_referrals = base_queryset.count()
-        pending_referrals = base_queryset.filter(status='pending').count()
-        in_transit_referrals = base_queryset.filter(status='in_transit').count()
-        critical_referrals = base_queryset.filter(priority='critical').count()
-        urgent_referrals = base_queryset.filter(is_urgent=True).count()
+        total_referrals = Referral.objects.count()
+        pending_referrals = Referral.objects.filter(status='pending').count()
+        in_transit_referrals = Referral.objects.filter(status='in_transit').count()
+        critical_referrals = Referral.objects.filter(priority='critical').count()
+        urgent_referrals = Referral.objects.filter(is_urgent=True).count()
         
         # Triage decisions
-        emergent_referrals = base_queryset.filter(status='emergent').count()
-        urgent_triage_referrals = base_queryset.filter(status='urgent').count()
-        scheduled_opd_referrals = base_queryset.filter(status='schedule_opd').count()
+        emergent_referrals = Referral.objects.filter(status='emergent').count()
+        urgent_triage_referrals = Referral.objects.filter(status='urgent').count()
+        scheduled_opd_referrals = Referral.objects.filter(status='schedule_opd').count()
         
         # Recent referrals (last 24 hours)
         from django.utils import timezone
         from datetime import timedelta
         yesterday = timezone.now() - timedelta(days=1)
-        recent_referrals = base_queryset.filter(created_at__gte=yesterday).count()
+        recent_referrals = Referral.objects.filter(created_at__gte=yesterday).count()
         
         return Response({
             'total_referrals': total_referrals,
@@ -649,29 +452,20 @@ class ReferralViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def patients(self, request):
-        """Get unique patients from archived referrals (completed, cancelled, uncoordinated)"""
+        """Get unique patients from referrals"""
+        # Get unique patients with their latest referral info
         patients_data = []
         
-        # Get base queryset (will be filtered by department if user is department user)
-        base_queryset = self.get_queryset()
-        
-        # Only show patients with archived statuses (completed, cancelled)
-        # Note: uncoordinated is typically represented as cancelled
-        archived_statuses = ['completed', 'cancelled']
-        
-        # Get unique patient names with their most recent archived referral
-        unique_patients = base_queryset.filter(
-            status__in=archived_statuses
-        ).values('patient_full_name').annotate(
+        # Get unique patient names with their most recent referral
+        unique_patients = Referral.objects.values('patient_full_name').annotate(
             latest_referral=Max('created_at'),
             total_referrals=Count('id')
         ).order_by('-latest_referral')
         
         for patient_info in unique_patients:
-            # Get the latest archived referral for this patient
-            latest_referral = base_queryset.filter(
-                patient_full_name=patient_info['patient_full_name'],
-                status__in=archived_statuses
+            # Get the latest referral for this patient
+            latest_referral = Referral.objects.filter(
+                patient_full_name=patient_info['patient_full_name']
             ).order_by('-created_at').first()
             
             if latest_referral:
@@ -719,17 +513,14 @@ class ReferralViewSet(viewsets.ModelViewSet):
         from datetime import timedelta
         from django.db.models import Count, Q
         
-        # Get base queryset (will be filtered by department if user is department user)
-        base_queryset = self.get_queryset()
-        
         # Basic counts
-        total_referrals = base_queryset.count()
-        successful_referrals = base_queryset.filter(status='completed').count()
-        pending_referrals = base_queryset.filter(status='pending').count()
-        cancelled_referrals = base_queryset.filter(status='cancelled').count()
+        total_referrals = Referral.objects.count()
+        successful_referrals = Referral.objects.filter(status='completed').count()
+        pending_referrals = Referral.objects.filter(status='pending').count()
+        cancelled_referrals = Referral.objects.filter(status='cancelled').count()
         
-        # Calculate coordination rate
-        coordination_rate = (successful_referrals / total_referrals * 100) if total_referrals > 0 else 0
+        # Calculate success rate
+        success_rate = (successful_referrals / total_referrals * 100) if total_referrals > 0 else 0
         cancellation_rate = (cancelled_referrals / total_referrals * 100) if total_referrals > 0 else 0
         
         # Monthly trends (last 6 months)
@@ -738,7 +529,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
             month_start = timezone.now().replace(day=1) - timedelta(days=30*i)
             month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
             
-            month_referrals = base_queryset.filter(
+            month_referrals = Referral.objects.filter(
                 created_at__date__gte=month_start.date(),
                 created_at__date__lte=month_end.date()
             ).count()
@@ -751,9 +542,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
         monthly_data.reverse()  # Show oldest to newest
         
         # Top referring hospitals
-        hospital_ids = base_queryset.values_list('referring_hospital', flat=True).distinct()
-        top_hospitals = ReferringHospital.objects.filter(id__in=hospital_ids).annotate(
-            referral_count=Count('referral', filter=Q(referral__in=base_queryset))
+        top_hospitals = ReferringHospital.objects.annotate(
+            referral_count=Count('referral')
         ).filter(referral_count__gt=0).order_by('-referral_count')[:5]
         
         hospital_data = []
@@ -766,19 +556,18 @@ class ReferralViewSet(viewsets.ModelViewSet):
             })
         
         # Status distribution
-        status_distribution = base_queryset.values('status').annotate(
+        status_distribution = Referral.objects.values('status').annotate(
             count=Count('status')
         ).order_by('-count')
         
         # Priority distribution
-        priority_distribution = base_queryset.values('priority').annotate(
+        priority_distribution = Referral.objects.values('priority').annotate(
             count=Count('priority')
         ).order_by('-count')
         
         # Specialty distribution
-        specialty_ids = base_queryset.values_list('specialty_needed', flat=True).distinct()
-        specialty_distribution = Specialty.objects.filter(id__in=specialty_ids).annotate(
-            referral_count=Count('referral', filter=Q(referral__in=base_queryset))
+        specialty_distribution = Specialty.objects.annotate(
+            referral_count=Count('referral')
         ).filter(referral_count__gt=0).order_by('-referral_count')[:10]
         
         specialty_data = []
@@ -790,10 +579,10 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         # Recent activity (last 7 days)
         week_ago = timezone.now() - timedelta(days=7)
-        recent_referrals = base_queryset.filter(created_at__gte=week_ago).count()
+        recent_referrals = Referral.objects.filter(created_at__gte=week_ago).count()
         
         # Average processing time (for completed referrals)
-        completed_referrals = base_queryset.filter(status='completed')
+        completed_referrals = Referral.objects.filter(status='completed')
         avg_processing_time = 0
         if completed_referrals.exists():
             total_time = sum([
@@ -808,7 +597,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'successful_referrals': successful_referrals,
                 'pending_referrals': pending_referrals,
                 'cancelled_referrals': cancelled_referrals,
-                'coordination_rate': round(coordination_rate, 1),
+                'success_rate': round(success_rate, 1),
                 'cancellation_rate': round(cancellation_rate, 1),
                 'recent_referrals': recent_referrals,
                 'avg_processing_time_hours': round(avg_processing_time, 1)
@@ -826,12 +615,9 @@ class ReferralViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
         from datetime import timedelta, datetime
         from django.db.models import Count
-        import calendar
         
-        time_filter = request.query_params.get('filter', 'month')
+        time_filter = request.query_params.get('filter', 'month')  # week, month, year
         year = request.query_params.get('year', timezone.now().year)
-        month = request.query_params.get('month', None)
-        week = request.query_params.get('week', None)
         
         try:
             year = int(year)
@@ -841,92 +627,46 @@ class ReferralViewSet(viewsets.ModelViewSet):
         data = []
         
         if time_filter == 'week':
-            try:
-                week_num = int(week) if week else 0
-            except (ValueError, TypeError):
-                week_num = 0
+            # Get last 12 weeks for the specified year
+            start_of_year = datetime(year, 1, 1)
+            end_of_year = datetime(year, 12, 31)
             
-            try:
-                month_num = int(month) if month else 0
-            except (ValueError, TypeError):
-                month_num = 0
+            # Get current date or end of specified year if in the past
+            current_date = min(timezone.now().date(), end_of_year.date())
             
-            if week_num == 0:
-                # Show all weeks (filtered by month if specified)
-                jan_1 = datetime(year, 1, 1)
-                days_to_monday = (7 - jan_1.weekday()) % 7
-                if jan_1.weekday() != 0:
-                    days_to_monday = (7 - jan_1.weekday())
-                first_monday = jan_1 + timedelta(days=days_to_monday)
-                
-                # If month is specified, filter weeks for that month
-                if month_num > 0:
-                    month_start = datetime(year, month_num, 1).date()
-                    last_day = calendar.monthrange(year, month_num)[1]
-                    month_end = datetime(year, month_num, last_day).date()
-                
-                for w in range(1, 53):
-                    week_start = first_monday + timedelta(weeks=w - 1)
-                    week_end = week_start + timedelta(days=6)
-                    
-                    # Stop if we've gone past the year
-                    if week_start.year > year:
-                        break
-                    
-                    # If month filter is active, only include weeks that overlap with that month
-                    if month_num > 0:
-                        # Skip weeks that don't overlap with the selected month
-                        if week_end.date() < month_start or week_start.date() > month_end:
-                            continue
-                    
-                    count = Referral.objects.filter(
-                        created_at__date__gte=week_start.date(),
-                        created_at__date__lte=week_end.date()
-                    ).count()
-                    
-                    data.append({
-                        'period': f'Week {w}: {week_start.strftime("%b %d")} - {week_end.strftime("%b %d, %Y")}',
-                        'full_period': f'{week_start.strftime("%B %d")} - {week_end.strftime("%B %d, %Y")}',
-                        'count': count,
-                        'start_date': week_start.date().isoformat(),
-                        'end_date': week_end.date().isoformat()
-                    })
-            else:
-                # Show the selected week
-                jan_1 = datetime(year, 1, 1)
-                days_to_monday = (7 - jan_1.weekday()) % 7
-                if jan_1.weekday() != 0:
-                    days_to_monday = (7 - jan_1.weekday())
-                first_monday = jan_1 + timedelta(days=days_to_monday)
-                
-                week_start = first_monday + timedelta(weeks=week_num - 1)
+            for i in range(11, -1, -1):  # Last 12 weeks
+                week_start = current_date - timedelta(days=current_date.weekday() + (i * 7))
                 week_end = week_start + timedelta(days=6)
                 
+                # Ensure we don't go beyond the year boundaries
+                week_start = max(week_start, start_of_year.date())
+                week_end = min(week_end, end_of_year.date())
+                
                 count = Referral.objects.filter(
-                    created_at__date__gte=week_start.date(),
-                    created_at__date__lte=week_end.date()
+                    created_at__date__gte=week_start,
+                    created_at__date__lte=week_end
                 ).count()
                 
                 data.append({
-                    'period': f'Week {week_num}: {week_start.strftime("%b %d")} - {week_end.strftime("%b %d, %Y")}',
-                    'full_period': f'{week_start.strftime("%B %d")} - {week_end.strftime("%B %d, %Y")}',
+                    'period': f'Week {12 - i}',
+                    'full_period': f'{week_start.strftime("%m/%d")} - {week_end.strftime("%m/%d")}',
                     'count': count,
-                    'start_date': week_start.date().isoformat(),
-                    'end_date': week_end.date().isoformat()
+                    'start_date': week_start.isoformat(),
+                    'end_date': week_end.isoformat()
                 })
         
         elif time_filter == 'month':
-            try:
-                month_num = int(month) if month else 0
-            except (ValueError, TypeError):
-                month_num = 0
+            # Get 12 months for the specified year
+            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             
-            if month_num == 0:
-                # Show all months of the year
-                for m in range(1, 13):
-                    month_start = datetime(year, m, 1).date()
-                    last_day = calendar.monthrange(year, m)[1]
-                    month_end = datetime(year, m, last_day).date()
+            for month in range(1, 13):
+                try:
+                    month_start = datetime(year, month, 1).date()
+                    # Get last day of month
+                    if month == 12:
+                        month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                    else:
+                        month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
                     
                     count = Referral.objects.filter(
                         created_at__date__gte=month_start,
@@ -934,51 +674,36 @@ class ReferralViewSet(viewsets.ModelViewSet):
                     ).count()
                     
                     data.append({
-                        'period': f'{month_start.strftime("%B %Y")}',
-                        'full_period': f'{month_start.strftime("%B %d")} - {month_end.strftime("%B %d, %Y")}',
+                        'period': f'{months[month-1]} {year}',
+                        'full_period': f'{months[month-1]} {year}',
                         'count': count,
                         'start_date': month_start.isoformat(),
                         'end_date': month_end.isoformat()
                     })
-            else:
-                # Show the selected month
-                month_num = max(1, min(12, month_num))
-                
-                month_start = datetime(year, month_num, 1).date()
-                last_day = calendar.monthrange(year, month_num)[1]
-                month_end = datetime(year, month_num, last_day).date()
+                except ValueError:
+                    # Handle invalid dates
+                    continue
+        
+        else:  # year
+            # Get last 5 years
+            current_year = timezone.now().year
+            for i in range(4, -1, -1):
+                target_year = current_year - i
+                year_start = datetime(target_year, 1, 1).date()
+                year_end = datetime(target_year, 12, 31).date()
                 
                 count = Referral.objects.filter(
-                    created_at__date__gte=month_start,
-                    created_at__date__lte=month_end
+                    created_at__date__gte=year_start,
+                    created_at__date__lte=year_end
                 ).count()
                 
                 data.append({
-                    'period': f'{month_start.strftime("%B %Y")}',
-                    'full_period': f'{month_start.strftime("%B %d")} - {month_end.strftime("%B %d, %Y")}',
+                    'period': str(target_year),
+                    'full_period': str(target_year),
                     'count': count,
-                    'start_date': month_start.isoformat(),
-                    'end_date': month_end.isoformat()
+                    'start_date': year_start.isoformat(),
+                    'end_date': year_end.isoformat()
                 })
-        
-        else:  # year
-            # Show the selected year
-            year_start = datetime(year, 1, 1).date()
-            year_end = datetime(year, 12, 31).date()
-            
-            count = Referral.objects.filter(
-                created_at__date__gte=year_start,
-                created_at__date__lte=year_end
-            ).count()
-            
-            # Format: "2026"
-            data.append({
-                'period': str(year),
-                'full_period': str(year),
-                'count': count,
-                'start_date': year_start.isoformat(),
-                'end_date': year_end.isoformat()
-            })
         
         return Response(data)
 
@@ -1030,310 +755,6 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         return Response(result)
 
-    def _get_date_range_for_filter(self, time_filter, year, month=None, week=None):
-        """Helper method to calculate date range based on filter type"""
-        from django.utils import timezone
-        from datetime import timedelta, datetime
-        import calendar
-        
-        try:
-            year = int(year) if year else timezone.now().year
-        except (ValueError, TypeError):
-            year = timezone.now().year
-        
-        if time_filter == 'week':
-            # Get specific week of the year
-            try:
-                week_num = int(week) if week else 1
-            except (ValueError, TypeError):
-                week_num = 1
-            
-            # Calculate the start date of the week (Monday)
-            jan_1 = datetime(year, 1, 1)
-            # Find the first Monday of the year
-            days_to_monday = (7 - jan_1.weekday()) % 7
-            if jan_1.weekday() != 0:  # If Jan 1 is not Monday
-                days_to_monday = (7 - jan_1.weekday())
-            first_monday = jan_1 + timedelta(days=days_to_monday)
-            
-            # Calculate start of the requested week
-            start_of_week = first_monday + timedelta(weeks=week_num - 1)
-            end_of_week = start_of_week + timedelta(days=6)
-            
-            start_date = timezone.make_aware(datetime.combine(start_of_week.date(), datetime.min.time()))
-            end_date = timezone.make_aware(datetime.combine(end_of_week.date(), datetime.max.time()))
-            
-        elif time_filter == 'month':
-            # Get specific month of the selected year
-            try:
-                month_num = int(month) if month else timezone.now().month
-            except (ValueError, TypeError):
-                month_num = timezone.now().month
-            
-            # Ensure month is valid (1-12)
-            month_num = max(1, min(12, month_num))
-            
-            # Start of the month
-            start_date = timezone.make_aware(datetime(year, month_num, 1, 0, 0, 0))
-            
-            # End of the month (last day)
-            last_day = calendar.monthrange(year, month_num)[1]
-            end_date = timezone.make_aware(datetime(year, month_num, last_day, 23, 59, 59))
-            
-        else:  # year
-            # Show the entire selected year
-            start_date = timezone.make_aware(datetime(year, 1, 1, 0, 0, 0))
-            end_date = timezone.make_aware(datetime(year, 12, 31, 23, 59, 59))
-        
-        return start_date, end_date
-
-    @action(detail=False, methods=['get'])
-    def top_hospitals(self, request):
-        """Get top referring hospitals with time filter"""
-        from django.db.models import Count
-        
-        time_filter = request.query_params.get('filter', 'month')
-        year = request.query_params.get('year', None)
-        month = request.query_params.get('month', None)
-        week = request.query_params.get('week', None)
-        
-        start_date, end_date = self._get_date_range_for_filter(time_filter, year, month, week)
-        
-        # Get referrals in date range
-        referrals_in_range = Referral.objects.filter(
-            created_at__gte=start_date,
-            created_at__lte=end_date
-        )
-        
-        total_referrals = referrals_in_range.count()
-        
-        # Get top hospitals
-        top_hospitals = ReferringHospital.objects.filter(
-            referral__in=referrals_in_range
-        ).annotate(
-            referral_count=Count('referral')
-        ).filter(referral_count__gt=0).order_by('-referral_count')[:10]
-        
-        hospital_data = []
-        for hospital in top_hospitals:
-            percentage = (hospital.referral_count / total_referrals * 100) if total_referrals > 0 else 0
-            hospital_data.append({
-                'name': hospital.name,
-                'count': hospital.referral_count,
-                'percentage': round(percentage, 1)
-            })
-        
-        return Response(hospital_data)
-
-    @action(detail=False, methods=['get'])
-    def top_departments(self, request):
-        """Get top referring departments with time filter"""
-        from django.db.models import Count
-        
-        time_filter = request.query_params.get('filter', 'month')
-        year = request.query_params.get('year', None)
-        month = request.query_params.get('month', None)
-        week = request.query_params.get('week', None)
-        
-        start_date, end_date = self._get_date_range_for_filter(time_filter, year, month, week)
-        
-        # Get referrals in date range with assigned departments
-        referrals_in_range = Referral.objects.filter(
-            created_at__gte=start_date,
-            created_at__lte=end_date
-        ).exclude(assigned_department__isnull=True).exclude(assigned_department='')
-        
-        total_referrals = referrals_in_range.count()
-        
-        # Get department distribution
-        department_data = referrals_in_range.values('assigned_department').annotate(
-            count=Count('assigned_department')
-        ).order_by('-count')[:10]
-        
-        # Assign colors to departments
-        colors = [
-            '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-            '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16'
-        ]
-        
-        # Get department display names
-        department_choices_dict = dict(Referral.DEPARTMENT_CHOICES)
-        
-        result = []
-        for idx, dept in enumerate(department_data):
-            dept_key = dept['assigned_department']
-            dept_name = department_choices_dict.get(dept_key, dept_key.replace('_', ' ').title())
-            result.append({
-                'name': dept_name,
-                'count': dept['count'],
-                'color': colors[idx % len(colors)]
-            })
-        
-        return Response(result)
-
-    @action(detail=False, methods=['get'])
-    def top_specialties(self, request):
-        """Get top specialties with time filter"""
-        from django.db.models import Count
-        
-        time_filter = request.query_params.get('filter', 'month')
-        year = request.query_params.get('year', None)
-        month = request.query_params.get('month', None)
-        week = request.query_params.get('week', None)
-        
-        start_date, end_date = self._get_date_range_for_filter(time_filter, year, month, week)
-        
-        # Get referrals in date range
-        referrals_in_range = Referral.objects.filter(
-            created_at__gte=start_date,
-            created_at__lte=end_date
-        )
-        
-        # Get specialty distribution
-        specialty_distribution = Specialty.objects.filter(
-            referral__in=referrals_in_range
-        ).annotate(
-            referral_count=Count('referral')
-        ).filter(referral_count__gt=0).order_by('-referral_count')[:10]
-        
-        specialty_data = []
-        for specialty in specialty_distribution:
-            specialty_data.append({
-                'name': specialty.name,
-                'count': specialty.referral_count
-            })
-        
-        return Response(specialty_data)
-
-    @action(detail=False, methods=['get'])
-    def coordinated_referrals(self, request):
-        """Get coordinated referrals (received by department)"""
-        time_filter = request.query_params.get('filter', 'month')
-        year = request.query_params.get('year', None)
-        month = request.query_params.get('month', None)
-        week = request.query_params.get('week', None)
-        
-        start_date, end_date = self._get_date_range_for_filter(time_filter, year, month, week)
-        
-        # Get coordinated referrals (status: completed, in_transit, waiting, emergent, urgent, schedule_opd)
-        # These are referrals that have been received and are being processed by the department
-        coordinated = Referral.objects.filter(
-            created_at__gte=start_date,
-            created_at__lte=end_date,
-            status__in=['completed', 'in_transit', 'waiting', 'emergent', 'urgent', 'schedule_opd']
-        ).select_related('specialty_needed', 'referring_hospital').order_by('-updated_at')[:100]
-        
-        result = []
-        for referral in coordinated:
-            # Determine the department from specialty or assigned department
-            department = referral.specialty_needed.name if referral.specialty_needed else 'N/A'
-            
-            result.append({
-                'referral_id': referral.referral_id,
-                'patient_name': referral.patient_full_name,
-                'department': department,
-                'status': referral.get_status_display(),
-                'referring_hospital': referral.referring_hospital.name,
-                'date_received': referral.updated_at.strftime('%Y-%m-%d %H:%M'),
-                'created_at': referral.created_at.strftime('%Y-%m-%d %H:%M')
-            })
-        
-        return Response(result)
-
-    @action(detail=False, methods=['get'])
-    def uncoordinated_referrals(self, request):
-        """Get uncoordinated referrals (cancelled)"""
-        time_filter = request.query_params.get('filter', 'month')
-        year = request.query_params.get('year', None)
-        month = request.query_params.get('month', None)
-        week = request.query_params.get('week', None)
-        
-        start_date, end_date = self._get_date_range_for_filter(time_filter, year, month, week)
-        
-        # Get uncoordinated referrals (status: cancelled)
-        uncoordinated = Referral.objects.filter(
-            created_at__gte=start_date,
-            created_at__lte=end_date,
-            status='cancelled'
-        ).select_related('specialty_needed', 'referring_hospital').prefetch_related('status_history').order_by('-updated_at')[:100]
-        
-        result = []
-        for referral in uncoordinated:
-            # Try to get cancellation reason from status history
-            cancellation_reason = 'No reason provided'
-            last_history = referral.status_history.filter(new_status='cancelled').order_by('-changed_at').first()
-            if last_history and last_history.notes:
-                cancellation_reason = last_history.notes
-            
-            result.append({
-                'referral_id': referral.referral_id,
-                'patient_name': referral.patient_full_name,
-                'reason': cancellation_reason,
-                'referring_hospital': referral.referring_hospital.name,
-                'specialty': referral.specialty_needed.name if referral.specialty_needed else 'N/A',
-                'date_cancelled': referral.updated_at.strftime('%Y-%m-%d %H:%M'),
-                'created_at': referral.created_at.strftime('%Y-%m-%d %H:%M')
-            })
-        
-        return Response(result)
-
-    @action(detail=False, methods=['get'])
-    def incoming_referrals(self, request):
-        """Get incoming referrals for HIS Department (in_transit, urgent, emergent, schedule_opd)"""
-        # Check if user is HIS department
-        user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not user_profile.is_his_department:
-            return Response({
-                'error': 'You do not have permission to view incoming referrals'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        # Get referrals that need arrival confirmation
-        referrals = Referral.objects.filter(
-            status__in=['in_transit', 'urgent', 'emergent', 'schedule_opd']
-        ).select_related(
-            'referring_hospital', 'specialty_needed'
-        ).order_by('-created_at')
-        
-        serializer = ReferralListSerializer(referrals, many=True, context={'request': request})
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['post'])
-    def confirm_arrival(self, request, pk=None):
-        """Confirm that a referral has arrived (HIS Department action)"""
-        # Check if user is HIS department
-        user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not user_profile.is_his_department:
-            return Response({
-                'error': 'You do not have permission to confirm arrivals'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        try:
-            referral = self.get_object()
-            
-            # Update status to completed
-            old_status = referral.status
-            referral.status = 'completed'
-            referral.save()
-            
-            # Create status history
-            ReferralStatusHistory.objects.create(
-                referral=referral,
-                old_status=old_status,
-                new_status='completed',
-                changed_by=request.user,
-                notes='Arrival confirmed by HIS Department'
-            )
-            
-            return Response({
-                'success': True,
-                'message': 'Referral arrival confirmed and moved to archived referrals'
-            })
-            
-        except Referral.DoesNotExist:
-            return Response({
-                'error': 'Referral not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-
 class TransitInfoViewSet(viewsets.ModelViewSet):
     queryset = TransitInfo.objects.select_related('referral')
     serializer_class = TransitInfoSerializer
@@ -1349,7 +770,6 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
     serializer_class = ReferrerAccountSerializer
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['first_name', 'last_name', 'user__username']
-    filterset_fields = ['approval_status', 'referrer_type']
 
     def get_permissions(self):
         # Allow anyone to create/register; other actions require authentication
@@ -1418,408 +838,3 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': 'Referrer profile not found'
             }, status=status.HTTP_404_NOT_FOUND)
-
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
-    def pending_accounts(self, request):
-        """Get all referrer accounts for approval (Admin only)"""
-        # Check if user is admin
-        user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
-            return Response({
-                'error': 'You do not have permission to view pending accounts'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        # Get all accounts (pending, approved, rejected)
-        accounts = ReferrerAccount.objects.select_related('user').prefetch_related(
-            'specialties', 'affiliate_hospitals', 'documents'
-        ).all().order_by('-created_at')
-        
-        serializer = ReferrerAccountSerializer(accounts, many=True, context={'request': request})
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def approve_account(self, request, pk=None):
-        """Approve a pending referrer account (Admin only)"""
-        # Check if user is admin
-        user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
-            return Response({
-                'error': 'You do not have permission to approve accounts'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        try:
-            account = self.get_object()
-            
-            if account.approval_status == 'approved':
-                return Response({
-                    'error': 'Account is already approved'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Update approval status
-            account.approval_status = 'approved'
-            account.save()
-            
-            # Activate the user account
-            account.user.is_active = True
-            account.user.save()
-            
-            return Response({
-                'success': True,
-                'message': 'Account approved successfully'
-            })
-            
-        except ReferrerAccount.DoesNotExist:
-            return Response({
-                'error': 'Account not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def reject_account(self, request, pk=None):
-        """Reject a pending referrer account (Admin only)"""
-        # Check if user is admin
-        user_profile = getattr(request.user, 'profile', None)
-        if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
-            return Response({
-                'error': 'You do not have permission to reject accounts'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        try:
-            account = self.get_object()
-            
-            if account.approval_status == 'rejected':
-                return Response({
-                    'error': 'Account is already rejected'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Update approval status
-            account.approval_status = 'rejected'
-            account.save()
-            
-            # Deactivate the user account
-            account.user.is_active = False
-            account.user.save()
-            
-            return Response({
-                'success': True,
-                'message': 'Account rejected successfully'
-            })
-            
-        except ReferrerAccount.DoesNotExist:
-            return Response({
-                'error': 'Account not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-            cancellation_reason = 'No reason provided'
-            last_history = referral.status_history.filter(new_status='cancelled').order_by('-changed_at').first()
-            if last_history and last_history.notes:
-                cancellation_reason = last_history.notes
-            
-            result.append({
-                'referral_id': referral.referral_id,
-                'patient_name': referral.patient_full_name,
-                'reason': cancellation_reason,
-                'referring_hospital': referral.referring_hospital.name,
-                'specialty': referral.specialty_needed.name if referral.specialty_needed else 'N/A',
-                'date_cancelled': referral.updated_at.strftime('%Y-%m-%d %H:%M'),
-                'created_at': referral.created_at.strftime('%Y-%m-%d %H:%M')
-            })
-        
-        return Response(result)
-
-
-# Admin-specific views
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from .models import UserProfile
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def admin_dashboard_stats(request):
-    """Get admin dashboard statistics"""
-    # Check if user is admin only
-    user_profile = getattr(request.user, 'profile', None)
-    if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
-        return Response({
-            'error': 'You do not have permission to access admin dashboard'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    # Get pending referrer registrations count
-    pending_referrers = ReferrerAccount.objects.filter(approval_status='pending').count()
-    
-    # Get total referrers
-    total_referrers = ReferrerAccount.objects.count()
-    approved_referrers = ReferrerAccount.objects.filter(approval_status='approved').count()
-    rejected_referrers = ReferrerAccount.objects.filter(approval_status='rejected').count()
-    
-    # Get total doctors (users with referrer role)
-    total_doctors = UserProfile.objects.filter(role='referrer').count()
-    
-    # Get total referrals
-    total_referrals = Referral.objects.count()
-    
-    # Get recent activity (last 7 days)
-    from datetime import timedelta
-    week_ago = timezone.now() - timedelta(days=7)
-    recent_referrals = Referral.objects.filter(created_at__gte=week_ago).count()
-    recent_registrations = ReferrerAccount.objects.filter(created_at__gte=week_ago).count()
-    
-    return Response({
-        'pending_referrers': pending_referrers,
-        'total_referrers': total_referrers,
-        'approved_referrers': approved_referrers,
-        'rejected_referrers': rejected_referrers,
-        'total_doctors': total_doctors,
-        'total_referrals': total_referrals,
-        'recent_referrals': recent_referrals,
-        'recent_registrations': recent_registrations,
-    })
-
-
-@api_view(['GET'])
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def update_doctor_specialties(request, user_id):
-    """Update doctor's specialties"""
-    # Check if user is admin
-    user_profile = getattr(request.user, 'profile', None)
-    if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
-        return Response({
-            'error': 'You do not have permission to update doctor specialties'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    try:
-        from django.contrib.auth.models import User
-        doctor_user = User.objects.get(id=user_id)
-        
-        # Get or create referrer account for this user
-        referrer_account, created = ReferrerAccount.objects.get_or_create(
-            user=doctor_user,
-            defaults={
-                'first_name': doctor_user.first_name,
-                'last_name': doctor_user.last_name,
-                'referrer_type': 'doctor',
-                'approval_status': 'approved'
-            }
-        )
-        
-        # Get specialty IDs from request
-        specialty_ids = request.data.get('specialty_ids', [])
-        
-        # Update specialties
-        if specialty_ids:
-            specialties = Specialty.objects.filter(id__in=specialty_ids)
-            referrer_account.specialties.set(specialties)
-        else:
-            referrer_account.specialties.clear()
-        
-        # Return updated specialties
-        updated_specialties = [
-            {'id': s.id, 'name': s.name} 
-            for s in referrer_account.specialties.all()
-        ]
-        
-        return Response({
-            'success': True,
-            'message': 'Specialties updated successfully',
-            'specialties': updated_specialties
-        })
-        
-    except User.DoesNotExist:
-        return Response({
-            'error': 'Doctor not found'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-
-# Admin ViewSet for managing doctors and department assignments
-from rest_framework.decorators import api_view
-from django.contrib.auth.models import User
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_all_doctors(request):
-    """Get all doctors with their departments and specialties"""
-    # Check if user is admin
-    user_profile = getattr(request.user, 'profile', None)
-    if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
-        return Response({
-            'error': 'You do not have permission to view doctors'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    # Get all users with referrer accounts (approved doctors)
-    doctors = User.objects.filter(
-        referrer_profile__approval_status='approved',
-        referrer_profile__referrer_type='doctor'
-    ).select_related('profile', 'referrer_profile').prefetch_related(
-        'referrer_profile__specialties'
-    )
-    
-    doctors_data = []
-    for user in doctors:
-        profile = getattr(user, 'profile', None)
-        referrer = getattr(user, 'referrer_profile', None)
-        
-        doctors_data.append({
-            'id': user.id,
-            'name': user.get_full_name() or user.username,
-            'username': user.username,
-            'email': user.email,
-            'role': profile.role if profile else 'referrer',
-            'role_display': profile.get_role_display() if profile else 'Referrer',
-            'department': profile.department if profile else None,
-            'contact_number': profile.contact_number if profile else None,
-            'specialties': [
-                {'id': s.id, 'name': s.name} 
-                for s in referrer.specialties.all()
-            ] if referrer else []
-        })
-    
-    return Response(doctors_data)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def assign_doctor_to_department(request):
-    """Assign a doctor to a department with a specific role"""
-    # Check if user is admin
-    user_profile = getattr(request.user, 'profile', None)
-    if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
-        return Response({
-            'error': 'You do not have permission to assign doctors'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    user_id = request.data.get('user_id')
-    department = request.data.get('department')
-    role = request.data.get('role')
-    
-    if not user_id or not department or not role:
-        return Response({
-            'error': 'user_id, department, and role are required'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        user = User.objects.get(id=user_id)
-        profile = getattr(user, 'profile', None)
-        
-        if not profile:
-            # Create profile if it doesn't exist
-            from .models import UserProfile
-            profile = UserProfile.objects.create(user=user)
-        
-        # Update profile with department and role
-        profile.department = department
-        profile.role = role
-        profile.save()
-        
-        return Response({
-            'message': f'Doctor successfully assigned to {department}',
-            'user_id': user.id,
-            'name': user.get_full_name(),
-            'department': department,
-            'role': role,
-            'role_display': profile.get_role_display()
-        })
-        
-    except User.DoesNotExist:
-        return Response({
-            'error': 'User not found'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def unassign_doctor_from_department(request):
-    """Remove a doctor from their department assignment"""
-    # Check if user is admin
-    user_profile = getattr(request.user, 'profile', None)
-    
-    # Debug logging
-    print(f"Unassign request from user: {request.user.username}")
-    print(f"Has profile: {user_profile is not None}")
-    print(f"Is admin: {user_profile.is_admin_user if user_profile else False}")
-    print(f"Is superuser: {request.user.is_superuser}")
-    
-    if not user_profile or not (user_profile.is_admin_user or request.user.is_superuser):
-        return Response({
-            'error': 'You do not have permission to unassign doctors'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    user_id = request.data.get('user_id')
-    
-    if not user_id:
-        return Response({
-            'error': 'user_id is required'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        user = User.objects.get(id=user_id)
-        profile = getattr(user, 'profile', None)
-        
-        if not profile:
-            # Create profile if it doesn't exist
-            from .models import UserProfile
-            profile = UserProfile.objects.create(user=user, role='referrer')
-        
-        # Remove department assignment and reset to referrer role
-        old_department = profile.department
-        profile.department = None
-        profile.role = 'referrer'
-        profile.save()
-        
-        print(f"Successfully unassigned {user.get_full_name()} from {old_department}")
-        
-        return Response({
-            'message': f'Doctor successfully unassigned from department',
-            'user_id': user.id,
-            'name': user.get_full_name()
-        })
-        
-    except User.DoesNotExist:
-        return Response({
-            'error': 'User not found'
-        }, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        print(f"Error unassigning doctor: {str(e)}")
-        return Response({
-            'error': f'Error unassigning doctor: {str(e)}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def update_doctor_specialties(request, user_id):
-    """Update doctor's specialties"""
-    # Check if user is admin
-    user_profile = getattr(request.user, 'profile', None)
-    if not user_profile or not user_profile.is_admin_user:
-        return Response({
-            'error': 'You do not have permission to update doctor specialties'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    specialty_ids = request.data.get('specialty_ids', [])
-    
-    try:
-        user = User.objects.get(id=user_id)
-        referrer = getattr(user, 'referrer_profile', None)
-        
-        if not referrer:
-            return Response({
-                'error': 'Referrer profile not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-        
-        # Update specialties
-        referrer.specialties.set(specialty_ids)
-        
-        return Response({
-            'message': 'Specialties updated successfully',
-            'user_id': user.id,
-            'specialties': [
-                {'id': s.id, 'name': s.name} 
-                for s in referrer.specialties.all()
-            ]
-        })
-        
-    except User.DoesNotExist:
-        return Response({
-            'error': 'User not found'
-        }, status=status.HTTP_404_NOT_FOUND)
