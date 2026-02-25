@@ -53,12 +53,43 @@ export const ReferralEdit = () => {
         }
         
         setReferral(data);
+        
+        // Debug: log the data to see what fields are available
+        console.log('Loaded referral data:', data);
+        
+        // Parse patient_full_name if individual fields are not available
+        let firstName = data.patient_first_name || '';
+        let middleName = data.patient_middle_name || '';
+        let lastName = data.patient_last_name || '';
+        let suffix = data.patient_suffix || '';
+        
+        // If individual fields are empty but patient_full_name exists, try to parse it
+        if (!firstName && !lastName && data.patient_full_name) {
+          // Format is usually: "Last Name, First Name Middle Name Suffix"
+          const parts = data.patient_full_name.split(',');
+          if (parts.length >= 2) {
+            lastName = parts[0].trim();
+            const restParts = parts[1].trim().split(' ');
+            firstName = restParts[0] || '';
+            if (restParts.length > 1) {
+              // Check if last part is a suffix (Jr., Sr., III, etc.)
+              const lastPart = restParts[restParts.length - 1];
+              if (['Jr.', 'Sr.', 'II', 'III', 'IV', 'V'].includes(lastPart)) {
+                suffix = lastPart;
+                middleName = restParts.slice(1, -1).join(' ');
+              } else {
+                middleName = restParts.slice(1).join(' ');
+              }
+            }
+          }
+        }
+        
         setFormData({
           // Patient Info
-          patient_first_name: data.patient_first_name || '',
-          patient_middle_name: data.patient_middle_name || '',
-          patient_last_name: data.patient_last_name || '',
-          patient_suffix: data.patient_suffix || '',
+          patient_first_name: firstName,
+          patient_middle_name: middleName,
+          patient_last_name: lastName,
+          patient_suffix: suffix,
           patient_category: data.patient_category || '',
           birthday: data.birthday || '',
           age: data.age || '',
