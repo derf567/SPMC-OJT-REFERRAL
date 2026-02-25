@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Plus, FileText, Users, Activity, Building2 } from "lucide-react";
+import { Plus, FileText, Users, Activity } from "lucide-react";
 
 const quickActions = [
   {
@@ -16,13 +16,6 @@ const quickActions = [
     icon: Users,
     href: "/patients",
     color: "bg-green-500",
-  },
-  {
-    title: "Check Facilities",
-    description: "View bed availability",
-    icon: Building2,
-    href: "/facilities",
-    color: "bg-purple-500",
   },
   {
     title: "Generate Report",
