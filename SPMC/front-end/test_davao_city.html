@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Davao City</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Test Davao City in PSGC API</h1>
+    
+    <button onclick="testDavaoCity()">Find Davao City</button>
+    <div id="result"></div>
+
+    <script>
+        const API_BASE = 'https://psgc.cloud/api';
+
+        async function testDavaoCity() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Loading...</p>';
+            
+            try {
+                // Fetch all cities
+                const citiesResponse = await fetch(`${API_BASE}/cities`);
+                const cities = await citiesResponse.json();
+                
+                // Find Davao City
+                const davaoCities = cities.filter(c => 
+                    c.name.toLowerCase().includes('davao') && 
+                    c.name.toLowerCase().includes('city')
+                );
+                
+                // Also check Region 11 cities
+                const region11Cities = cities.filter(c => c.code.startsWith('11'));
+                
+                resultDiv.innerHTML = `
+                    <h2>Cities with "Davao City" in name:</h2>
+                    <pre>${JSON.stringify(davaoCities, null, 2)}</pre>
+                    
+                    <h2>All Region 11 Cities (first 20):</h2>
+                    <pre>${JSON.stringify(region11Cities.slice(0, 20), null, 2)}</pre>
+                    
+                    <h2>Total Region 11 Cities: ${region11Cities.length}</h2>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

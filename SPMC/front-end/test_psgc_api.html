@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PSGC API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .loading {
+            color: #666;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>PSGC Cloud API Test</h1>
+    
+    <div class="section">
+        <h2>Test Regions</h2>
+        <button onclick="testRegions()">Fetch Regions</button>
+        <div id="regions-result"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Test Provinces</h2>
+        <button onclick="testProvinces()">Fetch All Provinces</button>
+        <div id="provinces-result"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Test Cities</h2>
+        <button onclick="testCities()">Fetch All Cities</button>
+        <div id="cities-result"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Test Municipalities</h2>
+        <button onclick="testMunicipalities()">Fetch All Municipalities</button>
+        <div id="municipalities-result"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Test Barangays (Sample)</h2>
+        <button onclick="testBarangays()">Fetch Sample Barangays</button>
+        <div id="barangays-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://psgc.cloud/api';
+
+        async function testRegions() {
+            const resultDiv = document.getElementById('regions-result');
+            resultDiv.innerHTML = '<p class="loading">Loading...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/regions`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✓ Success! Found ${data.length} regions</p>
+                    <pre>${JSON.stringify(data.slice(0, 5), null, 2)}</pre>
+                    <p><em>Showing first 5 of ${data.length} regions</em></p>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">✗ Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testProvinces() {
+            const resultDiv = document.getElementById('provinces-result');
+            resultDiv.innerHTML = '<p class="loading">Loading...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/provinces`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✓ Success! Found ${data.length} provinces</p>
+                    <pre>${JSON.stringify(data.slice(0, 5), null, 2)}</pre>
+                    <p><em>Showing first 5 of ${data.length} provinces</em></p>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">✗ Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testCities() {
+            const resultDiv = document.getElementById('cities-result');
+            resultDiv.innerHTML = '<p class="loading">Loading...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/cities`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✓ Success! Found ${data.length} cities</p>
+                    <pre>${JSON.stringify(data.slice(0, 5), null, 2)}</pre>
+                    <p><em>Showing first 5 of ${data.length} cities</em></p>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">✗ Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testMunicipalities() {
+            const resultDiv = document.getElementById('municipalities-result');
+            resultDiv.innerHTML = '<p class="loading">Loading...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/municipalities`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✓ Success! Found ${data.length} municipalities</p>
+                    <pre>${JSON.stringify(data.slice(0, 5), null, 2)}</pre>
+                    <p><em>Showing first 5 of ${data.length} municipalities</em></p>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">✗ Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testBarangays() {
+            const resultDiv = document.getElementById('barangays-result');
+            resultDiv.innerHTML = '<p class="loading">Loading... (this may take a moment, there are many barangays)</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/barangays`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✓ Success! Found ${data.length} barangays</p>
+                    <pre>${JSON.stringify(data.slice(0, 5), null, 2)}</pre>
+                    <p><em>Showing first 5 of ${data.length} barangays</em></p>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">✗ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

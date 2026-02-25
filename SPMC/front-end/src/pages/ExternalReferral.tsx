@@ -6,6 +6,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { 
+  fetchRegions, 
+  fetchProvinces, 
+  fetchCitiesMunicipalities,
+  type Region,
+  type Province,
+  type CityMunicipality
+} from "@/services/psaApi";
+import { 
   User, 
   Activity, 
   MapPin, 
@@ -161,12 +169,6 @@ const initialFormData: ReferralFormData = {
   }
 };
 
-const davaoLocations = [
-  "Poblacion District", "Buhangin District", "Tugbok District", 
-  "Talomo District", "Marilog District", "Calinan District",
-  "Baguio District", "Paquibato District", "Toril District"
-];
-
 const ExternalReferral = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<ReferralFormData>(initialFormData);
@@ -174,8 +176,16 @@ const ExternalReferral = () => {
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [currentContactNumber, setCurrentContactNumber] = useState("");
   const [referrerProfile, setReferrerProfile] = useState<any>(null);
+  
+  // PSGC API state
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [provinces, setProvinces] = useState<Province[]>([]);
+  const [cities, setCities] = useState<CityMunicipality[]>([]);
+  const [loadingRegions, setLoadingRegions] = useState(false);
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(false);
+  
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -250,6 +260,53 @@ const ExternalReferral = () => {
 
     loadInitialData();
   }, [user, toast]);
+
+  // Load regions on component mount
+  useEffect(() => {
+    const loadRegions = async () => {
+      setLoadingRegions(true);
+      const data = await fetchRegions();
+      setRegions(data);
+      setLoadingRegions(false);
+    };
+    loadRegions();
+  }, []);
+
+  // Load provinces when region changes
+  useEffect(() => {
+    const loadProvinces = async () => {
+      if (formData.hospitalRegion) {
+        setLoadingProvinces(true);
+        const data = await fetchProvinces(formData.hospitalRegion);
+        setProvinces(data);
+        setLoadingProvinces(false);
+        setCities([]);
+        // Reset dependent fields
+        setFormData(prev => ({ ...prev, hospitalProvince: '', hospitalCity: '' }));
+      } else {
+        setProvinces([]);
+        setCities([]);
+      }
+    };
+    loadProvinces();
+  }, [formData.hospitalRegion]);
+
+  // Load cities when province changes
+  useEffect(() => {
+    const loadCities = async () => {
+      if (formData.hospitalProvince) {
+        setLoadingCities(true);
+        const data = await fetchCitiesMunicipalities(formData.hospitalProvince);
+        setCities(data);
+        setLoadingCities(false);
+        // Reset city field
+        setFormData(prev => ({ ...prev, hospitalCity: '' }));
+      } else {
+        setCities([]);
+      }
+    };
+    loadCities();
+  }, [formData.hospitalProvince]);
 
   const steps = [
     { id: 1, name: "Patient Information", icon: User },
@@ -361,8 +418,6 @@ const ExternalReferral = () => {
     // Step 4 - Referring Hospital validation
     if (!formData.referringFacilityName) errors.push("Referring Facility is required");
     if (!formData.hospitalDohLevel) errors.push("Hospital DOH Level is required");
-    if (!formData.hospitalLocation) errors.push("Hospital Location is required");
-    if (formData.hospitalContactNumbers.length === 0) errors.push("At least one hospital contact number is required");
     if (!formData.referrerName.trim()) errors.push("Referrer Name is required");
     if (!formData.referrerProfession.trim()) errors.push("Referrer Profession is required");
     if (!formData.modeOfTransportation.trim()) errors.push("Mode of Transportation is required");
@@ -389,6 +444,11 @@ const ExternalReferral = () => {
         setIsSubmitting(false);
         return;
       }
+      
+      // Convert PSGC codes to names for submission
+      const selectedRegion = regions.find(r => r.code === formData.hospitalRegion);
+      const selectedProvince = provinces.find(p => p.code === formData.hospitalProvince);
+      const selectedCity = cities.find(c => c.code === formData.hospitalCity);
       
       // Transform form data to match API expectations
       const apiData = {
@@ -423,14 +483,19 @@ const ExternalReferral = () => {
         other_specialty: formData.otherSpecialty || null,
         reason_for_referral: formData.reasonForReferral === "Others" ? formData.otherReasonForReferral : formData.reasonForReferral,
         
-        // Referring Hospital
+        // Referring Hospital - with converted address names
         referring_hospital: parseInt(formData.referringFacilityName) || 1,
         hospital_doh_level: formData.hospitalDohLevel || null,
         hospital_location: formData.hospitalLocation || null,
-        hospital_contact_numbers: formData.hospitalContactNumbers.length > 0 ? formData.hospitalContactNumbers : [],
+        hospital_contact_numbers: user?.contact_numbers || [],
+        hospital_region: selectedRegion?.name || formData.hospitalRegion || null,
+        hospital_province: selectedProvince?.name || formData.hospitalProvince || null,
+        hospital_city: selectedCity?.name || formData.hospitalCity || null,
+        hospital_barangay: formData.hospitalBarangay || null,
+        hospital_street: formData.hospitalStreet || null,
         referrer_name: formData.referrerName,
         referrer_profession: formData.referrerProfession,
-        referrer_cellphone: formData.hospitalContactNumbers.length > 0 ? formData.hospitalContactNumbers[0] : null,
+        referrer_cellphone: formData.referrerCellphone || null,
         mode_of_transportation: formData.modeOfTransportation,
         
         // Consent
@@ -1053,57 +1118,18 @@ const ExternalReferral = () => {
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Hospital Location Radio Buttons */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  Hospital Location *
-                  {user && user.hospital_name && (
-                    <span className="text-xs text-green-600 dark:text-green-400 ml-2">
-                      ✓ Auto-filled
-                    </span>
-                  )}
-                </label>
-                <div className="space-y-3">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="hospitalLocation"
-                      className="text-blue-600 focus:ring-blue-500"
-                      checked={formData.isInsideDavaoCity}
-                      onChange={() => updateFormData('isInsideDavaoCity', true)}
-                      disabled={!!user?.hospital_name}
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                      Inside Davao City
-                    </span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="hospitalLocation"
-                      className="text-blue-600 focus:ring-blue-500"
-                      checked={!formData.isInsideDavaoCity}
-                      onChange={() => updateFormData('isInsideDavaoCity', false)}
-                      disabled={!!user?.hospital_name}
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                      Outside Davao City
-                    </span>
-                  </label>
-                </div>
-              </div>
-
               {/* Hospital Name */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Complete Name of Referring Facility *
                   {user && user.hospital_name && (
                     <span className="text-xs text-green-600 dark:text-green-400 ml-2">
-                      ✓ Auto-filled from hospital account
+                      ✓ Auto-filled from your hospital account
                     </span>
                   )}
                 </label>
                 {user && user.hospital_name ? (
+                  // Hospital account - show read-only hospital name
                   <input
                     type="text"
                     value={user.hospital_name}
@@ -1111,12 +1137,13 @@ const ExternalReferral = () => {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
                   />
                 ) : user && user.role === 'referrer' && referrerProfile?.referrer_type === 'doctor' && referrerProfile?.affiliate_hospitals?.length > 0 ? (
+                  // Doctor account - show dropdown of affiliate hospitals
                   <select 
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
                     value={formData.referringFacilityName}
                     onChange={(e) => {
                       updateFormData('referringFacilityName', e.target.value);
-                      const selectedHospital = referrerProfile.affiliate_hospitals.find(h => h.id.toString() === e.target.value);
+                      const selectedHospital = referrerProfile.affiliate_hospitals.find((h: any) => h.id.toString() === e.target.value);
                       if (selectedHospital) {
                         updateFormData('isInsideDavaoCity', selectedHospital.is_inside_davao_city);
                         updateFormData('hospitalLocation', selectedHospital.location || '');
@@ -1124,11 +1151,12 @@ const ExternalReferral = () => {
                     }}
                   >
                     <option value="">Select from your affiliate hospitals</option>
-                    {referrerProfile.affiliate_hospitals.map((hospital) => (
+                    {referrerProfile.affiliate_hospitals.map((hospital: any) => (
                       <option key={hospital.id} value={hospital.id}>{hospital.name}</option>
                     ))}
                   </select>
                 ) : (
+                  // Public/guest - show all hospitals dropdown
                   <select 
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
                     value={formData.referringFacilityName}
@@ -1192,18 +1220,30 @@ const ExternalReferral = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Region *
                   </label>
-                  <input
-                    type="text"
-                    value={formData.hospitalRegion}
-                    onChange={(e) => updateFormData('hospitalRegion', e.target.value)}
-                    readOnly={!!user?.hospital_region}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
-                      user?.hospital_region 
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
-                        : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-                    }`}
-                    placeholder="e.g., Region XI (Davao Region)"
-                  />
+                  {user?.hospital_region ? (
+                    <input
+                      type="text"
+                      value={formData.hospitalRegion}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
+                    />
+                  ) : (
+                    <select
+                      value={formData.hospitalRegion}
+                      onChange={(e) => {
+                        const selectedCode = e.target.value;
+                        // Store the code for useEffect to trigger, but we'll store the name on submit
+                        updateFormData('hospitalRegion', selectedCode);
+                      }}
+                      disabled={loadingRegions}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">{loadingRegions ? 'Loading regions...' : 'Select Region'}</option>
+                      {regions.map((r) => (
+                        <option key={r.code} value={r.code}>{r.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 {/* Province */}
@@ -1211,18 +1251,35 @@ const ExternalReferral = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Province *
                   </label>
-                  <input
-                    type="text"
-                    value={formData.hospitalProvince}
-                    onChange={(e) => updateFormData('hospitalProvince', e.target.value)}
-                    readOnly={!!user?.hospital_province}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
-                      user?.hospital_province 
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
-                        : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-                    }`}
-                    placeholder="e.g., Davao del Sur"
-                  />
+                  {user?.hospital_province ? (
+                    <input
+                      type="text"
+                      value={formData.hospitalProvince}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
+                    />
+                  ) : (
+                    <select
+                      value={formData.hospitalProvince}
+                      onChange={(e) => {
+                        const selectedCode = e.target.value;
+                        updateFormData('hospitalProvince', selectedCode);
+                      }}
+                      disabled={!formData.hospitalRegion || loadingProvinces}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                    >
+                      <option value="">
+                        {!formData.hospitalRegion 
+                          ? 'Select region first' 
+                          : loadingProvinces 
+                          ? 'Loading provinces...' 
+                          : 'Select Province'}
+                      </option>
+                      {provinces.map((p) => (
+                        <option key={p.code} value={p.code}>{p.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 {/* City */}
@@ -1230,24 +1287,41 @@ const ExternalReferral = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     City / Municipality *
                   </label>
-                  <input
-                    type="text"
-                    value={formData.hospitalCity}
-                    onChange={(e) => updateFormData('hospitalCity', e.target.value)}
-                    readOnly={!!user?.hospital_city}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
-                      user?.hospital_city 
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
-                        : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-                    }`}
-                    placeholder="e.g., Davao City"
-                  />
+                  {user?.hospital_city ? (
+                    <input
+                      type="text"
+                      value={formData.hospitalCity}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
+                    />
+                  ) : (
+                    <select
+                      value={formData.hospitalCity}
+                      onChange={(e) => {
+                        const selectedCode = e.target.value;
+                        updateFormData('hospitalCity', selectedCode);
+                      }}
+                      disabled={!formData.hospitalProvince || loadingCities}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                    >
+                      <option value="">
+                        {!formData.hospitalProvince 
+                          ? 'Select province first' 
+                          : loadingCities 
+                          ? 'Loading cities...' 
+                          : 'Select City / Municipality'}
+                      </option>
+                      {cities.map((c) => (
+                        <option key={c.code} value={c.code}>{c.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
-                {/* Barangay */}
+                {/* Barangay - Keep as text input */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Barangay *
+                    Barangay
                   </label>
                   <input
                     type="text"
@@ -1259,7 +1333,7 @@ const ExternalReferral = () => {
                         ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
                         : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     }`}
-                    placeholder="e.g., Bajada"
+                    placeholder="e.g., Bajada (Optional)"
                   />
                 </div>
 
@@ -1269,14 +1343,11 @@ const ExternalReferral = () => {
                     Complete Hospital Address (Street, Building, District) *
                   </label>
                   <textarea
-                    value={formData.hospitalStreet + (formData.hospitalDistrict ? ', ' + formData.hospitalDistrict : '')}
+                    value={formData.hospitalStreet}
                     onChange={(e) => {
                       // For auto-filled fields, don't allow editing
                       if (!user?.hospital_street) {
-                        // Split by comma to separate street and district
-                        const parts = e.target.value.split(',').map(p => p.trim());
-                        updateFormData('hospitalStreet', parts[0] || '');
-                        updateFormData('hospitalDistrict', parts[1] || '');
+                        updateFormData('hospitalStreet', e.target.value);
                       }
                     }}
                     readOnly={!!user?.hospital_street}
@@ -1348,80 +1419,19 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Hospital Contact Numbers (Hotline/Phone) *
-                  {user && user.contact_numbers && user.contact_numbers.length > 0 && (
-                    <span className="text-xs text-green-600 dark:text-green-400 ml-2">
-                      ✓ Auto-filled
-                    </span>
-                  )}
+                  Patient/Watcher Contact Number *
                 </label>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                  Add multiple contact numbers for the hospital. You can add hotlines, phone numbers, etc.
+                  Contact number of patient or watcher for emergency communication during referral
                 </p>
                 
-                <div className="flex gap-2 mb-3">
-                  <input
-                    type="text"
-                    value={currentContactNumber}
-                    onChange={(e) => setCurrentContactNumber(e.target.value)}
-                    placeholder="Enter contact number (e.g., 0912-345-6789)"
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (currentContactNumber.trim()) {
-                          updateFormData('hospitalContactNumbers', [...formData.hospitalContactNumbers, currentContactNumber.trim()]);
-                          setCurrentContactNumber('');
-                        }
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      if (currentContactNumber.trim()) {
-                        updateFormData('hospitalContactNumbers', [...formData.hospitalContactNumbers, currentContactNumber.trim()]);
-                        setCurrentContactNumber('');
-                      }
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
-                  >
-                    Add
-                  </Button>
-                </div>
-
-                {formData.hospitalContactNumbers.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Added Contact Numbers ({formData.hospitalContactNumbers.length}):
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {formData.hospitalContactNumbers.map((number, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                        >
-                          {number}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              updateFormData('hospitalContactNumbers', formData.hospitalContactNumbers.filter((_, i) => i !== index));
-                            }}
-                            className="ml-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {formData.hospitalContactNumbers.length === 0 && (
-                  <p className="text-sm text-red-600 dark:text-red-400">
-                    Please add at least one contact number.
-                  </p>
-                )}
+                <input
+                  type="text"
+                  value={formData.referrerCellphone}
+                  onChange={(e) => updateFormData('referrerCellphone', e.target.value)}
+                  placeholder="e.g., 0912-345-6789 or 082-123-4567"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                />
               </div>
             </div>
           </div>
@@ -1700,7 +1710,7 @@ const ExternalReferral = () => {
                 <div className="flex items-start gap-2">
                   <Info className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
                   <div className="text-sm text-green-800 dark:text-green-200">
-                    <p className="font-medium">Logged in as: {user.full_name || user.username}</p>
+                    <p className="font-medium">Logged in as: {user.hospital_name || user.full_name || user.username}</p>
                     <p>After submission, you'll be redirected to your dashboard where you can track this referral's progress.</p>
                   </div>
                 </div>

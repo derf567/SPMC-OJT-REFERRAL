@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Barangay Filtering</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            max-height: 400px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        input {
+            padding: 8px;
+            width: 200px;
+            margin: 10px 0;
+        }
+        button {
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Barangay Filtering</h1>
+    
+    <div>
+        <h3>Step 1: Find Davao City Code</h3>
+        <button onclick="findDavaoCity()">Find Davao City</button>
+        <div id="davao-result"></div>
+    </div>
+    
+    <div>
+        <h3>Step 2: Test Barangay Filtering</h3>
+        <label>Enter City Code (e.g., from Davao City above):</label><br>
+        <input type="text" id="cityCode" placeholder="e.g., 112402000">
+        <button onclick="testBarangayFiltering()">Find Barangays</button>
+        <div id="barangay-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://psgc.cloud/api';
+        let allBarangays = null;
+
+        async function findDavaoCity() {
+            const resultDiv = document.getElementById('davao-result');
+            resultDiv.innerHTML = '<p>Loading...</p>';
+            
+            try {
+                const [citiesRes, munRes] = await Promise.all([
+                    fetch(`${API_BASE}/cities`),
+                    fetch(`${API_BASE}/municipalities`)
+                ]);
+                
+                const cities = await citiesRes.json();
+                const municipalities = await munRes.json();
+                const all = [...cities, ...municipalities];
+                
+                const davaoCity = all.find(c => 
+                    c.name.toLowerCase().includes('davao') && 
+                    c.name.toLowerCase().includes('city')
+                );
+                
+                if (davaoCity) {
+                    document.getElementById('cityCode').value = davaoCity.code;
+                    resultDiv.innerHTML = `
+                        <p class="success">✓ Found Davao City!</p>
+                        <pre>${JSON.stringify(davaoCity, null, 2)}</pre>
+                        <p><strong>Code:</strong> ${davaoCity.code}</p>
+                        <p><strong>First 6 digits:</strong> ${davaoCity.code.substring(0, 6)}</p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = '<p class="error">Davao City not found</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testBarangayFiltering() {
+            const cityCode = document.getElementById('cityCode').value;
+            const resultDiv = document.getElementById('barangay-result');
+            
+            if (!cityCode) {
+                resultDiv.innerHTML = '<p class="error">Please enter a city code</p>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<p>Loading barangays... (this may take 10-20 seconds)</p>';
+            
+            try {
+                // Load all barangays if not cached
+                if (!allBarangays) {
+                    const response = await fetch(`${API_BASE}/barangays`);
+                    allBarangays = await response.json();
+                }
+                
+                console.log('Total barangays:', allBarangays.length);
+                console.log('Sample barangay codes:', allBarangays.slice(0, 5).map(b => b.code));
+                
+                // Test different filtering approaches
+                const prefix6 = cityCode.substring(0, 6);
+                const prefix7 = cityCode.substring(0, 7);
+                const prefix9 = cityCode.substring(0, 9);
+                
+                const filtered6 = allBarangays.filter(b => b.code.startsWith(prefix6));
+                const filtered7 = allBarangays.filter(b => b.code.startsWith(prefix7));
+                const filtered9 = allBarangays.filter(b => b.code.startsWith(prefix9));
+                
+                resultDiv.innerHTML = `
+                    <h4>Filtering Results:</h4>
+                    <p><strong>City Code:</strong> ${cityCode}</p>
+                    <p><strong>Total Barangays in Database:</strong> ${allBarangays.length}</p>
+                    
+                    <h4>Using first 6 digits (${prefix6}):</h4>
+                    <p>Found: ${filtered6.length} barangays</p>
+                    ${filtered6.length > 0 ? `<pre>${JSON.stringify(filtered6.slice(0, 10), null, 2)}</pre>` : '<p>No barangays found</p>'}
+                    
+                    <h4>Using first 7 digits (${prefix7}):</h4>
+                    <p>Found: ${filtered7.length} barangays</p>
+                    ${filtered7.length > 0 ? `<pre>${JSON.stringify(filtered7.slice(0, 10), null, 2)}</pre>` : '<p>No barangays found</p>'}
+                    
+                    <h4>Using first 9 digits (${prefix9}):</h4>
+                    <p>Found: ${filtered9.length} barangays</p>
+                    ${filtered9.length > 0 ? `<pre>${JSON.stringify(filtered9.slice(0, 10), null, 2)}</pre>` : '<p>No barangays found</p>'}
+                    
+                    <p><em>Showing first 10 results for each filter</em></p>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

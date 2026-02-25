@@ -22,6 +22,7 @@ const Register = () => {
   const [cities, setCities] = useState<CityMunicipality[]>([]);
   const [barangays, setBarangays] = useState<Barangay[]>([]);
   const [loadingRegions, setLoadingRegions] = useState(true);
+  const [loadingBarangays, setLoadingBarangays] = useState(false);
   
   const [formData, setFormData] = useState({
     // Account Credentials
@@ -105,12 +106,15 @@ const Register = () => {
   useEffect(() => {
     const loadBarangays = async () => {
       if(formData.city) {
+        setLoadingBarangays(true);
         const data = await fetchBarangays(formData.city);
         setBarangays(data);
+        setLoadingBarangays(false);
         // Reset barangay field
         setFormData(prev => ({ ...prev, barangay: '' }));
       } else {
         setBarangays([]);
+        setLoadingBarangays(false);
       }
     };
     loadBarangays();
@@ -401,33 +405,6 @@ const Register = () => {
                 </select>
               </div>
 
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Hospital Location *
-                </label>
-                <div className="flex items-center space-x-4">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="isInsideDavaoCity"
-                      checked={formData.isInsideDavaoCity}
-                      onChange={() => setFormData(prev => ({ ...prev, isInsideDavaoCity: true }))}
-                      className="text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Inside Davao City</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="isInsideDavaoCity"
-                      checked={!formData.isInsideDavaoCity}
-                      onChange={() => setFormData(prev => ({ ...prev, isInsideDavaoCity: false }))}
-                      className="text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Outside Davao City</span>
-                  </label>
-                </div>
-              </div>
             </div>
 
             <div className="space-y-4">
@@ -487,7 +464,13 @@ const Register = () => {
                     disabled={!formData.province || cities.length === 0}
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
                   >
-                    <option value="">{!formData.province ? 'Select province first' : cities.length === 0 ? 'Loading cities...' : 'Select City / Municipality'}</option>
+                    <option value="">
+                      {!formData.province 
+                        ? 'Select province first' 
+                        : cities.length === 0 
+                        ? 'Loading cities...' 
+                        : 'Select City / Municipality'}
+                    </option>
                     {cities.map((c) => (
                       <option key={c.code} value={c.code}>{c.name}</option>
                     ))}
@@ -496,21 +479,46 @@ const Register = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Barangay *
+                    Barangay (Optional)
                   </label>
-                  <select
-                    name="barangay"
-                    value={formData.barangay}
-                    onChange={handleInputChange}
-                    required
-                    disabled={!formData.city || barangays.length === 0}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
-                  >
-                    <option value="">{!formData.city ? 'Select city first' : barangays.length === 0 ? 'Loading barangays...' : 'Select Barangay'}</option>
-                    {barangays.map((b) => (
-                      <option key={b.code} value={b.code}>{b.name}</option>
-                    ))}
-                  </select>
+                  {!loadingBarangays && formData.city && barangays.length === 0 ? (
+                    // Show text input if barangays failed to load
+                    <input
+                      type="text"
+                      name="barangay"
+                      value={formData.barangay}
+                      onChange={handleInputChange}
+                      placeholder="Enter barangay name (optional)"
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  ) : (
+                    // Show dropdown if barangays loaded successfully
+                    <>
+                      <select
+                        name="barangay"
+                        value={formData.barangay}
+                        onChange={handleInputChange}
+                        disabled={!formData.city || loadingBarangays}
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                      >
+                        <option value="">
+                          {!formData.city 
+                            ? 'Select city first' 
+                            : loadingBarangays 
+                            ? 'Loading barangays...' 
+                            : 'Select Barangay (Optional)'}
+                        </option>
+                        {barangays.map((b) => (
+                          <option key={b.code} value={b.code}>{b.name}</option>
+                        ))}
+                      </select>
+                      {loadingBarangays && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Loading barangays... This may take a moment.
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
 
