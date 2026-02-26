@@ -222,7 +222,7 @@ def comprehensive_register_view(request):
             cellphone=data.get('cellphone', ''),
             hospital_name=data.get('hospital_name', ''),
             hospital_location=data.get('address', ''),
-            is_inside_davao=True,  # Default to True
+            is_inside_davao=data.get('is_inside_davao_city', 'true').lower() == 'true',
             # New address fields from PSGC API
             hospital_region=data.get('region', ''),
             hospital_province=data.get('province', ''),

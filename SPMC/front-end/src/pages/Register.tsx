@@ -185,6 +185,12 @@ const Register = () => {
       const selectedCity = cities.find(c => c.code === formData.city);
       const selectedBarangay = barangays.find(b => b.code === formData.barangay);
 
+      // Debug: Log what we found
+      console.log('Selected Region:', selectedRegion);
+      console.log('Selected Province:', selectedProvince);
+      console.log('Selected City:', selectedCity);
+      console.log('Selected Barangay:', selectedBarangay);
+
       // Prepare hospital registration data
       const fd = new FormData();
       
@@ -193,17 +199,25 @@ const Register = () => {
       fd.append('email', formData.email);
       fd.append('password', formData.password);
       
+      // For hospital accounts, use hospital name as first/last name
+      // This is required by comprehensive_register_view
+      fd.append('first_name', formData.hospitalName.split(' ')[0] || 'Hospital');
+      fd.append('last_name', formData.hospitalName.split(' ').slice(1).join(' ') || 'Account');
+      fd.append('referrer_type', 'hospital_account');
+      
       // Hospital information
       fd.append('hospital_name', formData.hospitalName);
       fd.append('hospital_doh_level', formData.hospitalDohLevel);
       fd.append('is_inside_davao_city', String(formData.isInsideDavaoCity));
       
-      // Address fields - send both codes and names
-      fd.append('region', selectedRegion?.name || formData.region);
-      fd.append('province', selectedProvince?.name || formData.province);
-      fd.append('city', selectedCity?.name || formData.city);
-      fd.append('barangay', selectedBarangay?.name || formData.barangay);
+      // Address fields - send the NAMES, not the codes
+      // Make sure we have the names, otherwise use empty string
+      fd.append('region', selectedRegion?.name || '');
+      fd.append('province', selectedProvince?.name || '');
+      fd.append('city', selectedCity?.name || '');
+      fd.append('barangay', selectedBarangay?.name || '');
       fd.append('complete_address', formData.completeAddress);
+      fd.append('address', formData.completeAddress); // Also send as 'address' for hospital_location
       
       // Contact numbers (as JSON array)
       fd.append('contact_numbers', JSON.stringify(formData.contactNumbers));
@@ -213,26 +227,14 @@ const Register = () => {
         Array.from(files).forEach(f => fd.append('documents', f));
       }
 
-      // Try the comprehensive registration endpoint
-      try {
-        await authAPI.registerComprehensive(fd);
-      } catch (error: any) {
-        // Fallback to simple registration if comprehensive fails
-        const simpleData = {
-          username: formData.username,
-          email: formData.email,
-          password: formData.password,
-          firstName: formData.hospitalName.split(' ')[0] || 'Hospital',
-          lastName: 'Account',
-          profession: 'Hospital',
-          cellphone: formData.contactNumbers[0] || '000-000-0000',
-          hospitalName: formData.hospitalName,
-          hospitalLocation: formData.completeAddress,
-          isInsideDavao: formData.isInsideDavaoCity,
-        };
-        
-        await authAPI.register(simpleData);
+      // Debug: Log what we're sending
+      console.log('Sending registration data:');
+      for (let [key, value] of fd.entries()) {
+        console.log(`${key}:`, value);
       }
+
+      // Use comprehensive registration endpoint
+      await authAPI.registerComprehensive(fd);
       
       toast({
         title: "Hospital Registration Submitted! 🎉",

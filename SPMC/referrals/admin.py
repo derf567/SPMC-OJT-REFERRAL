@@ -8,6 +8,14 @@ class UserProfileInline(admin.StackedInline):
     model = UserProfile
     can_delete = False
     verbose_name_plural = 'Profile'
+    readonly_fields = ['display_contact_numbers_inline']
+    
+    def display_contact_numbers_inline(self, obj):
+        """Display contact numbers in inline form"""
+        if obj and obj.contact_numbers:
+            return ', '.join(obj.contact_numbers)
+        return 'No contact numbers'
+    display_contact_numbers_inline.short_description = 'Contact Numbers (from registration)'
 
 # Extend UserAdmin to include profile
 class CustomUserAdmin(UserAdmin):
@@ -19,9 +27,16 @@ admin.site.register(User, CustomUserAdmin)
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'role', 'department', 'contact_number']
+    list_display = ['user', 'role', 'department', 'cellphone', 'display_contact_numbers']
     list_filter = ['role', 'department']
     search_fields = ['user__username', 'user__first_name', 'user__last_name']
+    
+    def display_contact_numbers(self, obj):
+        """Display contact numbers as comma-separated list"""
+        if obj.contact_numbers:
+            return ', '.join(obj.contact_numbers)
+        return '-'
+    display_contact_numbers.short_description = 'Contact Numbers'
 
 @admin.register(ReferringHospital)
 class ReferringHospitalAdmin(admin.ModelAdmin):
