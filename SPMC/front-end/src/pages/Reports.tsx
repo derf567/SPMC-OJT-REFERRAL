@@ -834,36 +834,17 @@ const Reports = () => {
               )}
             </div>
             
-            {/* Download Button with Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-                >
-                  <Download className="w-4 h-4" />
-                  Download Report
-                  <ChevronDown className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={() => handleDownloadReports(true)}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <Image className="w-4 h-4" />
-                  <span>With Graphs</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleDownloadReports(false)}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Without Graphs</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Download Button - Temporarily disabled until jsPDF is installed */}
+            {/* 
+            <Button
+              variant="default"
+              size="sm"
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+              disabled
+            >
+              Download Report (Coming Soon)
+            </Button>
+            */}
           </div>
         </div>
         

@@ -343,10 +343,17 @@ class ReferralViewSet(viewsets.ModelViewSet):
             triage_notes = request.data.get('triage_notes', '')
             scheduled_date = request.data.get('scheduled_date')
             scheduled_time = request.data.get('scheduled_time')
+            assigned_departments = request.data.get('assigned_departments', [])
             
             if not triage_decision:
                 return Response({
                     'error': 'Triage decision is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate assigned departments
+            if not assigned_departments or len(assigned_departments) == 0:
+                return Response({
+                    'error': 'At least one department must be selected'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Validate triage decision
@@ -389,6 +396,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
             referral.triage_notes = triage_notes
             referral.triaged_by = request.user
             referral.triaged_at = timezone.now()
+            referral.assigned_departments = assigned_departments
             
             # Set status based on triage decision
             if triage_decision == 'emergent':
@@ -406,9 +414,16 @@ class ReferralViewSet(viewsets.ModelViewSet):
             
             # Create status history record
             decision_display = dict(Referral.TRIAGE_DECISION_CHOICES).get(triage_decision, triage_decision)
-            history_notes = f'Triage decision: {decision_display}'
+            
+            # Get department names for history
+            dept_names = []
+            for dept_code in assigned_departments:
+                dept_display = dict(Referral.DEPARTMENT_CHOICES).get(dept_code, dept_code)
+                dept_names.append(dept_display)
+            
+            history_notes = f'Triage decision: {decision_display}. Assigned to: {", ".join(dept_names)}'
             if triage_notes:
-                history_notes += f'. Notes: {triage_notes}'
+                history_notes += f'. Remarks: {triage_notes}'
             if triage_decision == 'schedule_opd':
                 history_notes += f'. Scheduled for {scheduled_date} at {scheduled_time}'
                 
@@ -426,7 +441,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'triage_decision': triage_decision,
                 'new_status': referral.status,
                 'triaged_by': request.user.get_full_name(),
-                'triaged_at': referral.triaged_at
+                'triaged_at': referral.triaged_at,
+                'assigned_departments': assigned_departments
             }
             
             if triage_decision == 'schedule_opd':

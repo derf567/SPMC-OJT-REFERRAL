@@ -559,6 +559,7 @@ export const ReferralTable = () => {
   const [selectedReferralForTransfer, setSelectedReferralForTransfer] = useState<ReferralData | null>(null);
   const [selectedReferralForDepartmentChange, setSelectedReferralForDepartmentChange] = useState<ReferralData | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [newDepartment, setNewDepartment] = useState("");
   const [triageDecision, setTriageDecision] = useState("");
   const [triageNotes, setTriageNotes] = useState("");
@@ -829,13 +830,12 @@ export const ReferralTable = () => {
       return;
     }
 
-    // Check if department is selected (either from existing or newly selected)
-    const finalDepartment = selectedDepartment || selectedReferral.assigned_department;
-    if (!finalDepartment) {
+    // Validate that at least one department is selected
+    if (!selectedDepartments || selectedDepartments.length === 0) {
       toast({
         variant: "destructive",
         title: "Missing Department",
-        description: "Please select a department before accepting the referral.",
+        description: "Please select at least one department.",
       });
       return;
     }
@@ -865,17 +865,10 @@ export const ReferralTable = () => {
     }
 
     try {
-      // If department was changed, update it first
-      if (selectedDepartment && selectedDepartment !== selectedReferral.assigned_department) {
-        await referralsAPI.changeDepartment(
-          selectedReferral.id || selectedReferral.referral_id, 
-          selectedDepartment
-        );
-      }
-
       await referralsAPI.acceptWithTriageDecision(
         selectedReferral.id || selectedReferral.referral_id,
         triageDecision,
+        selectedDepartments,
         triageNotes,
         triageDecision === 'schedule_opd' ? scheduledDate : undefined,
         triageDecision === 'schedule_opd' ? scheduledTime : undefined
@@ -906,6 +899,7 @@ export const ReferralTable = () => {
       setScheduledTime("");
       setDateError("");
       setSelectedDepartment(""); // Reset department selection
+      setSelectedDepartments([]); // Reset multiple departments selection
       
       // Success notification with triage decision
       const decisionEmoji = triageDecision === 'emergent' ? '🚨' : 
@@ -914,9 +908,11 @@ export const ReferralTable = () => {
                           triageDecision === 'urgent' ? 'URGENT' :
                           triageDecision.replace('_', ' ').toUpperCase();
       
-      const deptName = DEPARTMENT_OPTIONS.find(d => d.value === finalDepartment)?.label || finalDepartment;
+      const deptNames = selectedDepartments.map(dept => 
+        DEPARTMENT_OPTIONS.find(d => d.value === dept)?.label || dept
+      ).join(', ');
       
-      let successMessage = `The referral has been accepted and marked as: ${decisionText}. Assigned to ${deptName}. Patient care team has been notified and appropriate care pathway initiated.`;
+      let successMessage = `The referral has been accepted and marked as: ${decisionText}. Assigned to ${deptNames}. Patient care team has been notified and appropriate care pathway initiated.`;
       
       if (triageDecision === 'schedule_opd') {
         const appointmentDate = new Date(scheduledDate).toLocaleDateString('en-US', {
@@ -1605,14 +1601,14 @@ export const ReferralTable = () => {
 
             {/* Content */}
             <div className="p-6 space-y-4">
-              {/* Department Selection - Show current and allow change */}
+              {/* Department Selection - Multiple Selection with Checkboxes */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Assigned Department *
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Assigned Departments * (Select one or more)
                 </label>
                 {selectedReferral.assigned_department && (
-                  <div className="mb-2 p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current Assignment:</p>
+                  <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Initial Assignment from EDCC:</p>
                     <div className="flex items-center gap-2">
                       <span className="text-lg">
                         {DEPARTMENT_OPTIONS.find(d => d.value === selectedReferral.assigned_department)?.icon || '🏥'}
@@ -1626,21 +1622,46 @@ export const ReferralTable = () => {
                     </div>
                   </div>
                 )}
-                <select
-                  value={selectedDepartment || selectedReferral.assigned_department || ""}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  required
-                >
-                  <option value="">Select department...</option>
+                <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-md p-3 bg-white dark:bg-gray-700">
                   {DEPARTMENT_OPTIONS.map((dept) => (
-                    <option key={dept.value} value={dept.value}>
-                      {dept.icon} {dept.label}
-                    </option>
+                    <label 
+                      key={dept.value} 
+                      className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-600/50 rounded cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedDepartments.includes(dept.value)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedDepartments([...selectedDepartments, dept.value]);
+                          } else {
+                            setSelectedDepartments(selectedDepartments.filter(d => d !== dept.value));
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-lg">{dept.icon}</span>
+                      <span className="text-sm text-gray-900 dark:text-white flex-1">{dept.label}</span>
+                    </label>
                   ))}
-                </select>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  You can change the department assignment if needed before finalizing the triage decision.
+                </div>
+                {selectedDepartments.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedDepartments.map(deptValue => {
+                      const dept = DEPARTMENT_OPTIONS.find(d => d.value === deptValue);
+                      return dept ? (
+                        <Badge 
+                          key={deptValue}
+                          className={`text-xs ${getDepartmentColorClasses(dept.color, false)}`}
+                        >
+                          {dept.icon} {dept.label}
+                        </Badge>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  Select all departments that should be involved in this patient's care.
                 </p>
               </div>
 
@@ -1659,19 +1680,6 @@ export const ReferralTable = () => {
                   <option value="urgent">⚡ Urgent - Needs prompt care (AMBER)</option>
                   <option value="schedule_opd">📅 Schedule for OPD - Outpatient follow-up</option>
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Additional Notes (Optional)
-                </label>
-                <textarea
-                  value={triageNotes}
-                  onChange={(e) => setTriageNotes(e.target.value)}
-                  placeholder="Add any additional notes or instructions..."
-                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  rows={3}
-                />
               </div>
 
               {/* Date and Time Selection for Schedule OPD */}
@@ -1766,6 +1774,24 @@ export const ReferralTable = () => {
                   </p>
                 </div>
               )}
+
+              {/* Remarks Section - Prominent at the bottom */}
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border-2 border-yellow-300 dark:border-yellow-700">
+                <label className="block text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-2 flex items-center gap-2">
+                  <span className="text-lg">📝</span>
+                  Remarks / Additional Instructions
+                </label>
+                <textarea
+                  value={triageNotes}
+                  onChange={(e) => setTriageNotes(e.target.value)}
+                  placeholder="Enter any important remarks, special instructions, or notes for the care team..."
+                  className="w-full p-3 border border-yellow-300 dark:border-yellow-600 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  rows={4}
+                />
+                <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-2">
+                  These remarks will be visible to all departments involved in the patient's care.
+                </p>
+              </div>
             </div>
 
             {/* Footer */}
@@ -1780,6 +1806,7 @@ export const ReferralTable = () => {
                   setScheduledTime("");
                   setDateError("");
                   setSelectedDepartment("");
+                  setSelectedDepartments([]);
                 }}
               >
                 Cancel
@@ -1787,7 +1814,7 @@ export const ReferralTable = () => {
               <Button 
                 className="bg-green-600 hover:bg-green-700 text-white"
                 onClick={handleAcceptWithTriageDecision}
-                disabled={!triageDecision || !(selectedDepartment || selectedReferral?.assigned_department)}
+                disabled={!triageDecision || selectedDepartments.length === 0}
               >
                 Accept & Apply Decision
               </Button>
