@@ -526,23 +526,13 @@ const ReferralDetailModal = ({
               Transfer to EDMAR/EDHO Triage
             </Button>
           )}
-          {user?.permissions?.can_triage_referrals && referral.assigned_department && referral.status === 'waiting' && (
-            <Button 
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-              onClick={() => {
-                setShowChangeDepartmentModal(true);
-                onClose();
-              }}
-            >
-              Change Department
-            </Button>
-          )}
           {user?.permissions?.can_triage_referrals && referral.status === 'waiting' && (
             <Button 
               className="bg-green-600 hover:bg-green-700 text-white"
               onClick={() => {
+                // Don't close the view dialog - just show triage modal
+                // The selectedReferral is already set from the view dialog
                 setShowTriageModal(true);
-                onClose();
               }}
             >
               Accept Referral
@@ -1616,7 +1606,7 @@ export const ReferralTable = () => {
 
       {/* Triage Decision Modal */}
       {showTriageModal && selectedReferral && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
