@@ -179,7 +179,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
             
             # Specialty and referrer info
             'specialty_needed_name', 'referring_hospital_name', 'referrer_name', 
-            'referrer_profession', 'referrer_cellphone', 'mode_of_transportation',
+            'referrer_profession', 'referrer_cellphone', 'contact_numbers', 'mode_of_transportation',
             
             # System fields
             'created_by_name', 'assigned_to_name', 'consent_secured',
@@ -217,6 +217,12 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating new referrals"""
     transit_info = TransitInfoSerializer(required=False, allow_null=True)
     hospital_name = serializers.CharField(required=False, write_only=True)
+    hospital_contact_numbers = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        write_only=True,
+        help_text="Contact numbers from hospital/referrer profile"
+    )
     
     class Meta:
         model = Referral
@@ -228,6 +234,11 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         transit_info_data = validated_data.pop('transit_info', None)
         hospital_name = validated_data.pop('hospital_name', None)
+        hospital_contact_numbers = validated_data.pop('hospital_contact_numbers', None)
+        
+        # Map hospital_contact_numbers to contact_numbers
+        if hospital_contact_numbers:
+            validated_data['contact_numbers'] = hospital_contact_numbers
         
         # If hospital_name is provided instead of referring_hospital ID, create/get the hospital
         if hospital_name and 'referring_hospital' not in validated_data:

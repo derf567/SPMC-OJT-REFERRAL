@@ -147,11 +147,17 @@ const Login = () => {
           </div>
 
           {/* Registration Link */}
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-2">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Don't have an account?{" "}
               <Link to="/register" className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
                 Register Your Hospital
+              </Link>
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Are you a doctor?{" "}
+              <Link to="/register/doctor" className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 font-medium">
+                Register as Doctor
               </Link>
             </p>
           </div>

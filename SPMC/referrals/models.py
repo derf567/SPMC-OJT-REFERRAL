@@ -8,6 +8,7 @@ class UserProfile(models.Model):
         ('edcc_personnel', 'EDCC Personnel'),
         ('call_triage', 'EDMAR/EDHO (Call Triage)'),
         ('admin', 'Administrator'),
+        ('doctor', 'Doctor'),
         ('referrer', 'Referrer'),
     ]
     
@@ -61,6 +62,16 @@ class UserProfile(models.Model):
     def is_admin_user(self):
         """Check if user is admin"""
         return self.role == 'admin' or self.user.is_superuser
+    
+    @property
+    def is_doctor(self):
+        """Check if user is a doctor"""
+        return self.role == 'doctor'
+    
+    @property
+    def can_view_department_referrals(self):
+        """Doctors can view referrals assigned to their department"""
+        return self.role == 'doctor' and self.department
 
 class ReferringHospital(models.Model):
     """Model for referring hospitals/facilities"""
@@ -195,6 +206,7 @@ class Referral(models.Model):
     referrer_name = models.CharField(max_length=200)
     referrer_profession = models.CharField(max_length=100)
     referrer_cellphone = models.CharField(max_length=20)
+    contact_numbers = models.JSONField(default=list, blank=True, help_text="Patient/Watcher contact numbers")
     mode_of_transportation = models.CharField(max_length=100)
     
     # Consent

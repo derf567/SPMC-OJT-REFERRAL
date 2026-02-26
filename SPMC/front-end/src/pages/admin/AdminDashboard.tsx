@@ -200,33 +200,14 @@ const AdminDashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div 
-            onClick={() => navigate('/admin/headsup/assign')}
-            className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg p-6 text-white cursor-pointer hover:shadow-xl transition-all transform hover:scale-[1.02]"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Assign Doctors to Departments</h3>
-                <p className="text-purple-100 text-sm mb-4">
-                  Use drag-and-drop to assign unassigned doctors to their departments
-                </p>
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <span>Go to Assignment Interface</span>
-                  <ArrowRight className="w-4 h-4" />
-                </div>
-              </div>
-              <UserPlus className="w-8 h-8 opacity-80" />
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 gap-4">
           <Link to="/admin/approvals">
             <div className="bg-gradient-to-br from-orange-500 to-orange-700 rounded-lg p-6 text-white cursor-pointer hover:shadow-xl transition-all transform hover:scale-[1.02]">
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="text-lg font-semibold mb-2">Review Account Approvals</h3>
                   <p className="text-orange-100 text-sm mb-4">
-                    {stats.pending_referrers} pending referrer account{stats.pending_referrers !== 1 ? 's' : ''} waiting for approval
+                    {stats.pending_referrers} pending account{stats.pending_referrers !== 1 ? 's' : ''} waiting for approval (Referrers & Doctors)
                   </p>
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <span>Review Accounts</span>
@@ -316,15 +297,7 @@ const AdminDashboard = () => {
             <div className="bg-orange-600 hover:bg-orange-700 rounded-lg p-6 text-white transition-colors cursor-pointer">
               <UserCheck className="w-8 h-8 mb-3" />
               <h4 className="font-semibold text-lg">Review Approvals</h4>
-              <p className="text-sm text-orange-100 mt-1">Approve or reject referrer accounts</p>
-            </div>
-          </Link>
-
-          <Link to="/admin/headsup" className="block">
-            <div className="bg-blue-600 hover:bg-blue-700 rounded-lg p-6 text-white transition-colors cursor-pointer">
-              <Users className="w-8 h-8 mb-3" />
-              <h4 className="font-semibold text-lg">Manage Doctors</h4>
-              <p className="text-sm text-blue-100 mt-1">View and assign doctor specialties</p>
+              <p className="text-sm text-orange-100 mt-1">Approve or reject referrer and doctor accounts</p>
             </div>
           </Link>
         </div>

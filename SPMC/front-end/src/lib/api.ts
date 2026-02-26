@@ -131,6 +131,21 @@ export const authAPI = {
     }
   },
 
+  registerDoctor: async (formData: FormData) => {
+    const response = await fetch(`${API_BASE_URL}/auth/register-doctor/`, {
+      method: 'POST',
+      body: formData, // Don't set Content-Type header for FormData
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      return data;
+    } else {
+      throw new Error(data.error || 'Registration failed');
+    }
+  },
+
   logout: async () => {
     try {
       await apiRequest('/auth/logout/', { method: 'POST' });
@@ -393,6 +408,25 @@ export const adminAPI = {
   // Get all pending referrer registrations
   getPendingReferrers: async () => {
     return apiRequest('/referrers/pending_accounts/');
+  },
+
+  // Get all pending doctor registrations
+  getPendingDoctors: async () => {
+    return apiRequest('/admin/pending-doctors/');
+  },
+
+  // Approve doctor account
+  approveDoctor: async (doctorId: number) => {
+    return apiRequest(`/admin/approve-doctor/${doctorId}/`, {
+      method: 'POST',
+    });
+  },
+
+  // Reject doctor account
+  rejectDoctor: async (doctorId: number) => {
+    return apiRequest(`/admin/reject-doctor/${doctorId}/`, {
+      method: 'POST',
+    });
   },
 
   // Get all doctors with departments and specialties
