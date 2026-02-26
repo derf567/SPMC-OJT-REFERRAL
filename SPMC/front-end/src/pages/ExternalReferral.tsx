@@ -212,6 +212,10 @@ const ExternalReferral = () => {
             const profileData = await referrerAPI.getMyProfile();
             setReferrerProfile(profileData);
             
+            // Debug: Log user and profile data
+            console.log('User data:', user);
+            console.log('Profile data:', profileData);
+            
             // Auto-fill hospital information from logged-in account
             setFormData(prev => ({
               ...prev,
@@ -244,6 +248,9 @@ const ExternalReferral = () => {
                 hospitalLocation: profileData.hospital_location || ''
               })
             }));
+            
+            // Debug: Log what was set
+            console.log('Set referringFacilityName to:', user.hospital_name || profileData.hospital_name);
           } catch (error) {
             console.warn('Could not load referrer profile:', error);
             // Continue without auto-filling - user can still fill manually
@@ -529,7 +536,10 @@ const ExternalReferral = () => {
     }
     
     // Step 4 - Referring Hospital validation
-    if (!formData.referringFacilityName) errors.push("Referring Facility is required");
+    // For hospital accounts, check user.hospital_name directly
+    // For doctors/others, check formData.referringFacilityName
+    const referringFacility = (user && user.hospital_name) ? user.hospital_name : formData.referringFacilityName;
+    if (!referringFacility) errors.push("Referring Facility is required");
     if (!formData.hospitalDohLevel) errors.push("Hospital DOH Level is required");
     if (!formData.referrerName.trim()) errors.push("Referrer Name is required");
     if (!formData.referrerProfession.trim()) errors.push("Referrer Profession is required");
@@ -549,6 +559,13 @@ const ExternalReferral = () => {
   const handleSubmit = async () => {
     try {
       setIsSubmitting(true);
+      
+      // Debug: Log form data before validation
+      console.log('Form Data before validation:', {
+        referringFacilityName: formData.referringFacilityName,
+        hospitalName: user?.hospital_name,
+        isHospitalAccount: user && user.hospital_name,
+      });
       
       // Validate form first
       const validationErrors = validateForm();
@@ -596,8 +613,16 @@ const ExternalReferral = () => {
         other_specialty: formData.otherSpecialty || null,
         reason_for_referral: formData.reasonForReferral === "Others" ? formData.otherReasonForReferral : formData.reasonForReferral,
         
-        // Referring Hospital - with converted address names
-        referring_hospital: parseInt(formData.referringFacilityName) || 1,
+        // Referring Hospital - handle both ID (number) and name (text)
+        // Priority: user.hospital_name (for hospital accounts) > formData.referringFacilityName
+        // If referringFacilityName is a number (ID), use it as referring_hospital
+        // If it's text (hospital name), send as hospital_name and backend will create/find the hospital
+        ...(() => {
+          const hospitalValue = (user && user.hospital_name) ? user.hospital_name : formData.referringFacilityName;
+          return isNaN(parseInt(hospitalValue)) 
+            ? { hospital_name: hospitalValue } 
+            : { referring_hospital: parseInt(hospitalValue) };
+        })(),
         hospital_doh_level: formData.hospitalDohLevel || null,
         hospital_location: formData.hospitalLocation || null,
         hospital_contact_numbers: user?.contact_numbers || [],
