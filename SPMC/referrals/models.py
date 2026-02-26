@@ -223,6 +223,14 @@ class Referral(models.Model):
         help_text="Department assigned by EDCC when transferring to triage"
     )
     
+    # Multiple departments (set by Triage when accepting referral)
+    assigned_departments = models.JSONField(
+        default=list,
+        blank=True,
+        null=True,
+        help_text="Multiple departments assigned by triage team"
+    )
+    
     # Outpatient scheduling (for schedule_opd triage decisions)
     scheduled_date = models.DateField(blank=True, null=True, help_text="Scheduled appointment date for OPD")
     scheduled_time = models.TimeField(blank=True, null=True, help_text="Scheduled appointment time for OPD")

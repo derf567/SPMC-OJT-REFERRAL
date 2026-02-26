@@ -191,7 +191,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'triage_decision', 'triage_notes', 'scheduled_date', 'scheduled_time',
             
             # Department assignment
-            'assigned_department'
+            'assigned_department', 'assigned_departments'
         ]
 
 class ReferralDetailSerializer(serializers.ModelSerializer):

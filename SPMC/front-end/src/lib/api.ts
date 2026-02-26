@@ -293,10 +293,11 @@ export const referralsAPI = {
   },
 
   // Accept referral with triage decision (Triage user action)
-  acceptWithTriageDecision: async (id: string, triageDecision: string, triageNotes?: string, scheduledDate?: string, scheduledTime?: string) => {
+  acceptWithTriageDecision: async (id: string, triageDecision: string, assignedDepartments: string[], triageNotes?: string, scheduledDate?: string, scheduledTime?: string) => {
     const requestBody: any = {
       triage_decision: triageDecision,
-      triage_notes: triageNotes || ''
+      triage_notes: triageNotes || '',
+      assigned_departments: assignedDepartments
     };
 
     // Add scheduled date and time if provided (for schedule_opd decisions)
