@@ -40,49 +40,14 @@ const Index = () => {
         setLoading(true);
         const response = await referralsAPI.getDashboardStats();
         
-        // Get today's date
-        const today = new Date().toISOString().split('T')[0];
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        
-        // Fetch all referrals to calculate today's stats
-        const allReferrals = await referralsAPI.getAll();
-        const referrals = allReferrals.results || allReferrals;
-        
-        // Calculate today's stats
-        const todayReferrals = referrals.filter((ref: any) => 
-          ref.created_at.startsWith(today)
-        );
-        const yesterdayReferrals = referrals.filter((ref: any) => 
-          ref.created_at.startsWith(yesterday)
-        );
-        
-        const pendingCases = referrals.filter((ref: any) => 
-          ref.status === 'pending'
-        ).length;
-        
-        const criticalCases = referrals.filter((ref: any) => 
-          ref.priority === 'critical'
-        ).length;
-        
-        const completedToday = referrals.filter((ref: any) => 
-          ref.status === 'completed' && ref.updated_at.startsWith(today)
-        ).length;
-        
-        const completedYesterday = referrals.filter((ref: any) => 
-          ref.status === 'completed' && ref.updated_at.startsWith(yesterday)
-        ).length;
-        
-        // Calculate unique patients (count unique patient names)
-        const uniquePatients = new Set(referrals.map((ref: any) => ref.patient_full_name));
-        
         setStats({
-          total_referrals_today: todayReferrals.length,
-          pending_cases: pendingCases,
-          critical_cases: criticalCases,
-          completed_today: completedToday,
-          yesterday_completed: completedYesterday,
-          yesterday_total: yesterdayReferrals.length,
-          total_patients: uniquePatients.size,
+          total_referrals_today: response.total_referrals_today || 0,
+          pending_cases: response.pending_referrals || 0,
+          critical_cases: response.critical_referrals || 0,
+          completed_today: response.completed_today || 0,
+          yesterday_completed: response.completed_yesterday || 0,
+          yesterday_total: response.total_referrals_yesterday || 0,
+          total_patients: response.total_patients || 0,
         });
       } catch (error) {
         console.error('Error fetching dashboard stats:', error);
@@ -172,7 +137,7 @@ const Index = () => {
                   {loading ? '...' : stats.completed_today}
                 </p>
                 <p className="text-xs mt-1 text-green-600 dark:text-green-400">
-                  {loading ? '...' : `${calculatePercentageChange(stats.completed_today, stats.yesterday_completed) >= 0 ? '+' : ''}${calculatePercentageChange(stats.completed_today, stats.yesterday_completed)} from yesterday`}
+                  {loading ? '...' : `${calculatePercentageChange(stats.completed_today, stats.yesterday_completed) >= 0 ? '+' : ''}${calculatePercentageChange(stats.completed_today, stats.yesterday_completed)}% from yesterday`}
                 </p>
               </div>
               <div className="p-3 rounded-lg bg-green-500/10">

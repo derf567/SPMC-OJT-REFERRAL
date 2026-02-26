@@ -6,6 +6,15 @@ import { referralsAPI } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import html2canvas from "html2canvas";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { 
   Calendar, 
   BarChart3, 
@@ -13,7 +22,11 @@ import {
   TrendingUp,
   Building2,
   Users,
-  Filter
+  Filter,
+  Download,
+  FileText,
+  Image,
+  ChevronDown
 } from "lucide-react";
 
 interface ReportsData {
@@ -122,11 +135,16 @@ const Reports = () => {
       setSpecialtiesData(specialtiesData);
       setCoordinatedData(coordinatedData);
       setUncoordinatedData(uncoordinatedData);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching filtered data:', error);
+      const errorMessage = error?.message || "Failed to load filtered data. Please try again.";
       toast({
-        title: "Error",
-        description: "Failed to load filtered data. Please try again.",
+        title: "Error Loading Data",
+        description: errorMessage.includes('401') 
+          ? "Authentication required. Please log in again." 
+          : errorMessage.includes('404')
+          ? "API endpoints not found. Please restart the Django backend server."
+          : errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -164,54 +182,36 @@ const Reports = () => {
     fetchAllFilteredData();
   }, [globalFilter, globalYear, globalMonth, globalWeek, weekFilterMonth]);
 
-  // Helper function to generate chart as image
-  const generateChartImage = async (config: ChartConfiguration): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = 800;
-        canvas.height = 400;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          console.error('Failed to get canvas context');
-          resolve('');
-          return;
-        }
-
-        const chart = new Chart(ctx, config);
-        
-        // Wait for chart to render
-        setTimeout(() => {
-          try {
-            const imageData = canvas.toDataURL('image/png');
-            chart.destroy();
-            resolve(imageData);
-          } catch (err) {
-            console.error('Error converting chart to image:', err);
-            chart.destroy();
-            resolve('');
-          }
-        }, 500);
-      } catch (err) {
-        console.error('Error creating chart:', err);
-        resolve('');
-      }
-    });
-  };
-
-  // Download all reports as PDF
-  const handleDownloadReports = async (includeGraphs: boolean) => {
+  // Download report function
+  const handleDownloadReport = async (includeGraphs: boolean) => {
     try {
-      // Show loading toast
-      toast({
-        title: "Generating Report",
-        description: "Please wait while we generate your PDF...",
-      });
-
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       let yPosition = 20;
+
+      // Capture pie chart as image if includeGraphs is true
+      let pieChartImage: string | null = null;
+      if (includeGraphs) {
+        const pieChartElement = document.getElementById('department-pie-chart');
+        if (pieChartElement) {
+          try {
+            console.log('Capturing pie chart...');
+            const canvas = await html2canvas(pieChartElement, {
+              backgroundColor: '#ffffff',
+              scale: 2,
+              logging: false,
+              useCORS: true
+            });
+            pieChartImage = canvas.toDataURL('image/png');
+            console.log('Pie chart captured successfully');
+          } catch (error) {
+            console.error('Error capturing pie chart:', error);
+          }
+        } else {
+          console.warn('Pie chart element not found');
+        }
+      }
 
       // Helper function to check if we need a new page
       const checkNewPage = (requiredSpace: number) => {
@@ -229,18 +229,18 @@ const Reports = () => {
       pdf.text('SPMC REFERRAL SYSTEM', pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 10;
       
-      pdf.setFontSize(16);
+      pdf.setFontSize(14);
       pdf.text('Comprehensive Report', pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 15;
+      yPosition += 12;
 
       // Metadata
       pdf.setFontSize(9);
       pdf.setTextColor(100, 100, 100);
-      pdf.text(`Generated: ${new Date().toLocaleString()}`, 15, yPosition);
-      yPosition += 5;
-      pdf.text(`Filter: ${globalFilter.toUpperCase()} | Year: ${globalYear}${globalMonth ? ` | Month: ${globalMonth}` : ''}${globalWeek ? ` | Week: ${globalWeek}` : ''}`, 15, yPosition);
-      yPosition += 5;
-      pdf.text(`Report Type: ${includeGraphs ? 'With Graphs' : 'Without Graphs'}`, 15, yPosition);
+      pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 4;
+      pdf.text(`Filter: ${globalFilter.toUpperCase()} | Year: ${globalYear}${globalMonth ? ` | Month: ${globalMonth}` : ''}${globalWeek ? ` | Week: ${globalWeek}` : ''}`, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 4;
+      pdf.text(`Report Type: ${includeGraphs ? 'With Graphs' : 'Without Graphs'}`, pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 10;
 
       // Summary Statistics
@@ -251,13 +251,13 @@ const Reports = () => {
       yPosition += 8;
 
       const summaryData = [
-        ['Total Referrals', reportsData?.summary.total_referrals || 0],
-        ['Coordinated Referrals', reportsData?.summary.successful_referrals || 0],
-        ['Pending Referrals', reportsData?.summary.pending_referrals || 0],
-        ['Cancelled Referrals', reportsData?.summary.cancelled_referrals || 0],
+        ['Total Referrals', String(reportsData?.summary.total_referrals || 0)],
+        ['Coordinated Referrals', String(reportsData?.summary.successful_referrals || 0)],
+        ['Pending Referrals', String(reportsData?.summary.pending_referrals || 0)],
+        ['Cancelled Referrals', String(reportsData?.summary.cancelled_referrals || 0)],
         ['Coordination Rate', `${reportsData?.summary.coordination_rate || 0}%`],
         ['Cancellation Rate', `${reportsData?.summary.cancellation_rate || 0}%`],
-        ['Recent Referrals (7 days)', reportsData?.summary.recent_referrals || 0],
+        ['Recent Referrals (7 days)', String(reportsData?.summary.recent_referrals || 0)],
         ['Avg Processing Time', `${reportsData?.summary.avg_processing_time_hours || 0}h`],
       ];
 
@@ -266,7 +266,7 @@ const Reports = () => {
         head: [['Metric', 'Value']],
         body: summaryData,
         theme: 'grid',
-        headStyles: { fillColor: [37, 99, 235] },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
 
@@ -278,107 +278,80 @@ const Reports = () => {
       pdf.text(`Referrals by ${globalFilter.charAt(0).toUpperCase() + globalFilter.slice(1)}`, 15, yPosition);
       yPosition += 8;
 
-      if (includeGraphs && referralsByTime.length > 0) {
-        try {
-          const chartImage = await generateChartImage({
-            type: 'line',
-            data: {
-              labels: referralsByTime.map(item => item.period),
-              datasets: [{
-                label: 'Referrals',
-                data: referralsByTime.map(item => item.count),
-                borderColor: 'rgb(37, 99, 235)',
-                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                tension: 0.4,
-                fill: true,
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                legend: { display: false },
-                title: { display: false }
-              },
-              scales: {
-                y: { beginAtZero: true }
-              }
-            }
-          });
-          
-          if (chartImage) {
-            checkNewPage(80);
-            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
-            yPosition += 75;
-          }
-        } catch (err) {
-          console.error('Error generating time chart:', err);
-        }
-      }
-
-      const timeData = referralsByTime.map(item => [item.period, item.count]);
+      const timeData = referralsByTime.map(item => [String(item.period), String(item.count)]);
       autoTable(pdf, {
         startY: yPosition,
         head: [['Period', 'Count']],
-        body: timeData,
+        body: timeData.length > 0 ? timeData : [['No data available', '']],
         theme: 'striped',
-        headStyles: { fillColor: [37, 99, 235] },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
 
       yPosition = (pdf as any).lastAutoTable.finalY + 10;
 
-      // Top Departments
-      checkNewPage(40);
+      // Top Departments with Pie Chart
+      checkNewPage(pieChartImage ? 90 : 40);
       pdf.setFontSize(14);
       pdf.setTextColor(0, 0, 0);
       pdf.text('Top Departments', 15, yPosition);
       yPosition += 8;
 
-      if (includeGraphs && departmentData.length > 0) {
+      // Add pie chart image if available
+      if (includeGraphs && pieChartImage) {
         try {
-          const colors = [
-            'rgb(37, 99, 235)', 'rgb(16, 185, 129)', 'rgb(245, 158, 11)',
-            'rgb(239, 68, 68)', 'rgb(139, 92, 246)', 'rgb(236, 72, 153)',
-            'rgb(20, 184, 166)', 'rgb(251, 146, 60)'
-          ];
-          
-          const chartImage = await generateChartImage({
-            type: 'pie',
-            data: {
-              labels: departmentData.map(dept => dept.department),
-              datasets: [{
-                data: departmentData.map(dept => dept.count),
-                backgroundColor: colors.slice(0, departmentData.length),
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                legend: { 
-                  position: 'right',
-                  labels: { boxWidth: 15, font: { size: 10 } }
-                }
-              }
+          // Get the actual element dimensions
+          const pieChartElement = document.getElementById('department-pie-chart');
+          if (pieChartElement) {
+            const actualWidth = pieChartElement.offsetWidth;
+            const actualHeight = pieChartElement.offsetHeight;
+            
+            // Calculate aspect ratio
+            const aspectRatio = actualWidth / actualHeight;
+            
+            // Set max dimensions (in mm)
+            const maxWidth = 70;
+            const maxHeight = 70;
+            
+            // Calculate final dimensions maintaining aspect ratio
+            let imgWidth = maxWidth;
+            let imgHeight = maxWidth / aspectRatio;
+            
+            // If height exceeds max, scale based on height instead
+            if (imgHeight > maxHeight) {
+              imgHeight = maxHeight;
+              imgWidth = maxHeight * aspectRatio;
             }
-          });
-          
-          if (chartImage) {
-            checkNewPage(80);
-            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
-            yPosition += 75;
+            
+            // Center the image horizontally
+            const xPos = (pageWidth - imgWidth) / 2;
+            
+            // Add image to PDF
+            pdf.addImage(pieChartImage, 'PNG', xPos, yPosition, imgWidth, imgHeight);
+            yPosition += imgHeight + 10;
+          } else {
+            // Fallback if element not found
+            pdf.setFontSize(10);
+            pdf.setTextColor(150, 150, 150);
+            pdf.text('[Chart: Department Distribution]', pageWidth / 2, yPosition, { align: 'center' });
+            yPosition += 10;
           }
-        } catch (err) {
-          console.error('Error generating department chart:', err);
+        } catch (error) {
+          console.error('Error adding pie chart to PDF:', error);
+          pdf.setFontSize(10);
+          pdf.setTextColor(150, 150, 150);
+          pdf.text('[Chart: Department Distribution]', pageWidth / 2, yPosition, { align: 'center' });
+          yPosition += 10;
         }
       }
 
-      const deptData = departmentData.map((dept, idx) => [idx + 1, dept.department, dept.count]);
+      const deptData = departmentData.map((dept, idx) => [String(idx + 1), String(dept.department), String(dept.count)]);
       autoTable(pdf, {
         startY: yPosition,
         head: [['#', 'Department', 'Count']],
-        body: deptData,
+        body: deptData.length > 0 ? deptData : [['', 'No data available', '']],
         theme: 'striped',
-        headStyles: { fillColor: [37, 99, 235] },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
 
@@ -390,47 +363,13 @@ const Reports = () => {
       pdf.text('Top Hospitals', 15, yPosition);
       yPosition += 8;
 
-      if (includeGraphs && hospitalsData.length > 0) {
-        try {
-          const chartImage = await generateChartImage({
-            type: 'bar',
-            data: {
-              labels: hospitalsData.map(hosp => hosp.name.substring(0, 20) + (hosp.name.length > 20 ? '...' : '')),
-              datasets: [{
-                label: 'Referrals',
-                data: hospitalsData.map(hosp => hosp.count),
-                backgroundColor: 'rgba(34, 197, 94, 0.8)',
-              }]
-            },
-            options: {
-              responsive: true,
-              indexAxis: 'y',
-              plugins: {
-                legend: { display: false }
-              },
-              scales: {
-                x: { beginAtZero: true }
-              }
-            }
-          });
-          
-          if (chartImage) {
-            checkNewPage(80);
-            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
-            yPosition += 75;
-          }
-        } catch (err) {
-          console.error('Error generating hospital chart:', err);
-        }
-      }
-
-      const hospData = hospitalsData.map((hosp, idx) => [idx + 1, hosp.name, hosp.count, `${hosp.percentage}%`]);
+      const hospData = hospitalsData.map((hosp, idx) => [String(idx + 1), String(hosp.name), String(hosp.count), `${hosp.percentage}%`]);
       autoTable(pdf, {
         startY: yPosition,
         head: [['#', 'Hospital Name', 'Count', 'Percentage']],
-        body: hospData,
+        body: hospData.length > 0 ? hospData : [['', 'No data available', '', '']],
         theme: 'striped',
-        headStyles: { fillColor: [37, 99, 235] },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
 
@@ -442,46 +381,13 @@ const Reports = () => {
       pdf.text('Top Specialties', 15, yPosition);
       yPosition += 8;
 
-      if (includeGraphs && specialtiesData.length > 0) {
-        try {
-          const chartImage = await generateChartImage({
-            type: 'bar',
-            data: {
-              labels: specialtiesData.map(spec => spec.name),
-              datasets: [{
-                label: 'Referrals',
-                data: specialtiesData.map(spec => spec.count),
-                backgroundColor: 'rgba(37, 99, 235, 0.8)',
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                legend: { display: false }
-              },
-              scales: {
-                y: { beginAtZero: true }
-              }
-            }
-          });
-          
-          if (chartImage) {
-            checkNewPage(80);
-            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
-            yPosition += 75;
-          }
-        } catch (err) {
-          console.error('Error generating specialty chart:', err);
-        }
-      }
-
-      const specData = specialtiesData.map((spec, idx) => [idx + 1, spec.name, spec.count]);
+      const specData = specialtiesData.map((spec, idx) => [String(idx + 1), String(spec.name), String(spec.count)]);
       autoTable(pdf, {
         startY: yPosition,
         head: [['#', 'Specialty', 'Count']],
-        body: specData,
+        body: specData.length > 0 ? specData : [['', 'No data available', '']],
         theme: 'striped',
-        headStyles: { fillColor: [37, 99, 235] },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
 
@@ -494,17 +400,17 @@ const Reports = () => {
       yPosition += 8;
 
       const coordData = coordinatedData.slice(0, 50).map(item => [
-        item.patient_name,
-        item.specialty,
-        item.department,
-        item.date_received
+        String(item.patient_name),
+        String(item.specialty),
+        String(item.department),
+        String(item.date_received)
       ]);
       autoTable(pdf, {
         startY: yPosition,
         head: [['Patient Name', 'Specialty', 'Department', 'Date Received']],
-        body: coordData,
+        body: coordData.length > 0 ? coordData : [['No data available', '', '', '']],
         theme: 'striped',
-        headStyles: { fillColor: [34, 197, 94] },
+        headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
         styles: { fontSize: 8 },
       });
@@ -513,7 +419,7 @@ const Reports = () => {
         yPosition = (pdf as any).lastAutoTable.finalY + 5;
         pdf.setFontSize(9);
         pdf.setTextColor(100, 100, 100);
-        pdf.text(`... and ${coordinatedData.length - 50} more`, 15, yPosition);
+        pdf.text(`... and ${coordinatedData.length - 50} more records`, 15, yPosition);
       }
 
       yPosition = (pdf as any).lastAutoTable.finalY + 10;
@@ -526,17 +432,17 @@ const Reports = () => {
       yPosition += 8;
 
       const uncoordData = uncoordinatedData.slice(0, 50).map(item => [
-        item.patient_name,
-        item.reason.substring(0, 30) + (item.reason.length > 30 ? '...' : ''),
-        item.specialty,
-        item.date_cancelled
+        String(item.patient_name),
+        String(item.reason).substring(0, 40) + (String(item.reason).length > 40 ? '...' : ''),
+        String(item.specialty),
+        String(item.date_cancelled)
       ]);
       autoTable(pdf, {
         startY: yPosition,
         head: [['Patient Name', 'Reason', 'Specialty', 'Date Cancelled']],
-        body: uncoordData,
+        body: uncoordData.length > 0 ? uncoordData : [['No data available', '', '', '']],
         theme: 'striped',
-        headStyles: { fillColor: [239, 68, 68] },
+        headStyles: { fillColor: [239, 68, 68], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
         styles: { fontSize: 8 },
       });
@@ -545,7 +451,7 @@ const Reports = () => {
         yPosition = (pdf as any).lastAutoTable.finalY + 5;
         pdf.setFontSize(9);
         pdf.setTextColor(100, 100, 100);
-        pdf.text(`... and ${uncoordinatedData.length - 50} more`, 15, yPosition);
+        pdf.text(`... and ${uncoordinatedData.length - 50} more records`, 15, yPosition);
       }
 
       yPosition = (pdf as any).lastAutoTable.finalY + 10;
@@ -557,50 +463,13 @@ const Reports = () => {
       pdf.text('Status Distribution', 15, yPosition);
       yPosition += 8;
 
-      if (includeGraphs && reportsData?.status_distribution && reportsData.status_distribution.length > 0) {
-        try {
-          const colors = [
-            'rgb(34, 197, 94)', 'rgb(251, 191, 36)', 'rgb(239, 68, 68)',
-            'rgb(37, 99, 235)', 'rgb(139, 92, 246)', 'rgb(236, 72, 153)'
-          ];
-          
-          const chartImage = await generateChartImage({
-            type: 'doughnut',
-            data: {
-              labels: reportsData.status_distribution.map(status => status.status),
-              datasets: [{
-                data: reportsData.status_distribution.map(status => status.count),
-                backgroundColor: colors.slice(0, reportsData.status_distribution.length),
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                legend: { 
-                  position: 'right',
-                  labels: { boxWidth: 15, font: { size: 10 } }
-                }
-              }
-            }
-          });
-          
-          if (chartImage) {
-            checkNewPage(80);
-            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
-            yPosition += 75;
-          }
-        } catch (err) {
-          console.error('Error generating status chart:', err);
-        }
-      }
-
-      const statusData = reportsData?.status_distribution.map(status => [status.status, status.count]) || [];
+      const statusData = reportsData?.status_distribution.map(status => [String(status.status), String(status.count)]) || [];
       autoTable(pdf, {
         startY: yPosition,
         head: [['Status', 'Count']],
-        body: statusData,
+        body: statusData.length > 0 ? statusData : [['No data available', '']],
         theme: 'striped',
-        headStyles: { fillColor: [37, 99, 235] },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
 
@@ -612,55 +481,20 @@ const Reports = () => {
       pdf.text('Priority Distribution', 15, yPosition);
       yPosition += 8;
 
-      if (includeGraphs && reportsData?.priority_distribution && reportsData.priority_distribution.length > 0) {
-        try {
-          const colors = [
-            'rgb(239, 68, 68)', 'rgb(251, 191, 36)', 'rgb(34, 197, 94)', 'rgb(37, 99, 235)'
-          ];
-          
-          const chartImage = await generateChartImage({
-            type: 'pie',
-            data: {
-              labels: reportsData.priority_distribution.map(priority => priority.priority),
-              datasets: [{
-                data: reportsData.priority_distribution.map(priority => priority.count),
-                backgroundColor: colors.slice(0, reportsData.priority_distribution.length),
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                legend: { 
-                  position: 'right',
-                  labels: { boxWidth: 15, font: { size: 10 } }
-                }
-              }
-            }
-          });
-          
-          if (chartImage) {
-            checkNewPage(80);
-            pdf.addImage(chartImage, 'PNG', 15, yPosition, 180, 70);
-            yPosition += 75;
-          }
-        } catch (err) {
-          console.error('Error generating priority chart:', err);
-        }
-      }
-
-      const priorityData = reportsData?.priority_distribution.map(priority => [priority.priority, priority.count]) || [];
+      const priorityData = reportsData?.priority_distribution.map(priority => [String(priority.priority), String(priority.count)]) || [];
       autoTable(pdf, {
         startY: yPosition,
         head: [['Priority', 'Count']],
-        body: priorityData,
+        body: priorityData.length > 0 ? priorityData : [['No data available', '']],
         theme: 'striped',
-        headStyles: { fillColor: [37, 99, 235] },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
 
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-      const filename = `SPMC_Report_${includeGraphs ? 'WithGraphs' : 'WithoutGraphs'}_${timestamp}.pdf`;
+      const graphType = includeGraphs ? 'WithGraphs' : 'WithoutGraphs';
+      const filename = `SPMC_Report_${graphType}_${timestamp}.pdf`;
 
       // Save the PDF
       pdf.save(filename);
@@ -673,7 +507,7 @@ const Reports = () => {
       console.error('Error generating report:', error);
       toast({
         title: "Error",
-        description: `Failed to generate report: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: "Failed to generate PDF report. Please try again.",
         variant: "destructive",
       });
     }
@@ -834,17 +668,36 @@ const Reports = () => {
               )}
             </div>
             
-            {/* Download Button - Temporarily disabled until jsPDF is installed */}
-            {/* 
-            <Button
-              variant="default"
-              size="sm"
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-              disabled
-            >
-              Download Report (Coming Soon)
-            </Button>
-            */}
+            {/* Download Button with Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 whitespace-nowrap"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Report
+                  <ChevronDown className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={() => handleDownloadReport(true)}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Image className="w-4 h-4" />
+                  <span>With Graphs</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDownloadReport(false)}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Without Graphs</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         
@@ -983,7 +836,7 @@ const Reports = () => {
               </div>
             ) : departmentData.length > 0 ? (
               <>
-                <div className="flex items-center justify-center mb-6">
+                <div className="flex items-center justify-center mb-6" id="department-pie-chart">
                   <div className="relative w-64 h-64">
                     <svg className="w-64 h-64 transform -rotate-90" viewBox="0 0 100 100">
                       {departmentData.map((dept, index) => {

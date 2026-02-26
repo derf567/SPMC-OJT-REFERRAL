@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Truck, AlertTriangle, Check, Calendar } from "lucide-react";
+import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Truck, AlertTriangle, Check, Calendar, AlertCircle } from "lucide-react";
 import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
@@ -1081,6 +1081,18 @@ export const ReferralTable = () => {
       return matchesSearch && matchesDepartment;
     })
     .sort((a, b) => {
+      // For triage users: Always prioritize 'waiting' status (needs action) at the top
+      if (user?.permissions?.can_triage_referrals) {
+        const aIsWaiting = a.status === 'waiting';
+        const bIsWaiting = b.status === 'waiting';
+        
+        // If one is waiting and the other is not, waiting comes first
+        if (aIsWaiting && !bIsWaiting) return -1;
+        if (!aIsWaiting && bIsWaiting) return 1;
+        
+        // If both are waiting or both are not waiting, continue with normal sorting
+      }
+      
       let comparison = 0;
       
       switch (sortBy) {
@@ -1162,6 +1174,22 @@ export const ReferralTable = () => {
                   : 'View only access'
                 }
               </p>
+              {user?.permissions?.can_triage_referrals && (
+                <div className="mt-2">
+                  {(() => {
+                    const waitingCount = referrals.filter(r => r.status === 'waiting').length;
+                    if (waitingCount > 0) {
+                      return (
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium">
+                          <AlertCircle className="w-4 h-4" />
+                          <span>{waitingCount} referral{waitingCount !== 1 ? 's' : ''} need{waitingCount === 1 ? 's' : ''} your action</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs">
@@ -1342,8 +1370,15 @@ export const ReferralTable = () => {
                   </td>
                 </tr>
               ) : (
-                filteredReferrals.map((referral) => (
-                  <tr key={referral.id || referral.referral_id} className="border-b border-gray-200/50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors duration-200">
+                filteredReferrals.map((referral) => {
+                  // Highlight waiting referrals for triage users (needs action)
+                  const needsAction = user?.permissions?.can_triage_referrals && referral.status === 'waiting';
+                  const rowClasses = needsAction 
+                    ? "border-b border-gray-200/50 dark:border-gray-700/50 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100/70 dark:hover:bg-blue-900/20 transition-colors duration-200 border-l-4 border-l-blue-500"
+                    : "border-b border-gray-200/50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors duration-200";
+                  
+                  return (
+                  <tr key={referral.id || referral.referral_id} className={rowClasses}>
                     <td className="p-4">
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
@@ -1542,7 +1577,8 @@ export const ReferralTable = () => {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

@@ -461,33 +461,73 @@ class ReferralViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def dashboard_stats(self, request):
         """Get dashboard statistics"""
-        total_referrals = Referral.objects.count()
-        pending_referrals = Referral.objects.filter(status='pending').count()
-        in_transit_referrals = Referral.objects.filter(status='in_transit').count()
-        critical_referrals = Referral.objects.filter(priority='critical').count()
-        urgent_referrals = Referral.objects.filter(is_urgent=True).count()
+        from django.utils import timezone
+        from datetime import timedelta, date
         
-        # Triage decisions
+        # Get today's date range
+        today = timezone.now().date()
+        today_start = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.min.time()))
+        today_end = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.max.time()))
+        
+        # Get yesterday's date range
+        yesterday = today - timedelta(days=1)
+        yesterday_start = timezone.make_aware(timezone.datetime.combine(yesterday, timezone.datetime.min.time()))
+        yesterday_end = timezone.make_aware(timezone.datetime.combine(yesterday, timezone.datetime.max.time()))
+        
+        # Today's stats
+        total_referrals_today = Referral.objects.filter(
+            created_at__gte=today_start,
+            created_at__lte=today_end
+        ).count()
+        
+        # Yesterday's stats
+        total_referrals_yesterday = Referral.objects.filter(
+            created_at__gte=yesterday_start,
+            created_at__lte=yesterday_end
+        ).count()
+        
+        # Pending and critical cases
+        pending_referrals = Referral.objects.filter(status='pending').count()
+        critical_referrals = Referral.objects.filter(priority='critical').count()
+        
+        # Completed today
+        completed_today = Referral.objects.filter(
+            status='completed',
+            updated_at__gte=today_start,
+            updated_at__lte=today_end
+        ).count()
+        
+        # Completed yesterday
+        completed_yesterday = Referral.objects.filter(
+            status='completed',
+            updated_at__gte=yesterday_start,
+            updated_at__lte=yesterday_end
+        ).count()
+        
+        # Total unique patients
+        total_patients = Referral.objects.values('patient_full_name').distinct().count()
+        
+        # Other stats
+        in_transit_referrals = Referral.objects.filter(status='in_transit').count()
+        urgent_referrals = Referral.objects.filter(is_urgent=True).count()
         emergent_referrals = Referral.objects.filter(status='emergent').count()
         urgent_triage_referrals = Referral.objects.filter(status='urgent').count()
         scheduled_opd_referrals = Referral.objects.filter(status='schedule_opd').count()
         
-        # Recent referrals (last 24 hours)
-        from django.utils import timezone
-        from datetime import timedelta
-        yesterday = timezone.now() - timedelta(days=1)
-        recent_referrals = Referral.objects.filter(created_at__gte=yesterday).count()
-        
         return Response({
-            'total_referrals': total_referrals,
+            'total_referrals': Referral.objects.count(),
+            'total_referrals_today': total_referrals_today,
+            'total_referrals_yesterday': total_referrals_yesterday,
             'pending_referrals': pending_referrals,
-            'in_transit_referrals': in_transit_referrals,
             'critical_referrals': critical_referrals,
+            'completed_today': completed_today,
+            'completed_yesterday': completed_yesterday,
+            'total_patients': total_patients,
+            'in_transit_referrals': in_transit_referrals,
             'urgent_referrals': urgent_referrals,
             'emergent_referrals': emergent_referrals,
             'urgent_triage_referrals': urgent_triage_referrals,
             'scheduled_opd_referrals': scheduled_opd_referrals,
-            'recent_referrals': recent_referrals,
         })
     
     @action(detail=False, methods=['get'])
@@ -817,6 +857,259 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'count': unassigned_count,
                 'color': '#9ca3af',
                 'percentage': round((unassigned_count / total_with_unassigned * 100), 1)
+            })
+        
+        return Response(result)
+    
+    @action(detail=False, methods=['get'])
+    def top_hospitals(self, request):
+        """Get top referring hospitals with filtering"""
+        from django.db.models import Count
+        from datetime import datetime, timedelta
+        from django.utils import timezone
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = int(request.query_params.get('year', timezone.now().year))
+        month = int(request.query_params.get('month', 0))
+        week = int(request.query_params.get('week', 0))
+        
+        # Base queryset
+        queryset = Referral.objects.all()
+        
+        # Apply time filters
+        if time_filter == 'year':
+            year_start = datetime(year, 1, 1).date()
+            year_end = datetime(year, 12, 31).date()
+            queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
+        elif time_filter == 'month':
+            if month > 0:
+                month_start = datetime(year, month, 1).date()
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+        elif time_filter == 'week' and week > 0:
+            year_start = datetime(year, 1, 1).date()
+            week_start = year_start + timedelta(weeks=week-1)
+            week_end = week_start + timedelta(days=6)
+            queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+        
+        # Get hospital counts
+        hospital_data = queryset.values('referring_hospital__name').annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
+        
+        total = queryset.count()
+        result = []
+        for item in hospital_data:
+            if item['referring_hospital__name']:
+                result.append({
+                    'name': item['referring_hospital__name'],
+                    'count': item['count'],
+                    'percentage': round((item['count'] / total * 100), 1) if total > 0 else 0
+                })
+        
+        return Response(result)
+    
+    @action(detail=False, methods=['get'])
+    def top_departments(self, request):
+        """Get top departments with filtering"""
+        from django.db.models import Count
+        from datetime import datetime, timedelta
+        from django.utils import timezone
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = int(request.query_params.get('year', timezone.now().year))
+        month = int(request.query_params.get('month', 0))
+        week = int(request.query_params.get('week', 0))
+        
+        # Base queryset
+        queryset = Referral.objects.filter(assigned_department__isnull=False)
+        
+        # Apply time filters
+        if time_filter == 'year':
+            year_start = datetime(year, 1, 1).date()
+            year_end = datetime(year, 12, 31).date()
+            queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
+        elif time_filter == 'month':
+            if month > 0:
+                month_start = datetime(year, month, 1).date()
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+        elif time_filter == 'week' and week > 0:
+            year_start = datetime(year, 1, 1).date()
+            week_start = year_start + timedelta(weeks=week-1)
+            week_end = week_start + timedelta(days=6)
+            queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+        
+        # Get department counts
+        department_data = queryset.values('assigned_department').annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
+        
+        # Colors for pie chart
+        colors = [
+            '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', 
+            '#ec4899', '#06b6d4', '#6b7280', '#84cc16', '#f97316'
+        ]
+        
+        result = []
+        for i, item in enumerate(department_data):
+            dept_display = dict(Referral.DEPARTMENT_CHOICES).get(
+                item['assigned_department'], 
+                item['assigned_department']
+            )
+            result.append({
+                'department': item['assigned_department'],
+                'name': dept_display,
+                'count': item['count'],
+                'color': colors[i % len(colors)]
+            })
+        
+        return Response(result)
+    
+    @action(detail=False, methods=['get'])
+    def top_specialties(self, request):
+        """Get top specialties with filtering"""
+        from django.db.models import Count
+        from datetime import datetime, timedelta
+        from django.utils import timezone
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = int(request.query_params.get('year', timezone.now().year))
+        month = int(request.query_params.get('month', 0))
+        week = int(request.query_params.get('week', 0))
+        
+        # Base queryset
+        queryset = Referral.objects.all()
+        
+        # Apply time filters
+        if time_filter == 'year':
+            year_start = datetime(year, 1, 1).date()
+            year_end = datetime(year, 12, 31).date()
+            queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
+        elif time_filter == 'month':
+            if month > 0:
+                month_start = datetime(year, month, 1).date()
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+        elif time_filter == 'week' and week > 0:
+            year_start = datetime(year, 1, 1).date()
+            week_start = year_start + timedelta(weeks=week-1)
+            week_end = week_start + timedelta(days=6)
+            queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+        
+        # Get specialty counts
+        specialty_data = queryset.values('specialty_needed__name').annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
+        
+        result = []
+        for item in specialty_data:
+            if item['specialty_needed__name']:
+                result.append({
+                    'name': item['specialty_needed__name'],
+                    'count': item['count']
+                })
+        
+        return Response(result)
+    
+    @action(detail=False, methods=['get'])
+    def coordinated_referrals(self, request):
+        """Get coordinated referrals (completed/received) with filtering"""
+        from datetime import datetime, timedelta
+        from django.utils import timezone
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = int(request.query_params.get('year', timezone.now().year))
+        month = int(request.query_params.get('month', 0))
+        week = int(request.query_params.get('week', 0))
+        
+        # Base queryset - coordinated means completed or received
+        queryset = Referral.objects.filter(status__in=['completed', 'received', 'in_transit'])
+        
+        # Apply time filters
+        if time_filter == 'year':
+            year_start = datetime(year, 1, 1).date()
+            year_end = datetime(year, 12, 31).date()
+            queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
+        elif time_filter == 'month':
+            if month > 0:
+                month_start = datetime(year, month, 1).date()
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+        elif time_filter == 'week' and week > 0:
+            year_start = datetime(year, 1, 1).date()
+            week_start = year_start + timedelta(weeks=week-1)
+            week_end = week_start + timedelta(days=6)
+            queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+        
+        # Get referral data
+        result = []
+        for ref in queryset.order_by('-created_at')[:100]:
+            result.append({
+                'referral_id': ref.referral_id,
+                'patient_name': ref.patient_full_name,
+                'specialty': ref.specialty_needed.name if ref.specialty_needed else 'N/A',
+                'department': dict(Referral.DEPARTMENT_CHOICES).get(ref.assigned_department, ref.assigned_department) if ref.assigned_department else 'N/A',
+                'status': ref.status,
+                'date_received': ref.created_at.strftime('%Y-%m-%d')
+            })
+        
+        return Response(result)
+    
+    @action(detail=False, methods=['get'])
+    def uncoordinated_referrals(self, request):
+        """Get uncoordinated referrals (cancelled) with filtering"""
+        from datetime import datetime, timedelta
+        from django.utils import timezone
+        
+        time_filter = request.query_params.get('filter', 'month')
+        year = int(request.query_params.get('year', timezone.now().year))
+        month = int(request.query_params.get('month', 0))
+        week = int(request.query_params.get('week', 0))
+        
+        # Base queryset - uncoordinated means cancelled
+        queryset = Referral.objects.filter(status='cancelled')
+        
+        # Apply time filters
+        if time_filter == 'year':
+            year_start = datetime(year, 1, 1).date()
+            year_end = datetime(year, 12, 31).date()
+            queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
+        elif time_filter == 'month':
+            if month > 0:
+                month_start = datetime(year, month, 1).date()
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+        elif time_filter == 'week' and week > 0:
+            year_start = datetime(year, 1, 1).date()
+            week_start = year_start + timedelta(weeks=week-1)
+            week_end = week_start + timedelta(days=6)
+            queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+        
+        # Get referral data
+        result = []
+        for ref in queryset.order_by('-updated_at')[:100]:
+            result.append({
+                'referral_id': ref.referral_id,
+                'patient_name': ref.patient_full_name,
+                'reason': ref.cancellation_reason or 'No reason provided',
+                'specialty': ref.specialty_needed.name if ref.specialty_needed else 'N/A',
+                'date_cancelled': ref.updated_at.strftime('%Y-%m-%d')
             })
         
         return Response(result)
