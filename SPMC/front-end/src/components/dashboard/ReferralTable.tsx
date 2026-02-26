@@ -369,19 +369,6 @@ const ReferralDetailModal = ({
                   <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.hospital_location}</p>
                 </div>
               )}
-              {referral.hospital_contact_numbers && referral.hospital_contact_numbers.length > 0 && (
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Hospital Contact Numbers</label>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {referral.hospital_contact_numbers.map((number: string, index: number) => (
-                      <div key={index} className="flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm">
-                        <Phone className="w-3 h-3" />
-                        <span>{number}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Referrer Name</label>
                 <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.referrer_name}</p>
@@ -400,6 +387,29 @@ const ReferralDetailModal = ({
               )}
             </div>
           </div>
+
+          {/* Patient/Watcher Contact Numbers Section */}
+          {referral.contact_numbers && referral.contact_numbers.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Phone className="w-5 h-5 text-orange-600" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Patient/Watcher Contact Numbers</h3>
+              </div>
+              <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  Contact numbers for emergency communication during referral
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {referral.contact_numbers.map((number: string, index: number) => (
+                    <div key={index} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-800 text-orange-800 dark:text-orange-300 rounded-lg text-sm font-medium shadow-sm">
+                      <Phone className="w-4 h-4" />
+                      <span>{number}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Service Needed Section */}
           <div className="space-y-4">

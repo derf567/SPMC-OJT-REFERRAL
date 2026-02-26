@@ -20,6 +20,24 @@ class UserProfileInline(admin.StackedInline):
 # Extend UserAdmin to include profile
 class CustomUserAdmin(UserAdmin):
     inlines = (UserProfileInline,)
+    list_display = ['username', 'email', 'first_name', 'last_name', 'get_role', 'get_department', 'is_active', 'is_staff']
+    list_filter = ['is_active', 'is_staff', 'profile__role', 'profile__department']
+    
+    def get_role(self, obj):
+        """Display user role from profile"""
+        if hasattr(obj, 'profile'):
+            return obj.profile.get_role_display()
+        return '-'
+    get_role.short_description = 'Role'
+    get_role.admin_order_field = 'profile__role'
+    
+    def get_department(self, obj):
+        """Display user department from profile"""
+        if hasattr(obj, 'profile'):
+            return obj.profile.department or '-'
+        return '-'
+    get_department.short_description = 'Department'
+    get_department.admin_order_field = 'profile__department'
 
 # Re-register UserAdmin
 admin.site.unregister(User)

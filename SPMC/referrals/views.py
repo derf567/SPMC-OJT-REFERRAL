@@ -82,6 +82,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
         
         # Filter by date range if provided
         start_date = self.request.query_params.get('start_date')
@@ -96,6 +97,26 @@ class ReferralViewSet(viewsets.ModelViewSet):
         assigned_to_me = self.request.query_params.get('assigned_to_me')
         if assigned_to_me == 'true':
             queryset = queryset.filter(assigned_to=self.request.user)
+        
+        # Filter for doctors - only show referrals assigned to their department
+        if hasattr(user, 'profile') and user.profile.is_doctor:
+            user_department = user.profile.department
+            if user_department:
+                # Filter referrals where assigned_departments contains the doctor's department
+                # Note: For SQLite, we need to use a different approach since __contains doesn't work
+                from django.db.models import Q
+                from django.db import connection
+                
+                if connection.vendor == 'sqlite':
+                    # For SQLite, filter using assigned_department field only
+                    # or check if the department is in the JSON array manually
+                    queryset = queryset.filter(assigned_department=user_department)
+                else:
+                    # For PostgreSQL and other databases that support JSON contains
+                    queryset = queryset.filter(
+                        Q(assigned_departments__contains=[user_department]) |
+                        Q(assigned_department=user_department)
+                    )
         
         return queryset
     
@@ -1308,3 +1329,67 @@ def admin_dashboard_stats(request):
         'total_hospitals': total_hospitals,
         'total_specialties': total_specialties,
     })
+
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def pending_doctors(self, request):
+        """Get all pending doctor accounts (for admin approval)"""
+        # Check if user is admin
+        if not request.user.is_staff and (not hasattr(request.user, 'profile') or request.user.profile.role != 'admin'):
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get all users with doctor role
+        from django.contrib.auth.models import User
+        doctors = User.objects.filter(profile__role='doctor').select_related('profile')
+        
+        data = []
+        for doctor in doctors:
+            profile = doctor.profile
+            data.append({
+                'id': doctor.id,
+                'username': doctor.username,
+                'email': doctor.email,
+                'first_name': doctor.first_name,
+                'last_name': doctor.last_name,
+                'full_name': doctor.get_full_name(),
+                'role': 'doctor',
+                'department': profile.department,
+                'created_at': doctor.date_joined.isoformat(),
+                'is_active': doctor.is_active,
+                'approval_status': 'approved' if doctor.is_active else 'pending',
+            })
+        
+        return Response(data)
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def approve_doctor(self, request, pk=None):
+        """Approve a doctor account"""
+        from django.contrib.auth.models import User
+        
+        # Check if user is admin
+        if not request.user.is_staff and (not hasattr(request.user, 'profile') or request.user.profile.role != 'admin'):
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            doctor = User.objects.get(id=pk, profile__role='doctor')
+            doctor.is_active = True
+            doctor.save()
+            return Response({'message': 'Doctor account approved successfully'})
+        except User.DoesNotExist:
+            return Response({'error': 'Doctor not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def reject_doctor(self, request, pk=None):
+        """Reject a doctor account"""
+        from django.contrib.auth.models import User
+        
+        # Check if user is admin
+        if not request.user.is_staff and (not hasattr(request.user, 'profile') or request.user.profile.role != 'admin'):
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            doctor = User.objects.get(id=pk, profile__role='doctor')
+            doctor.delete()  # Or set is_active=False if you want to keep the record
+            return Response({'message': 'Doctor account rejected successfully'})
+        except User.DoesNotExist:
+            return Response({'error': 'Doctor not found'}, status=status.HTTP_404_NOT_FOUND)

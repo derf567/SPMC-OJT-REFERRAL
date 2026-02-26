@@ -156,6 +156,19 @@ export const ReferralView = () => {
                 </p>
               </div>
               
+              {referral.contact_numbers && referral.contact_numbers.length > 0 && (
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Patient/Watcher Contact Numbers</p>
+                  <div className="space-y-1">
+                    {referral.contact_numbers.map((number: string, index: number) => (
+                      <p key={index} className="font-medium text-gray-900 dark:text-white">
+                        {number}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               <div className="md:col-span-2">
                 <p className="text-sm text-gray-600 dark:text-gray-400">Current Address</p>
                 <p className="font-medium text-gray-900 dark:text-white">{referral.current_address}</p>
@@ -273,7 +286,7 @@ export const ReferralView = () => {
           )}
 
           {/* Referring Hospital */}
-          <div className="p-6">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2 mb-4">
               <MapPin className="w-5 h-5 text-purple-600" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Referring Hospital</h3>
@@ -305,6 +318,59 @@ export const ReferralView = () => {
               )}
             </div>
           </div>
+
+          {/* Transit Information (Watcher Details) */}
+          {referral.transit_info && (
+            <div className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <User className="w-5 h-5 text-orange-600" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Watcher & Transit Information</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Watcher Name</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{referral.transit_info.watcher_name}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Age</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{referral.transit_info.watcher_age} years</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Relation to Patient</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{referral.transit_info.relation_to_patient}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Watcher Contact Number</p>
+                  <p className="font-medium text-gray-900 dark:text-white text-lg">{referral.transit_info.contact_number}</p>
+                </div>
+                
+                {referral.transit_info.escort_nurse && (
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Escort Nurse</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{referral.transit_info.escort_nurse}</p>
+                  </div>
+                )}
+                
+                {referral.transit_info.driver && (
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Driver</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{referral.transit_info.driver}</p>
+                  </div>
+                )}
+                
+                {referral.transit_info.time_ambulance_left && (
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Time Ambulance Left</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{referral.transit_info.time_ambulance_left}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

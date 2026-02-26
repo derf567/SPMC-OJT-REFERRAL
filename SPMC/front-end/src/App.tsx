@@ -12,7 +12,9 @@ import ExternalReferral from "./pages/ExternalReferral";
 import { ReferralView } from "./pages/ReferralView";
 import { ReferralEdit } from "./pages/ReferralEdit";
 import Register from "./pages/Register";
+import DoctorRegister from "./pages/DoctorRegister";
 import ReferrerDashboard from "./pages/ReferrerDashboard";
+import DoctorDashboard from "./pages/DoctorDashboard";
 import ActiveReferrals from "./pages/ActiveReferrals";
 import Outpatient from "./pages/Outpatient";
 import Patients from "./pages/Patients";
@@ -37,6 +39,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/register/doctor" element={<DoctorRegister />} />
             <Route path="/referral" element={<ExternalReferral />} />
             <Route path="/referral/edit/:id" element={
               <ProtectedRoute>
@@ -102,6 +105,18 @@ const App = () => (
             <Route path="/referrer/reports" element={
               <ProtectedRoute>
                 <ReferrerDashboard />
+              </ProtectedRoute>
+            } />
+            
+            {/* Doctor Dashboard and Sub-routes */}
+            <Route path="/doctor/dashboard" element={
+              <ProtectedRoute>
+                <DoctorDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/doctor/reports" element={
+              <ProtectedRoute>
+                <Reports />
               </ProtectedRoute>
             } />
             

@@ -89,8 +89,16 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
+  // Doctor navigation (view-only, department-filtered)
+  const doctorNavigation: NavigationItem[] = [
+    { name: "Dashboard", href: "/doctor/dashboard", icon: Home },
+    { name: "Reports", href: "/doctor/reports", icon: BarChart3 },
+  ];
+
   // Determine which navigation to use
-  const finalNavigation = user?.role === 'view_only'
+  const finalNavigation = user?.role === 'doctor' || user?.permissions?.is_doctor
+    ? doctorNavigation
+    : user?.role === 'view_only'
     ? viewOnlyNavigation
     : user?.role === 'department_user' 
       ? departmentNavigation 
@@ -727,6 +735,18 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Address</label>
                       <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.current_address}</p>
                     </div>
+                    {selectedReferral.contact_numbers && selectedReferral.contact_numbers.length > 0 && (
+                      <div className="md:col-span-2">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Patient/Watcher Contact Numbers</label>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {selectedReferral.contact_numbers.map((number: string, index: number) => (
+                            <div key={index} className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 rounded-full text-sm font-medium">
+                              {number}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -746,6 +766,45 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     </div>
                   </div>
                 </div>
+
+                {/* Transit Information (Watcher Details) */}
+                {selectedReferral.transit_info && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                      Watcher & Transit Information
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Watcher Name</label>
+                        <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.transit_info.watcher_name}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Age</label>
+                        <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.transit_info.watcher_age} years</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Relation to Patient</label>
+                        <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.transit_info.relation_to_patient}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Watcher Contact Number</label>
+                        <p className="text-sm text-gray-900 dark:text-white mt-1 font-semibold text-lg">{selectedReferral.transit_info.contact_number}</p>
+                      </div>
+                      {selectedReferral.transit_info.escort_nurse && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Escort Nurse</label>
+                          <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.transit_info.escort_nurse}</p>
+                        </div>
+                      )}
+                      {selectedReferral.transit_info.driver && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Driver</label>
+                          <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.transit_info.driver}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer */}
