@@ -216,13 +216,27 @@ class ReferralDetailSerializer(serializers.ModelSerializer):
 class ReferralCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating new referrals"""
     transit_info = TransitInfoSerializer(required=False, allow_null=True)
+    hospital_name = serializers.CharField(required=False, write_only=True)
     
     class Meta:
         model = Referral
         exclude = ['referral_id', 'created_by', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'referring_hospital': {'required': False}  # Make it optional since we can use hospital_name instead
+        }
     
     def create(self, validated_data):
         transit_info_data = validated_data.pop('transit_info', None)
+        hospital_name = validated_data.pop('hospital_name', None)
+        
+        # If hospital_name is provided instead of referring_hospital ID, create/get the hospital
+        if hospital_name and 'referring_hospital' not in validated_data:
+            hospital, created = ReferringHospital.objects.get_or_create(
+                name=hospital_name,
+                defaults={'is_inside_davao_city': True}
+            )
+            validated_data['referring_hospital'] = hospital
+            print(f"Created/found hospital: {hospital.name} (ID: {hospital.id})")
         
         # Debug logging
         print("Creating referral with data:", validated_data)
