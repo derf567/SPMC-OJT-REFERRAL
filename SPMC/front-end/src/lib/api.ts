@@ -307,6 +307,88 @@ export const referralsAPI = {
     });
   },
 
+  // NEW: Transfer referral to triage tab (Unified workflow)
+  transferToTriageTab: async (id: string) => {
+    return apiRequest(`/referrals/${id}/transfer_to_triage/`, {
+      method: 'POST',
+    });
+  },
+
+  // NEW: Assign departments to referral in triage
+  assignDepartments: async (id: string, departments: string[], remarks?: string, triageDecision?: string, scheduledDate?: string, scheduledTime?: string) => {
+    const requestBody: any = {
+      departments,
+      remarks: remarks || '',
+    };
+    
+    if (triageDecision) {
+      requestBody.triage_decision = triageDecision;
+    }
+    
+    if (scheduledDate) {
+      requestBody.scheduled_date = scheduledDate;
+    }
+    
+    if (scheduledTime) {
+      requestBody.scheduled_time = scheduledTime;
+    }
+    
+    return apiRequest(`/referrals/${id}/assign_departments/`, {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+  },
+
+  // NEW: Department decision (accept/reject)
+  departmentDecision: async (id: string, departmentCode: string, decision: 'accept' | 'reject', notes?: string) => {
+    return apiRequest(`/referrals/${id}/department_decision/`, {
+      method: 'POST',
+      body: JSON.stringify({ department_code: departmentCode, decision, notes: notes || '' }),
+    });
+  },
+
+  // NEW: Fill in-transit form
+  fillTransitInfo: async (id: string, transitData: {
+    watcher_name: string;
+    watcher_age: number;
+    relation_to_patient: string;
+    contact_number: string;
+    escort_nurse?: string;
+    driver?: string;
+    referring_md?: string;
+    latest_vs?: string;
+    gcs?: string;
+    time_ambulance_left?: string;
+  }) => {
+    return apiRequest(`/referrals/${id}/fill_transit_info/`, {
+      method: 'POST',
+      body: JSON.stringify(transitData),
+    });
+  },
+
+  // NEW: Mark in-transit referral as completed
+  markInTransitCompleted: async (id: string, notes?: string) => {
+    return apiRequest(`/referrals/${id}/mark_in_transit_completed/`, {
+      method: 'POST',
+      body: JSON.stringify({ notes: notes || '' }),
+    });
+  },
+
+  // NEW: Mark in-transit referral as cancelled
+  markInTransitCancelled: async (id: string, reason: string) => {
+    return apiRequest(`/referrals/${id}/mark_in_transit_cancelled/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  // NEW: Get triage referrals
+  getTriageReferrals: async (status?: string) => {
+    const params = status ? { status } : {};
+    const queryString = Object.keys(params).length > 0 ? '?' + new URLSearchParams(params).toString() : '';
+    return apiRequest(`/referrals/triage_referrals/${queryString}`);
+  },
+
   // Accept referral with triage decision (Triage user action)
   acceptWithTriageDecision: async (id: string, triageDecision: string, assignedDepartments: string[], triageNotes?: string, scheduledDate?: string, scheduledTime?: string) => {
     const requestBody: any = {
@@ -398,6 +480,34 @@ export const referralsAPI = {
   },
 };
 
+// Departments API
+export const departmentsAPI = {
+  // Get all departments
+  getAll: async () => {
+    return apiRequest('/departments/');
+  },
+
+  // Get single department by ID
+  getById: async (id: number) => {
+    return apiRequest(`/departments/${id}/`);
+  },
+
+  // Create new department (admin only)
+  create: async (departmentData: any) => {
+    return apiRequest('/departments/', {
+      method: 'POST',
+      body: JSON.stringify(departmentData),
+    });
+  },
+
+  // Update department (admin only)
+  update: async (id: number, departmentData: any) => {
+    return apiRequest(`/departments/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(departmentData),
+    });
+  },
+};
 // Admin API
 export const adminAPI = {
   // Get admin dashboard stats
@@ -432,6 +542,22 @@ export const adminAPI = {
   // Get all doctors with departments and specialties
   getAllDoctors: async () => {
     return apiRequest('/admin/doctors/');
+  },
+
+  // Get all departments
+  getDepartments: async () => {
+    return apiRequest('/admin/departments/');
+  },
+
+  // Update department contact number
+  updateDepartmentContact: async (departmentId: number, contactNumber: string) => {
+    return apiRequest('/admin/departments/', {
+      method: 'PUT',
+      body: JSON.stringify({
+        id: departmentId,
+        contact_number: contactNumber
+      })
+    });
   },
 
   // Update doctor specialties

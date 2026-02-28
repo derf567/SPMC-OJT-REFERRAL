@@ -7,11 +7,14 @@ from django.db.models import Q, Count, Max
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
-from .models import ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory
+from .models import (
+    ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory,
+    Department, DepartmentAcceptance
+)
 from .serializers import (
     ReferringHospitalSerializer, SpecialtySerializer, ReferralListSerializer,
     ReferralDetailSerializer, ReferralCreateSerializer, ReferralUpdateSerializer,
-    StatusUpdateSerializer, TransitInfoSerializer
+    StatusUpdateSerializer, TransitInfoSerializer, DepartmentSerializer, DepartmentAcceptanceSerializer
 )
 from .models import ReferrerAccount
 from .serializers import ReferrerAccountSerializer, ReferrerRegistrationSerializer
@@ -43,6 +46,21 @@ class SpecialtyViewSet(viewsets.ModelViewSet):
             permission_classes = [AllowAny]
         else:
             permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
+
+class DepartmentViewSet(viewsets.ModelViewSet):
+    queryset = Department.objects.filter(is_active=True)
+    serializer_class = DepartmentSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name', 'code']
+    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        """Allow read access for authenticated users, write access for admins only"""
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [IsAuthenticated]
+        else:
+            permission_classes = [IsAuthenticated]  # Can add admin check here
         return [permission() for permission in permission_classes]
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -103,14 +121,25 @@ class ReferralViewSet(viewsets.ModelViewSet):
             user_department = user.profile.department
             if user_department:
                 # Filter referrals where assigned_departments contains the doctor's department
-                # Note: For SQLite, we need to use a different approach since __contains doesn't work
                 from django.db.models import Q
                 from django.db import connection
                 
                 if connection.vendor == 'sqlite':
-                    # For SQLite, filter using assigned_department field only
-                    # or check if the department is in the JSON array manually
-                    queryset = queryset.filter(assigned_department=user_department)
+                    # For SQLite, we need to manually filter the JSON array
+                    # Get all referrals and filter in Python
+                    all_referrals = list(queryset)
+                    filtered_ids = []
+                    
+                    for referral in all_referrals:
+                        # Check if department is in assigned_departments JSON array
+                        if referral.assigned_departments and isinstance(referral.assigned_departments, list):
+                            if user_department in referral.assigned_departments:
+                                filtered_ids.append(referral.id)
+                        # Also check old assigned_department field for backwards compatibility
+                        elif referral.assigned_department == user_department:
+                            filtered_ids.append(referral.id)
+                    
+                    queryset = queryset.filter(id__in=filtered_ids)
                 else:
                     # For PostgreSQL and other databases that support JSON contains
                     queryset = queryset.filter(
@@ -177,6 +206,91 @@ class ReferralViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['post'])
+    def mark_in_transit_completed(self, request, pk=None):
+        """Mark in-transit referral as completed (patient arrived and treated)"""
+        referral = self.get_object()
+        
+        # Check if user has permission (EDCC/Triage)
+        if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
+            return Response({
+                'error': 'You do not have permission to mark referrals as completed'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if referral is in transit
+        if referral.status != 'in_transit':
+            return Response({
+                'error': 'Can only mark in-transit referrals as completed'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        completion_notes = request.data.get('notes', '')
+        
+        # Update referral status to completed
+        old_status = referral.status
+        referral.status = 'completed'
+        referral.save()
+        
+        # Create status history record
+        history_notes = 'Patient arrived and treatment completed.'
+        if completion_notes:
+            history_notes += f' Notes: {completion_notes}'
+            
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=old_status,
+            new_status='completed',
+            changed_by=request.user,
+            notes=history_notes
+        )
+        
+        return Response({
+            'message': 'Referral marked as completed successfully',
+            'new_status': referral.status
+        })
+    
+    @action(detail=True, methods=['post'])
+    def mark_in_transit_cancelled(self, request, pk=None):
+        """Mark in-transit referral as cancelled (patient did not arrive or expired)"""
+        referral = self.get_object()
+        
+        # Check if user has permission (EDCC/Triage)
+        if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
+            return Response({
+                'error': 'You do not have permission to cancel referrals'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if referral is in transit
+        if referral.status != 'in_transit':
+            return Response({
+                'error': 'Can only cancel in-transit referrals'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        cancellation_reason = request.data.get('reason', '')
+        
+        if not cancellation_reason:
+            return Response({
+                'error': 'Cancellation reason is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update referral status to cancelled
+        old_status = referral.status
+        referral.status = 'cancelled'
+        referral.save()
+        
+        # Create status history record
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=old_status,
+            new_status='cancelled',
+            changed_by=request.user,
+            notes=f'Referral cancelled. Reason: {cancellation_reason}'
+        )
+        
+        return Response({
+            'message': 'Referral marked as cancelled',
+            'new_status': referral.status
+        })
+    
+    @action(detail=True, methods=['post'])
     def mark_appointment_completed(self, request, pk=None):
         """Mark outpatient appointment as completed"""
         referral = self.get_object()
@@ -232,7 +346,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def transfer_to_triage(self, request, pk=None):
-        """Transfer referral to triage (EDCC Personnel action)"""
+        """Transfer referral to triage tab (EDCC/Triage action)"""
         referral = self.get_object()
         
         # Check if user has permission to transfer referrals
@@ -241,46 +355,287 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'error': 'You do not have permission to transfer referrals'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Get department from request data
-        department = request.data.get('department')
-        if not department:
+        # Check if already in triage
+        if referral.in_triage:
             return Response({
-                'error': 'Department selection is required'
+                'error': 'Referral is already in triage'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validate department choice
-        valid_departments = [choice[0] for choice in Referral.DEPARTMENT_CHOICES]
-        if department not in valid_departments:
-            return Response({
-                'error': 'Invalid department selection'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Update status to waiting (transferred to triage) and assign department
+        # Update referral to be in triage
         old_status = referral.status
-        referral.status = 'waiting'
-        referral.assigned_department = department
+        referral.in_triage = True
+        referral.status = 'in_triage'
         referral.transferred_by = request.user
         referral.transferred_at = timezone.now()
         referral.save()
-        
-        # Get department display name
-        department_display = dict(Referral.DEPARTMENT_CHOICES).get(department, department)
         
         # Create status history record
         ReferralStatusHistory.objects.create(
             referral=referral,
             old_status=old_status,
-            new_status='waiting',
+            new_status='in_triage',
             changed_by=request.user,
-            notes=f'Transferred to EDMAR/EDHO Triage for review - Assigned to {department_display}'
+            notes='Transferred to Triage for department assignment'
         )
         
         return Response({
-            'message': f'Referral successfully transferred to EDMAR/EDHO Triage - {department_display}',
+            'message': 'Referral successfully transferred to Triage',
             'new_status': referral.status,
-            'assigned_department': department,
-            'department_display': department_display
+            'in_triage': referral.in_triage
         })
+    
+    @action(detail=True, methods=['post'])
+    def assign_departments(self, request, pk=None):
+        """Assign departments to referral (EDCC/Triage action)"""
+        referral = self.get_object()
+        
+        # Check if user has permission
+        if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
+            return Response({
+                'error': 'You do not have permission to assign departments'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if referral is in triage
+        if not referral.in_triage:
+            return Response({
+                'error': 'Referral must be in triage to assign departments'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get departments, triage decision, and remarks from request
+        department_codes = request.data.get('departments', [])
+        remarks = request.data.get('remarks', '')
+        triage_decision = request.data.get('triage_decision', '')
+        scheduled_date = request.data.get('scheduled_date')
+        scheduled_time = request.data.get('scheduled_time')
+        
+        if not department_codes or len(department_codes) == 0:
+            return Response({
+                'error': 'At least one department must be selected'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not triage_decision:
+            return Response({
+                'error': 'Triage decision is required (emergent, urgent, or schedule_opd)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate triage decision
+        valid_decisions = ['emergent', 'urgent', 'schedule_opd']
+        if triage_decision not in valid_decisions:
+            return Response({
+                'error': 'Invalid triage decision'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate scheduled date/time for OPD
+        if triage_decision == 'schedule_opd':
+            if not scheduled_date or not scheduled_time:
+                return Response({
+                    'error': 'Scheduled date and time are required for OPD appointments'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate departments exist
+        departments = Department.objects.filter(code__in=department_codes, is_active=True)
+        if departments.count() != len(department_codes):
+            return Response({
+                'error': 'One or more invalid departments selected'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Delete existing department acceptances if any
+        referral.department_acceptances.all().delete()
+        
+        # Create department acceptance records
+        for dept in departments:
+            DepartmentAcceptance.objects.create(
+                referral=referral,
+                department_code=dept.code,
+                department_name=dept.name,
+                status='pending'
+            )
+        
+        # Update referral
+        old_status = referral.status
+        referral.status = 'waiting_acceptance'
+        referral.triage_remarks = remarks
+        referral.triage_decision = triage_decision
+        referral.assigned_departments = list(department_codes)
+        referral.triaged_by = request.user
+        referral.triaged_at = timezone.now()
+        
+        # Set scheduled date/time for OPD
+        if triage_decision == 'schedule_opd':
+            referral.scheduled_date = scheduled_date
+            referral.scheduled_time = scheduled_time
+        
+        referral.save()
+        
+        # Create status history
+        dept_names = [dept.name for dept in departments]
+        decision_display = triage_decision.replace('_', ' ').title()
+        history_notes = f'Triage decision: {decision_display}. Assigned to departments: {", ".join(dept_names)}'
+        if remarks:
+            history_notes += f'. Remarks: {remarks}'
+        if triage_decision == 'schedule_opd':
+            history_notes += f'. Scheduled for {scheduled_date} at {scheduled_time}'
+        
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=old_status,
+            new_status='waiting_acceptance',
+            changed_by=request.user,
+            notes=history_notes
+        )
+        
+        return Response({
+            'message': f'Successfully assigned to {len(department_codes)} department(s) with {decision_display} priority',
+            'departments': [{'code': d.code, 'name': d.name, 'contact_number': d.contact_number} for d in departments],
+            'new_status': referral.status
+        })
+    
+    @action(detail=True, methods=['post'])
+    def department_decision(self, request, pk=None):
+        """Department accepts or rejects referral"""
+        referral = self.get_object()
+        
+        department_code = request.data.get('department_code')
+        decision = request.data.get('decision')  # 'accept' or 'reject'
+        notes = request.data.get('notes', '')
+        
+        if not department_code or not decision:
+            return Response({
+                'error': 'Department code and decision are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if decision not in ['accept', 'reject']:
+            return Response({
+                'error': 'Decision must be "accept" or "reject"'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get the department acceptance record
+        try:
+            acceptance = DepartmentAcceptance.objects.get(
+                referral=referral,
+                department_code=department_code
+            )
+        except DepartmentAcceptance.DoesNotExist:
+            return Response({
+                'error': 'Department acceptance record not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Update acceptance
+        if decision == 'accept':
+            acceptance.accept(request.user)
+            message = f'{acceptance.department_name} accepted the referral'
+        else:
+            acceptance.reject(request.user, notes)
+            message = f'{acceptance.department_name} rejected the referral'
+        
+        # Get updated acceptance summary
+        summary = referral.get_department_acceptance_summary()
+        
+        return Response({
+            'message': message,
+            'acceptance_summary': summary,
+            'referral_status': referral.status
+        })
+    
+    @action(detail=True, methods=['post'])
+    def fill_transit_info(self, request, pk=None):
+        """Fill in-transit form for dispositioned referral"""
+        referral = self.get_object()
+        
+        # Check if referral is dispositioned
+        if referral.status != 'dispositioned':
+            return Response({
+                'error': 'Can only fill transit info for dispositioned referrals'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if user is the referrer
+        if referral.created_by != request.user:
+            return Response({
+                'error': 'Only the referrer can fill transit information'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get transit info data
+        watcher_name = request.data.get('watcher_name')
+        watcher_age = request.data.get('watcher_age')
+        relation_to_patient = request.data.get('relation_to_patient')
+        contact_number = request.data.get('contact_number')
+        escort_nurse = request.data.get('escort_nurse', '')
+        driver = request.data.get('driver', '')
+        referring_md = request.data.get('referring_md', '')
+        latest_vs = request.data.get('latest_vs', '')
+        gcs = request.data.get('gcs', '')
+        time_ambulance_left = request.data.get('time_ambulance_left')
+        
+        # Validate required fields
+        if not all([watcher_name, watcher_age, relation_to_patient, contact_number]):
+            return Response({
+                'error': 'Watcher name, age, relation, and contact number are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create or update transit info
+        transit_info, created = TransitInfo.objects.update_or_create(
+            referral=referral,
+            defaults={
+                'watcher_name': watcher_name,
+                'watcher_age': watcher_age,
+                'relation_to_patient': relation_to_patient,
+                'contact_number': contact_number,
+                'escort_nurse': escort_nurse,
+                'driver': driver,
+                'referring_md': referring_md,
+                'latest_vs': latest_vs,
+                'gcs': gcs,
+                'time_ambulance_left': time_ambulance_left if time_ambulance_left else None,
+            }
+        )
+        
+        # Update referral status to in_transit
+        referral.status = 'in_transit'
+        referral.save()
+        
+        # Create status history
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status='dispositioned',
+            new_status='in_transit',
+            changed_by=request.user,
+            notes='Transit information filled by referrer'
+        )
+        
+        return Response({
+            'message': 'Transit information saved successfully',
+            'referral_status': referral.status
+        })
+    
+    @action(detail=False, methods=['get'])
+    def triage_referrals(self, request):
+        """Get all referrals in triage tab"""
+        # Check if user has permission
+        if not hasattr(request.user, 'profile') or not request.user.profile.can_triage_referrals:
+            return Response({
+                'error': 'You do not have permission to view triage referrals'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get filter parameters
+        status_filter = request.query_params.get('status')
+        
+        # Base queryset - all referrals in triage
+        queryset = Referral.objects.filter(in_triage=True).select_related(
+            'specialty_needed', 'referring_hospital', 'created_by', 'assigned_to',
+            'transferred_by', 'triaged_by'
+        ).prefetch_related('department_acceptances')
+        
+        # Apply status filter if provided
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        # Order by most recent first
+        queryset = queryset.order_by('-created_at')
+        
+        # Serialize
+        serializer = ReferralListSerializer(queryset, many=True)
+        
+        return Response(serializer.data)
     
     @action(detail=True, methods=['post'])
     def change_department(self, request, pk=None):
@@ -1329,6 +1684,57 @@ def admin_dashboard_stats(request):
         'total_hospitals': total_hospitals,
         'total_specialties': total_specialties,
     })
+
+
+@api_view(['GET', 'PUT'])
+@permission_classes([IsAuthenticated])
+def manage_departments(request):
+    """Get all departments or update a department's contact number"""
+    # Check if user is admin
+    if not request.user.is_staff:
+        user_profile = getattr(request.user, 'profile', None)
+        if not user_profile or user_profile.role != 'admin':
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+    
+    if request.method == 'GET':
+        # Get all departments
+        departments = Department.objects.all().order_by('name')
+        data = []
+        for dept in departments:
+            data.append({
+                'id': dept.id,
+                'code': dept.code,
+                'name': dept.name,
+                'contact_number': dept.contact_number or '',
+                'is_active': dept.is_active,
+            })
+        return Response(data)
+    
+    elif request.method == 'PUT':
+        # Update department contact number
+        dept_id = request.data.get('id')
+        contact_number = request.data.get('contact_number')
+        
+        if not dept_id:
+            return Response({'error': 'Department ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            dept = Department.objects.get(id=dept_id)
+            dept.contact_number = contact_number
+            dept.save()
+            
+            return Response({
+                'message': f'Contact number for {dept.name} updated successfully',
+                'department': {
+                    'id': dept.id,
+                    'code': dept.code,
+                    'name': dept.name,
+                    'contact_number': dept.contact_number,
+                    'is_active': dept.is_active,
+                }
+            })
+        except Department.DoesNotExist:
+            return Response({'error': 'Department not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])

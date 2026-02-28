@@ -588,10 +588,10 @@ export const ReferralTable = () => {
           // EDCC Personnel: Only show pending referrals (not yet transferred)
           filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
         } else if (user?.permissions?.can_triage_referrals) {
-          // Triage Users: Show waiting referrals (transferred from EDCC, not yet accepted)
-          // and also urgent, emergent, schedule_opd (already triaged but still active)
+          // Triage Users: Show ALL active referrals including pending (to transfer to triage tab)
+          // pending, waiting, urgent, emergent, schedule_opd, in_transit
           filteredByRole = filteredByRole.filter((ref: any) => 
-            ['waiting', 'urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
+            ['pending', 'waiting', 'urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
           );
         } else if (user?.permissions?.is_his_department) {
           // HIS Department: Only show referrals that need arrival confirmation

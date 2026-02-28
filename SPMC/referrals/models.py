@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 class UserProfile(models.Model):
     """Extended user profile with roles"""
@@ -50,13 +51,13 @@ class UserProfile(models.Model):
     
     @property
     def can_triage_referrals(self):
-        """Only Call Triage can decide on referral priority/status"""
-        return self.role == 'call_triage'
+        """Both EDCC and Triage can decide on referral priority/status"""
+        return self.role in ['call_triage', 'edcc_personnel']
     
     @property
     def can_transfer_referrals(self):
-        """EDCC Personnel can only transfer/forward referrals"""
-        return self.role == 'edcc_personnel'
+        """Both EDCC and Triage can transfer/forward referrals"""
+        return self.role in ['call_triage', 'edcc_personnel']
     
     @property
     def is_admin_user(self):
@@ -72,6 +73,36 @@ class UserProfile(models.Model):
     def can_view_department_referrals(self):
         """Doctors can view referrals assigned to their department"""
         return self.role == 'doctor' and self.department
+
+class Department(models.Model):
+    """Hospital departments with contact information"""
+    DEPARTMENT_CHOICES = [
+        ('emergency', 'Emergency Department'),
+        ('internal_medicine', 'Internal Medicine'),
+        ('surgery', 'Surgery Department'),
+        ('obstetrics_gynecology', 'Obstetrics and Gynecology'),
+        ('pediatrics', 'Pediatrics'),
+        ('orthopedics', 'Orthopedics'),
+        ('cardiology', 'Cardiology'),
+        ('neurology', 'Neurology'),
+        ('anesthesiology', 'Anesthesiology'),
+        ('radiology', 'Radiology'),
+        ('pathology', 'Pathology'),
+        ('other', 'Other Department'),
+    ]
+    
+    code = models.CharField(max_length=50, choices=DEPARTMENT_CHOICES, unique=True)
+    name = models.CharField(max_length=200)
+    contact_number = models.CharField(max_length=20)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
 
 class ReferringHospital(models.Model):
     """Model for referring hospitals/facilities"""
@@ -101,6 +132,9 @@ class Referral(models.Model):
     # Status choices
     STATUS_CHOICES = [
         ('pending', 'Pending'),
+        ('in_triage', 'In Triage'),
+        ('waiting_acceptance', 'Waiting Department Acceptance'),
+        ('dispositioned', 'Dispositioned'),
         ('in_transit', 'In Transit'),
         ('waiting', 'Waiting'),
         ('emergent', 'Emergent'),
@@ -226,6 +260,10 @@ class Referral(models.Model):
     triage_decision = models.CharField(max_length=20, choices=TRIAGE_DECISION_CHOICES, blank=True, null=True)
     triage_notes = models.TextField(blank=True, null=True, help_text="Additional notes from triage team")
     
+    # Triage workflow fields
+    in_triage = models.BooleanField(default=False, help_text="Flag indicating referral is in triage tab")
+    triage_remarks = models.TextField(blank=True, null=True, help_text="Remarks when assigning departments")
+    
     # Department assignment (set by EDCC when transferring to triage)
     assigned_department = models.CharField(
         max_length=50, 
@@ -260,6 +298,46 @@ class Referral(models.Model):
     
     def __str__(self):
         return f"{self.referral_id} - {self.patient_full_name}"
+    
+    def check_department_acceptance(self):
+        """Check if majority of departments have accepted and update status"""
+        acceptances = self.department_acceptances.all()
+        total = acceptances.count()
+        
+        if total == 0:
+            return
+        
+        accepted = acceptances.filter(status='accepted').count()
+        rejected = acceptances.filter(status='rejected').count()
+        
+        # Majority rule: more than half must accept
+        majority = (total // 2) + 1
+        
+        if accepted >= majority:
+            # Majority accepted - move to dispositioned
+            self.status = 'dispositioned'
+            self.save()
+        elif rejected >= majority:
+            # Majority rejected - move back to pending or handle accordingly
+            self.status = 'pending'
+            self.in_triage = False
+            self.save()
+    
+    def get_department_acceptance_summary(self):
+        """Get summary of department acceptances"""
+        acceptances = self.department_acceptances.all()
+        total = acceptances.count()
+        accepted = acceptances.filter(status='accepted').count()
+        rejected = acceptances.filter(status='rejected').count()
+        pending = acceptances.filter(status='pending').count()
+        
+        return {
+            'total': total,
+            'accepted': accepted,
+            'rejected': rejected,
+            'pending': pending,
+            'majority_needed': (total // 2) + 1,
+        }
 
 class TransitInfo(models.Model):
     """Transit template information for patient transfers"""
@@ -314,6 +392,50 @@ class ReferralDocument(models.Model):
     
     def __str__(self):
         return f"{self.referral.referral_id} - {self.document_type}"
+
+
+class DepartmentAcceptance(models.Model):
+    """Track department acceptance for referrals"""
+    ACCEPTANCE_STATUS = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    referral = models.ForeignKey(Referral, on_delete=models.CASCADE, related_name='department_acceptances')
+    department_code = models.CharField(max_length=50)
+    department_name = models.CharField(max_length=200)
+    status = models.CharField(max_length=20, choices=ACCEPTANCE_STATUS, default='pending')
+    accepted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['referral', 'department_code']
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"{self.referral.referral_id} - {self.department_name} ({self.status})"
+    
+    def accept(self, user):
+        """Accept the referral for this department"""
+        self.status = 'accepted'
+        self.accepted_by = user
+        self.accepted_at = timezone.now()
+        self.save()
+        
+        # Check if majority of departments have accepted
+        self.referral.check_department_acceptance()
+    
+    def reject(self, user, notes=None):
+        """Reject the referral for this department"""
+        self.status = 'rejected'
+        self.accepted_by = user
+        self.accepted_at = timezone.now()
+        if notes:
+            self.notes = notes
+        self.save()
 
 
 class ReferrerAccount(models.Model):

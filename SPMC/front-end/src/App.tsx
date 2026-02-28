@@ -16,6 +16,7 @@ import DoctorRegister from "./pages/DoctorRegister";
 import ReferrerDashboard from "./pages/ReferrerDashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
 import ActiveReferrals from "./pages/ActiveReferrals";
+import TriageReferrals from "./pages/TriageReferrals";
 import Outpatient from "./pages/Outpatient";
 import Patients from "./pages/Patients";
 import Reports from "./pages/Reports";
@@ -24,8 +25,7 @@ import IncomingReferrals from "./pages/IncomingReferrals";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AccountApproval from "./pages/admin/AccountApproval";
-import HeadsUp from "./pages/admin/HeadsUp";
-import HeadsUpDragDrop from "./pages/admin/HeadsUpDragDrop";
+import DepartmentSettings from "./pages/admin/DepartmentSettings";
 
 const queryClient = new QueryClient();
 
@@ -70,14 +70,9 @@ const App = () => (
                 <AccountApproval />
               </ProtectedRoute>
             } />
-            <Route path="/admin/headsup" element={
+            <Route path="/admin/departments" element={
               <ProtectedRoute>
-                <HeadsUp />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/headsup/assign" element={
-              <ProtectedRoute>
-                <HeadsUpDragDrop />
+                <DepartmentSettings />
               </ProtectedRoute>
             } />
             <Route path="/admin/reports" element={
@@ -129,6 +124,11 @@ const App = () => (
             <Route path="/referrals" element={
               <ProtectedRoute>
                 <ActiveReferrals />
+              </ProtectedRoute>
+            } />
+            <Route path="/triage" element={
+              <ProtectedRoute>
+                <TriageReferrals />
               </ProtectedRoute>
             } />
             <Route path="/outpatient" element={

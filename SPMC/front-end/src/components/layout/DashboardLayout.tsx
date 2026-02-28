@@ -24,6 +24,7 @@ import {
   Inbox,
   Info,
   LucideIcon,
+  ClipboardList,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -60,6 +61,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const navigation: NavigationItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Active Referrals", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
+    { name: "Triage", href: "/triage", icon: ClipboardList },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
     { name: "Archived Referrals", href: "/patients", icon: Users },
     { name: "Reports", href: "/reports", icon: BarChart3 },

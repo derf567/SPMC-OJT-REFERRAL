@@ -125,6 +125,10 @@ const ReferrerDashboard = () => {
         return "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30";
       case "waiting":
         return "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30";
+      case "waiting_acceptance":
+        return "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30";
+      case "dispositioned":
+        return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
       case "in_transit":
         return "bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/30";
       case "emergent":
@@ -160,6 +164,10 @@ const ReferrerDashboard = () => {
         return "⏳ Pending Review";
       case "waiting":
         return "👨‍⚕️ Under Triage";
+      case "waiting_acceptance":
+        return "⏱ Waiting Department Response";
+      case "dispositioned":
+        return "✅ Accepted - Fill In-Transit Form";
       case "in_transit":
         return "🚑 In Transit";
       case "emergent":
@@ -233,76 +241,55 @@ const ReferrerDashboard = () => {
         action: 'Created referral'
       },
       {
-        status: 'waiting',
+        status: 'in_triage',
         label: 'Under Triage',
-        description: 'Referral is being reviewed by EDCC staff',
+        description: 'Referral is being reviewed by EDCC/Triage staff',
         icon: Clock,
         color: 'blue',
-        completed: ['waiting', 'in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
+        completed: ['in_triage', 'waiting_acceptance', 'dispositioned', 'in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
         date: referral.transferred_at || referral.created_at,
         user: referral.transferred_by_user || 'EDCC Staff',
-        action: 'Forwarded to EDMAR Triage'
+        action: 'Forwarded to Triage'
       }
     ];
 
-    // Add the actual triage decision made by EDMAR staff (only if a decision was made)
-    if (referral.triage_decision) {
-      let triageStep;
-      
-      if (referral.triage_decision === 'emergent') {
-        triageStep = {
-          status: 'emergent',
-          label: 'Emergent Care',
-          description: 'Patient requires immediate emergency care',
-          icon: AlertTriangle,
-          color: 'red',
-          completed: ['emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-          date: referral.triaged_at || referral.updated_at,
-          user: referral.triaged_by_user || 'EDMAR Staff',
-          action: 'Marked as emergent case'
-        };
-      } else if (referral.triage_decision === 'urgent') {
-        triageStep = {
-          status: 'urgent',
-          label: 'Urgent Care',
-          description: 'Patient requires urgent medical attention',
-          icon: AlertTriangle,
-          color: 'orange',
-          completed: ['urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-          date: referral.triaged_at || referral.updated_at,
-          user: referral.triaged_by_user || 'EDMAR Staff',
-          action: 'Marked as urgent case'
-        };
-      } else if (referral.triage_decision === 'schedule_opd') {
-        triageStep = {
-          status: 'schedule_opd',
-          label: 'Scheduled OPD',
-          description: 'Patient appointment scheduled for outpatient department',
-          icon: Calendar,
-          color: 'green',
-          completed: ['schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-          date: referral.triaged_at || referral.updated_at,
-          user: referral.triaged_by_user || 'EDMAR Staff',
-          action: 'Scheduled OPD appointment'
-        };
-      }
+    // Add Waiting Department Acceptance step
+    steps.push({
+      status: 'waiting_acceptance',
+      label: 'Waiting Department Acceptance',
+      description: 'Departments are reviewing and deciding on the referral',
+      icon: Clock,
+      color: 'cyan',
+      completed: ['waiting_acceptance', 'dispositioned', 'in_transit', 'completed', 'cancelled'].includes(referral.status),
+      date: referral.triaged_at || referral.updated_at,
+      user: referral.triaged_by_user || 'Triage Staff',
+      action: referral.triage_decision ? `Assigned to departments with ${referral.triage_decision.replace('_', ' ').toUpperCase()} priority` : 'Assigned to departments'
+    });
 
-      if (triageStep) {
-        steps.push(triageStep);
-      }
-    }
+    // Add Dispositioned step
+    steps.push({
+      status: 'dispositioned',
+      label: 'Dispositioned',
+      description: 'Majority of departments accepted - ready for transit',
+      icon: CheckCircle,
+      color: 'green',
+      completed: ['dispositioned', 'in_transit', 'completed', 'cancelled'].includes(referral.status),
+      date: referral.status === 'dispositioned' || referral.status === 'in_transit' || referral.status === 'completed' ? referral.updated_at : null,
+      user: 'Department Doctors',
+      action: 'Departments accepted referral'
+    });
 
-    // Add In Transit step after triage decision
+    // Add In Transit step
     steps.push({
       status: 'in_transit',
       label: 'In Transit',
       description: 'Patient is being transported to the facility',
       icon: MapPin,
       color: 'purple',
-      completed: ['in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-      date: referral.status === 'in_transit' ? referral.updated_at : null,
-      user: referral.triaged_by_user || 'EDMAR Staff',
-      action: 'Initiated patient transport'
+      completed: ['in_transit', 'completed', 'cancelled'].includes(referral.status),
+      date: referral.status === 'in_transit' || referral.status === 'completed' ? referral.updated_at : null,
+      user: referral.created_by_user || 'Referrer',
+      action: 'Transit form filled - patient in transport'
     });
 
     // Add final status steps
@@ -315,8 +302,8 @@ const ReferrerDashboard = () => {
         color: 'gray',
         completed: referral.status === 'completed',
         date: referral.status === 'completed' ? referral.updated_at : null,
-        user: referral.triaged_by_user || 'EDMAR Staff',
-        action: 'Marked as completed'
+        user: 'EDCC/Triage Staff',
+        action: 'Patient arrived and treated'
       },
       {
         status: 'cancelled',
@@ -327,7 +314,7 @@ const ReferrerDashboard = () => {
         completed: referral.status === 'cancelled',
         date: referral.status === 'cancelled' ? referral.updated_at : null,
         user: referral.triaged_by_user || referral.transferred_by_user || 'Staff',
-        action: 'Cancelled referral'
+        action: 'Referral cancelled'
       }
     );
 
@@ -367,6 +354,34 @@ const ReferrerDashboard = () => {
           </Link>
         </div>
       </div>
+
+      {/* Dispositioned - In Transit Form Needed */}
+      {recentReferrals.some(r => r.status === 'dispositioned') && (
+        <div className="bg-green-100 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-600 rounded-lg p-4 mb-6 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <CheckCircle className="w-6 h-6 text-green-600 animate-bounce" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-green-800 dark:text-green-200">
+                ✅ Referral Accepted - Fill In-Transit Form
+              </h3>
+              <p className="text-green-700 dark:text-green-300 mt-1">
+                You have {recentReferrals.filter(r => r.status === 'dispositioned').length} referral(s) 
+                accepted by departments. Please fill out the In-Transit form to proceed with patient transport.
+              </p>
+            </div>
+            <div className="flex-shrink-0">
+              <Link
+                to={`/referral/view/${recentReferrals.find(r => r.status === 'dispositioned')?.id}`}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap"
+              >
+                Fill Form →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Emergent Notification */}
       {recentReferrals.some(r => r.triage_decision === 'emergent' && r.status === 'in_transit') && (
@@ -467,6 +482,13 @@ const ReferrerDashboard = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    {/* Show dispositioned badge with glow effect */}
+                    {referral.status === 'dispositioned' && (
+                      <span className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-1 animate-pulse shadow-lg shadow-green-500/50">
+                        <CheckCircle className="w-3 h-3" />
+                        Fill In-Transit Form
+                      </span>
+                    )}
                     {/* Show emergent badge if marked as emergent */}
                     {referral.triage_decision === 'emergent' && referral.status === 'in_transit' && (
                       <span className="bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-1 animate-pulse">
@@ -667,6 +689,13 @@ const ReferrerDashboard = () => {
               <h4 className="font-semibold text-gray-900 dark:text-white text-sm truncate">
                 {referral.patient_full_name}
               </h4>
+              {/* Show dispositioned badge with glow effect */}
+              {referral.status === 'dispositioned' && (
+                <span className="bg-green-600 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1 animate-pulse shadow-lg shadow-green-500/50 flex-shrink-0">
+                  <CheckCircle className="w-3 h-3" />
+                  Fill Form
+                </span>
+              )}
               {/* Show emergent badge if marked as emergent */}
               {referral.triage_decision === 'emergent' && referral.status === 'in_transit' && (
                 <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1 animate-pulse flex-shrink-0">
@@ -1066,17 +1095,57 @@ const ReferrerDashboard = () => {
                   const isCompleted = step.completed;
                   const isCurrent = selectedReferral.status === step.status;
 
+                  // Get color classes based on step color
+                  const getColorClasses = () => {
+                    if (isCompleted) {
+                      switch (step.color) {
+                        case 'yellow': return 'bg-yellow-500 text-white';
+                        case 'blue': return 'bg-blue-500 text-white';
+                        case 'cyan': return 'bg-cyan-500 text-white';
+                        case 'green': return 'bg-green-500 text-white';
+                        case 'purple': return 'bg-purple-500 text-white';
+                        case 'red': return 'bg-red-500 text-white';
+                        case 'orange': return 'bg-orange-500 text-white';
+                        default: return 'bg-gray-500 text-white';
+                      }
+                    } else if (isCurrent) {
+                      switch (step.color) {
+                        case 'yellow': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-2 border-yellow-500';
+                        case 'blue': return 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-2 border-blue-500';
+                        case 'cyan': return 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border-2 border-cyan-500';
+                        case 'green': return 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-2 border-green-500';
+                        case 'purple': return 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-2 border-purple-500';
+                        case 'red': return 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-2 border-red-500';
+                        case 'orange': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-2 border-orange-500';
+                        default: return 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400 border-2 border-gray-500';
+                      }
+                    } else {
+                      return 'bg-gray-200 dark:bg-gray-700 text-gray-400';
+                    }
+                  };
+
+                  const getTitleColorClass = () => {
+                    if (isCompleted) return 'text-gray-900 dark:text-white';
+                    if (isCurrent) {
+                      switch (step.color) {
+                        case 'yellow': return 'text-yellow-600 dark:text-yellow-400';
+                        case 'blue': return 'text-blue-600 dark:text-blue-400';
+                        case 'cyan': return 'text-cyan-600 dark:text-cyan-400';
+                        case 'green': return 'text-green-600 dark:text-green-400';
+                        case 'purple': return 'text-purple-600 dark:text-purple-400';
+                        case 'red': return 'text-red-600 dark:text-red-400';
+                        case 'orange': return 'text-orange-600 dark:text-orange-400';
+                        default: return 'text-gray-600 dark:text-gray-400';
+                      }
+                    }
+                    return 'text-gray-500 dark:text-gray-400';
+                  };
+
                   return (
                     <div key={step.status} className="flex items-start gap-4">
                       {/* Timeline line */}
                       <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          isCompleted
-                            ? `bg-${step.color}-500 text-white`
-                            : isCurrent
-                            ? `bg-${step.color}-100 dark:bg-${step.color}-900/30 text-${step.color}-600 dark:text-${step.color}-400 border-2 border-${step.color}-500`
-                            : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
-                        }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getColorClasses()}`}>
                           {isCompleted ? (
                             <Check className="w-5 h-5" />
                           ) : (
@@ -1093,13 +1162,7 @@ const ReferrerDashboard = () => {
                       {/* Content */}
                       <div className="flex-1 pb-8">
                         <div className="flex items-center gap-2 mb-1">
-                          <h4 className={`font-medium ${
-                            isCompleted
-                              ? 'text-gray-900 dark:text-white'
-                              : isCurrent
-                              ? `text-${step.color}-600 dark:text-${step.color}-400`
-                              : 'text-gray-500 dark:text-gray-400'
-                          }`}>
+                          <h4 className={`font-medium ${getTitleColorClass()}`}>
                             {step.label}
                           </h4>
                           {isCurrent && (

@@ -519,6 +519,62 @@ def pending_doctors_view(request):
         traceback.print_exc()
         return Response({'error': f'Failed to fetch doctors: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def all_doctors_view(request):
+    """Get all doctors with their departments and specialties"""
+    try:
+        # Check if user is admin
+        is_admin = request.user.is_staff
+        if not is_admin:
+            try:
+                profile = request.user.profile
+                is_admin = profile.role == 'admin'
+            except UserProfile.DoesNotExist:
+                pass
+        
+        if not is_admin:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get all active doctors
+        doctors = User.objects.filter(
+            profile__role='doctor',
+            is_active=True
+        ).select_related('profile').order_by('first_name', 'last_name')
+        
+        data = []
+        for doctor in doctors:
+            profile = doctor.profile
+            
+            # Get department display name
+            department_display = ''
+            if profile.department:
+                try:
+                    department_display = dict(profile._meta.get_field('department').choices).get(profile.department, profile.department)
+                except:
+                    department_display = profile.department
+            
+            data.append({
+                'id': doctor.id,
+                'name': doctor.get_full_name(),
+                'username': doctor.username,
+                'email': doctor.email,
+                'role': 'doctor',
+                'role_display': 'Doctor',
+                'department': profile.department or '',
+                'department_display': department_display,
+                'specialties': [],  # TODO: Add specialties if you have a relationship
+                'contact_number': profile.cellphone or '',
+            })
+        
+        return Response(data)
+    except Exception as e:
+        print(f"Error in all_doctors_view: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'error': f'Failed to fetch doctors: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def approve_doctor_view(request, doctor_id):

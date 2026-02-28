@@ -87,22 +87,6 @@ interface ReferralFormData {
   consentSecured: boolean;
   reasonForReferral: string;
   otherReasonForReferral: string;
-  
-  // Transit Template
-  includeTransitInfo: boolean;
-  transitInfo: {
-    watcherName: string;
-    watcherAge: string;
-    relationToPatient: string;
-    contactNumber: string;
-    escortNurse: string;
-    driver: string;
-    referringMD: string;
-    referringFacility: string;
-    latestVS: string;
-    gcs: string;
-    timeAmbulanceLeft: string;
-  };
 }
 
 const initialFormData: ReferralFormData = {
@@ -152,21 +136,6 @@ const initialFormData: ReferralFormData = {
   consentSecured: false,
   reasonForReferral: "",
   otherReasonForReferral: "",
-  
-  includeTransitInfo: false,
-  transitInfo: {
-    watcherName: "",
-    watcherAge: "",
-    relationToPatient: "",
-    contactNumber: "",
-    escortNurse: "",
-    driver: "",
-    referringMD: "",
-    referringFacility: "",
-    latestVS: "",
-    gcs: "",
-    timeAmbulanceLeft: ""
-  }
 };
 
 const ExternalReferral = () => {
@@ -215,24 +184,31 @@ const ExternalReferral = () => {
             // Debug: Log user and profile data
             console.log('User data:', user);
             console.log('Profile data:', profileData);
+            console.log('Hospital address from user:', {
+              region: user.hospital_region,
+              province: user.hospital_province,
+              city: user.hospital_city,
+              barangay: user.hospital_barangay,
+              street: user.hospital_street,
+            });
             
             // Auto-fill hospital information from logged-in account
             setFormData(prev => ({
               ...prev,
-              // For hospital accounts, auto-fill hospital information
+              // For hospital accounts, auto-fill ALL hospital information including address
               ...(user.hospital_name && {
                 referringFacilityName: user.hospital_name,
                 hospitalLocation: user.hospital_location || '',
                 isInsideDavaoCity: user.is_inside_davao !== undefined ? user.is_inside_davao : true,
                 hospitalContactNumbers: user.contact_numbers || [],
                 hospitalDohLevel: user.hospital_doh_level || '',
-                // Detailed address fields
+                // Detailed address fields - auto-filled from registration
                 hospitalRegion: user.hospital_region || '',
-                hospitalStreet: user.hospital_street || '',
-                hospitalBarangay: user.hospital_barangay || '',
-                hospitalDistrict: user.hospital_district || '',
-                hospitalCity: user.hospital_city || '',
                 hospitalProvince: user.hospital_province || '',
+                hospitalCity: user.hospital_city || '',
+                hospitalBarangay: user.hospital_barangay || '',
+                hospitalStreet: user.hospital_street || '',
+                hospitalDistrict: user.hospital_district || '',
               }),
               // For doctors with affiliate hospitals
               ...(profileData.referrer_type === 'doctor' && profileData.affiliate_hospitals?.length > 0 && !user.hospital_name && {
@@ -359,9 +335,6 @@ const ExternalReferral = () => {
             consentSecured: referralData.consent_secured || false,
             reasonForReferral: referralData.reason_for_referral || '',
             otherReasonForReferral: '',
-            
-            includeTransitInfo: false,
-            transitInfo: initialFormData.transitInfo
           });
           
         } catch (error: any) {
@@ -545,14 +518,6 @@ const ExternalReferral = () => {
     if (!formData.referrerProfession.trim()) errors.push("Referrer Profession is required");
     if (!formData.modeOfTransportation.trim()) errors.push("Mode of Transportation is required");
     
-    // Transit Info validation (if included)
-    if (formData.includeTransitInfo) {
-      if (!formData.transitInfo.watcherName.trim()) errors.push("Watcher's Name is required for transit");
-      if (!formData.transitInfo.watcherAge.trim()) errors.push("Watcher's Age is required for transit");
-      if (!formData.transitInfo.relationToPatient.trim()) errors.push("Relation to Patient is required for transit");
-      if (!formData.transitInfo.contactNumber.trim()) errors.push("Contact Number is required for transit");
-    }
-    
     return errors;
   };
 
@@ -638,23 +603,6 @@ const ExternalReferral = () => {
         
         // Consent
         consent_secured: formData.consentSecured,
-        
-        // Transit Info (if included)
-        ...(formData.includeTransitInfo && {
-          transit_info: {
-            watcher_name: formData.transitInfo.watcherName,
-            watcher_age: parseInt(formData.transitInfo.watcherAge) || 0,
-            relation_to_patient: formData.transitInfo.relationToPatient,
-            contact_number: formData.transitInfo.contactNumber,
-            escort_nurse: formData.transitInfo.escortNurse || null,
-            driver: formData.transitInfo.driver || null,
-            referring_md: formData.transitInfo.referringMD || null,
-            referring_facility: formData.transitInfo.referringFacility || null,
-            latest_vs: formData.transitInfo.latestVS || null,
-            gcs: formData.transitInfo.gcs || null,
-            time_ambulance_left: formData.transitInfo.timeAmbulanceLeft || null,
-          }
-        })
       };
 
       console.log('Submitting data:', apiData); // Debug log
@@ -1367,7 +1315,7 @@ const ExternalReferral = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Region *
                   </label>
-                  {user?.hospital_region ? (
+                  {user?.hospital_name && formData.hospitalRegion ? (
                     <input
                       type="text"
                       value={formData.hospitalRegion}
@@ -1398,7 +1346,7 @@ const ExternalReferral = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Province *
                   </label>
-                  {user?.hospital_province ? (
+                  {user?.hospital_name && formData.hospitalProvince ? (
                     <input
                       type="text"
                       value={formData.hospitalProvince}
@@ -1434,7 +1382,7 @@ const ExternalReferral = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     City / Municipality *
                   </label>
-                  {user?.hospital_city ? (
+                  {user?.hospital_name && formData.hospitalCity ? (
                     <input
                       type="text"
                       value={formData.hospitalCity}
@@ -1474,9 +1422,9 @@ const ExternalReferral = () => {
                     type="text"
                     value={formData.hospitalBarangay}
                     onChange={(e) => updateFormData('hospitalBarangay', e.target.value)}
-                    readOnly={!!user?.hospital_barangay}
+                    readOnly={!!(user?.hospital_name && formData.hospitalBarangay)}
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
-                      user?.hospital_barangay 
+                      (user?.hospital_name && formData.hospitalBarangay)
                         ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
                         : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     }`}
@@ -1493,13 +1441,13 @@ const ExternalReferral = () => {
                     value={formData.hospitalStreet}
                     onChange={(e) => {
                       // For auto-filled fields, don't allow editing
-                      if (!user?.hospital_street) {
+                      if (!(user?.hospital_name && formData.hospitalStreet)) {
                         updateFormData('hospitalStreet', e.target.value);
                       }
                     }}
-                    readOnly={!!user?.hospital_street}
+                    readOnly={!!(user?.hospital_name && formData.hospitalStreet)}
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
-                      user?.hospital_street 
+                      (user?.hospital_name && formData.hospitalStreet)
                         ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
                         : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     }`}
@@ -1598,7 +1546,7 @@ const ExternalReferral = () => {
                       type="checkbox"
                       className="rounded border-gray-300 text-green-600 focus:ring-green-500 mt-1 flex-shrink-0"
                       checked={formData.consentSecured}
-                      onChange={(e) => updateFormData('consentSecured', e.target.checked)}
+                      onChange={(e) => updateFormData('consentSecured', e.target.value)}
                     />
                     <span className="text-sm text-green-700 dark:text-green-300 leading-relaxed">
                       Was a consent form to transfer secured from the patient/relative prior to this referral?
@@ -1606,182 +1554,6 @@ const ExternalReferral = () => {
                   </label>
                 </div>
               </div>
-            </div>
-
-            {/* Transit Template Section */}
-            <div className="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
-              <label className="flex items-start space-x-3 mb-6">
-                <input
-                  type="checkbox"
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 flex-shrink-0"
-                  checked={formData.includeTransitInfo}
-                  onChange={(e) => updateFormData('includeTransitInfo', e.target.checked)}
-                />
-                <div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-                    Include Transit Template (for patient transfer)
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
-                    Check this if the patient will be transferred via ambulance
-                  </span>
-                </div>
-              </label>
-
-              {formData.includeTransitInfo && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg border border-blue-200 dark:border-blue-800 mt-4">
-                  <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-6 flex items-center gap-2">
-                    <Truck className="w-5 h-5" />
-                    Transit Template Information
-                  </h4>
-                  
-                  {/* Patient & Watcher Info */}
-                  <div className="mb-8">
-                    <h5 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-4 border-b border-blue-200 dark:border-blue-700 pb-2">Patient & Watcher Information</h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Watcher's Name *
-                        </label>
-                        <input
-                          type="text"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                          placeholder="Full name of watcher"
-                          value={formData.transitInfo.watcherName}
-                          onChange={(e) => updateNestedFormData('transitInfo', 'watcherName', e.target.value)}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Watcher's Age *
-                        </label>
-                        <input
-                          type="number"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                          placeholder="Age in years"
-                          value={formData.transitInfo.watcherAge}
-                          onChange={(e) => updateNestedFormData('transitInfo', 'watcherAge', e.target.value)}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Relation to Patient *
-                        </label>
-                        <input
-                          type="text"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                          placeholder="e.g., Wife, Son, Mother"
-                          value={formData.transitInfo.relationToPatient}
-                          onChange={(e) => updateNestedFormData('transitInfo', 'relationToPatient', e.target.value)}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Contact Number *
-                        </label>
-                        <input
-                          type="tel"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                          placeholder="09XXXXXXXXX"
-                          value={formData.transitInfo.contactNumber}
-                          onChange={(e) => updateNestedFormData('transitInfo', 'contactNumber', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Transit Team */}
-                  <div className="mb-8">
-                    <h5 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-4 border-b border-blue-200 dark:border-blue-700 pb-2">Transit Team</h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Escort Nurse
-                        </label>
-                        <input
-                          type="text"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                          placeholder="Nurse name"
-                          value={formData.transitInfo.escortNurse}
-                          onChange={(e) => updateNestedFormData('transitInfo', 'escortNurse', e.target.value)}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Driver
-                        </label>
-                        <input
-                          type="text"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                          placeholder="Driver name"
-                          value={formData.transitInfo.driver}
-                          onChange={(e) => updateNestedFormData('transitInfo', 'driver', e.target.value)}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Referring MD/Contact
-                        </label>
-                        <input
-                          type="text"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                          placeholder="Dr. Name / Contact"
-                          value={formData.transitInfo.referringMD}
-                          onChange={(e) => updateNestedFormData('transitInfo', 'referringMD', e.target.value)}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Time Ambulance Left
-                        </label>
-                        <input
-                          type="time"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                          value={formData.transitInfo.timeAmbulanceLeft}
-                          onChange={(e) => updateNestedFormData('transitInfo', 'timeAmbulanceLeft', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Medical Information */}
-                  <div className="mb-4">
-                    <h5 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-4 border-b border-blue-200 dark:border-blue-700 pb-2">Medical Information</h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Latest Vital Signs
-                        </label>
-                        <textarea
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                          rows={3}
-                          placeholder="BP: 120/80, HR: 80, RR: 20, Temp: 36.5°C, O2Sat: 98%"
-                          value={formData.transitInfo.latestVS}
-                          onChange={(e) => updateNestedFormData('transitInfo', 'latestVS', e.target.value)}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          GCS Score
-                        </label>
-                        <input
-                          type="text"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                          placeholder="15 (E4V5M6) or Alert"
-                          value={formData.transitInfo.gcs}
-                          onChange={(e) => updateNestedFormData('transitInfo', 'gcs', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         );

@@ -107,14 +107,27 @@ const Index = () => {
           return isPending;
         });
         
+        // Active: in_triage, waiting_acceptance, emergent, urgent, schedule_opd
         const active = allReferrals.filter((r: Referral) => 
-          r.status === 'emergent' || r.status === 'urgent' || r.status === 'schedule_opd'
+          r.status === 'in_triage' || 
+          r.status === 'waiting_acceptance' || 
+          r.status === 'emergent' || 
+          r.status === 'urgent' || 
+          r.status === 'schedule_opd'
         );
-        const dispositioned: Referral[] = []; // Static for now
-        const inTransit: Referral[] = []; // Static for now
+        
+        const dispositioned = allReferrals.filter((r: Referral) => 
+          r.status === 'dispositioned'
+        );
+        
+        const inTransit = allReferrals.filter((r: Referral) => 
+          r.status === 'in_transit'
+        );
         
         console.log('Filtered Requests (pending):', requests.length, requests);
         console.log('Filtered Active (emergent/urgent/schedule_opd):', active.length, active);
+        console.log('Filtered Dispositioned:', dispositioned.length, dispositioned);
+        console.log('Filtered In Transit:', inTransit.length, inTransit);
         console.log('=== END DEBUG ===');
         
         setRequestsReferrals(requests);
@@ -162,11 +175,14 @@ const Index = () => {
   const getStatusBadgeColor = (status: string) => {
     const colors: Record<string, string> = {
       'pending': 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400',
+      'in_triage': 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400',
+      'waiting_acceptance': 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-400',
       'waiting': 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400',
       'emergent': 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-400',
       'urgent': 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400',
       'schedule_opd': 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-400',
-      'in_transit': 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400',
+      'dispositioned': 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400',
+      'in_transit': 'bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/30 dark:text-teal-400',
     };
     return colors[status] || 'bg-gray-100 text-gray-800 border-gray-300';
   };
@@ -174,10 +190,13 @@ const Index = () => {
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       'pending': 'Pending',
+      'in_triage': 'In Triage',
+      'waiting_acceptance': 'Waiting Acceptance',
       'waiting': 'Waiting',
       'emergent': 'Emergent',
       'urgent': 'Urgent',
       'schedule_opd': 'Schedule OPD',
+      'dispositioned': 'Dispositioned',
       'in_transit': 'In Transit',
     };
     return labels[status] || status;
@@ -340,7 +359,7 @@ const Index = () => {
                       Active
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Triage decision made (Emergent/Urgent/Schedule OPD)
+                      In triage process or triage decision made
                     </p>
                   </div>
                 </div>
@@ -386,7 +405,7 @@ const Index = () => {
                       Dispositioned
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      (Coming soon)
+                      Accepted by departments, awaiting transit form
                     </p>
                   </div>
                 </div>
@@ -432,7 +451,7 @@ const Index = () => {
                       In Transit
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      (Coming soon)
+                      Patient being transported to hospital
                     </p>
                   </div>
                 </div>

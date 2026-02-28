@@ -1,6 +1,9 @@
 from rest_framework import serializers
-from .models import ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory, ReferralDocument
-from .models import ReferrerAccount, ReferrerDocument
+from .models import (
+    ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory, 
+    ReferralDocument, ReferrerAccount, ReferrerDocument, Department, DepartmentAcceptance,
+    UserProfile
+)
 
 class ReferringHospitalSerializer(serializers.ModelSerializer):
     class Meta:
@@ -10,6 +13,18 @@ class ReferringHospitalSerializer(serializers.ModelSerializer):
 class SpecialtySerializer(serializers.ModelSerializer):
     class Meta:
         model = Specialty
+        fields = '__all__'
+
+class DepartmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = '__all__'
+
+class DepartmentAcceptanceSerializer(serializers.ModelSerializer):
+    accepted_by_name = serializers.CharField(source='accepted_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = DepartmentAcceptance
         fields = '__all__'
 
 class TransitInfoSerializer(serializers.ModelSerializer):
@@ -157,6 +172,12 @@ class ReferralListSerializer(serializers.ModelSerializer):
     assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
     transferred_by_user = serializers.CharField(source='transferred_by.get_full_name', read_only=True)
     triaged_by_user = serializers.CharField(source='triaged_by.get_full_name', read_only=True)
+    department_acceptances = DepartmentAcceptanceSerializer(many=True, read_only=True)
+    acceptance_summary = serializers.SerializerMethodField()
+    
+    def get_acceptance_summary(self, obj):
+        """Get department acceptance summary"""
+        return obj.get_department_acceptance_summary()
     
     class Meta:
         model = Referral
@@ -191,7 +212,10 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'triage_decision', 'triage_notes', 'scheduled_date', 'scheduled_time',
             
             # Department assignment
-            'assigned_department', 'assigned_departments'
+            'assigned_department', 'assigned_departments',
+            
+            # Triage workflow
+            'in_triage', 'triage_remarks', 'department_acceptances', 'acceptance_summary'
         ]
 
 class ReferralDetailSerializer(serializers.ModelSerializer):
@@ -208,6 +232,12 @@ class ReferralDetailSerializer(serializers.ModelSerializer):
     transit_info = TransitInfoSerializer(read_only=True)
     status_history = ReferralStatusHistorySerializer(many=True, read_only=True)
     documents = ReferralDocumentSerializer(many=True, read_only=True)
+    department_acceptances = DepartmentAcceptanceSerializer(many=True, read_only=True)
+    acceptance_summary = serializers.SerializerMethodField()
+    
+    def get_acceptance_summary(self, obj):
+        """Get department acceptance summary"""
+        return obj.get_department_acceptance_summary()
     
     class Meta:
         model = Referral
