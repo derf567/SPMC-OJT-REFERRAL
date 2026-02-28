@@ -459,7 +459,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               </div>
 
               {/* Right side - Actions and User */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 {/* Sound Toggle */}
                 <SoundToggle />
 
@@ -573,26 +573,26 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     variant="ghost"
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className={cn(
-                      "flex items-center gap-2 px-3 transition-colors duration-300",
+                      "flex items-center gap-3 px-3 h-10 transition-colors duration-300",
                       isDarkMode 
                         ? "text-gray-300 hover:text-white hover:bg-gray-700" 
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                     )}
                   >
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                    <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                       <span className="text-white text-sm font-medium">{getUserInitials()}</span>
                     </div>
-                    <div className="text-left">
+                    <div className="text-left flex flex-col justify-center">
                       <p className={cn(
-                        "text-sm font-medium transition-colors duration-300",
+                        "text-sm font-medium leading-tight transition-colors duration-300",
                         isDarkMode ? "text-white" : "text-gray-900"
-                      )}>{user?.full_name || user?.username}</p>
+                      )}>{user?.role_display || (user?.is_staff ? 'EDCC Personnel' : 'User')}</p>
                       <p className={cn(
-                        "text-xs transition-colors duration-300",
+                        "text-xs leading-tight transition-colors duration-300",
                         isDarkMode ? "text-gray-400" : "text-gray-500"
-                      )}>{user?.is_staff ? 'Staff' : 'User'}</p>
+                      )}>User</p>
                     </div>
-                    <ChevronDown className="w-4 h-4" />
+                    <ChevronDown className="w-4 h-4 flex-shrink-0" />
                   </Button>
 
                   {showUserMenu && (

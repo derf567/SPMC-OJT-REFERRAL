@@ -10,7 +10,6 @@ export const SoundToggle = () => {
   const toggleSound = () => {
     const newState = notificationSound.toggle();
     setSoundEnabled(newState);
-    
     // Play a test sound when enabling
     if (newState) {
       notificationSound.playNotification();
@@ -18,10 +17,12 @@ export const SoundToggle = () => {
   };
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1 ">
+      
+
       <Button
         variant="ghost"
-        size="sm"
+        size="icon"  // ← Use icon size for consistent alignment
         onClick={toggleSound}
         className="relative"
         title={soundEnabled ? 'Disable notification sounds' : 'Enable notification sounds'}
