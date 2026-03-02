@@ -478,6 +478,18 @@ export const referralsAPI = {
       method: 'POST',
     });
   },
+
+  // Report fraud (EDCC/EDMA action)
+  reportFraud: async (id: string | number, reportData: {
+    fraud_type: string;
+    reason: string;
+    evidence?: string;
+  }) => {
+    return apiRequest(`/referrals/${id}/report_fraud/`, {
+      method: 'POST',
+      body: JSON.stringify(reportData),
+    });
+  },
 };
 
 // Departments API

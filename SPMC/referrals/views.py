@@ -1799,3 +1799,75 @@ def manage_departments(request):
             return Response({'message': 'Doctor account rejected successfully'})
         except User.DoesNotExist:
             return Response({'error': 'Doctor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def report_fraud(request, pk):
+    """
+    Report a referral as fraudulent or suspicious
+    Only EDCC/EDMA personnel can report fraud
+    """
+    from .models import FraudReport
+    
+    # Check if user has permission to report fraud (EDCC/EDMA only)
+    user_profile = request.user.profile
+    if user_profile.role not in ['edcc_personnel', 'call_triage']:
+        return Response({
+            'error': 'Only EDCC and EDMA personnel can report fraudulent referrals'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        referral = Referral.objects.get(pk=pk)
+    except Referral.DoesNotExist:
+        return Response({'error': 'Referral not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Get report data from request
+    fraud_type = request.data.get('fraud_type')
+    reason = request.data.get('reason', '').strip()
+    evidence = request.data.get('evidence', '').strip()
+    
+    # Validate required fields
+    if not fraud_type:
+        return Response({'error': 'Fraud type is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if not reason:
+        return Response({'error': 'Reason is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate fraud type
+    valid_fraud_types = [choice[0] for choice in FraudReport.FRAUD_TYPE_CHOICES]
+    if fraud_type not in valid_fraud_types:
+        return Response({'error': 'Invalid fraud type'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if user has already reported this referral
+    existing_report = FraudReport.objects.filter(
+        referral=referral,
+        reported_by=request.user
+    ).first()
+    
+    if existing_report:
+        return Response({
+            'error': 'You have already reported this referral',
+            'report_id': existing_report.id
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Create fraud report
+    fraud_report = FraudReport.objects.create(
+        referral=referral,
+        reported_account=referral.created_by,
+        reported_by=request.user,
+        fraud_type=fraud_type,
+        reason=reason,
+        evidence=evidence if evidence else None,
+        status='pending'
+    )
+    
+    # TODO: Send notification to admin
+    # TODO: Send email to admin
+    
+    return Response({
+        'success': True,
+        'message': 'Fraud report submitted successfully',
+        'report_id': fraud_report.id,
+        'status': fraud_report.status
+    }, status=status.HTTP_201_CREATED)

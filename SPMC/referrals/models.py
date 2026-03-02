@@ -502,3 +502,57 @@ class ReferrerDocument(models.Model):
 
     def __str__(self):
         return f"{self.referrer} - {self.document_type}"
+
+
+
+class FraudReport(models.Model):
+    """Model for fraud reports submitted by EDCC/EDMA personnel"""
+    
+    FRAUD_TYPE_CHOICES = [
+        ('fake_patient', 'Fake Patient Information'),
+        ('duplicate', 'Duplicate Referral'),
+        ('false_emergency', 'False Emergency Claim'),
+        ('wrong_hospital', 'Wrong Hospital Information'),
+        ('incomplete_info', 'Deliberately Incomplete Information'),
+        ('system_abuse', 'System Abuse'),
+        ('spam', 'Spam/Test Referral'),
+        ('other', 'Other Suspicious Activity'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('under_review', 'Under Review'),
+        ('confirmed', 'Confirmed Fraud'),
+        ('dismissed', 'Dismissed'),
+    ]
+    
+    # Report details
+    referral = models.ForeignKey(Referral, on_delete=models.CASCADE, related_name='fraud_reports')
+    reported_account = models.ForeignKey(User, on_delete=models.CASCADE, related_name='fraud_reports_received')
+    reported_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='fraud_reports_made')
+    
+    # Report information
+    fraud_type = models.CharField(max_length=50, choices=FRAUD_TYPE_CHOICES)
+    reason = models.TextField(help_text="Reason for reporting this referral as fraudulent")
+    evidence = models.TextField(blank=True, null=True, help_text="Additional evidence or details")
+    
+    # Status tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Admin action
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='fraud_reviews')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    admin_notes = models.TextField(blank=True, null=True, help_text="Admin notes on the review")
+    action_taken = models.CharField(max_length=50, blank=True, null=True, help_text="Action taken by admin")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Fraud Report"
+        verbose_name_plural = "Fraud Reports"
+    
+    def __str__(self):
+        return f"Fraud Report #{self.id} - {self.referral.referral_id} by {self.reported_by.username}"

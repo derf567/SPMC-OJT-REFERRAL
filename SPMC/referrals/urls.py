@@ -2,7 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     ReferringHospitalViewSet, SpecialtyViewSet, ReferralViewSet, TransitInfoViewSet, 
-    ReferrerAccountViewSet, DepartmentViewSet, admin_dashboard_stats, manage_departments
+    ReferrerAccountViewSet, DepartmentViewSet, admin_dashboard_stats, manage_departments,
+    report_fraud
 )
 from .authentication import (
     login_view, logout_view, user_profile, register_view, 
@@ -32,4 +33,5 @@ urlpatterns = [
     path('api/admin/doctors/', all_doctors_view, name='all_doctors'),
     path('api/admin/approve-doctor/<int:doctor_id>/', approve_doctor_view, name='approve_doctor'),
     path('api/admin/reject-doctor/<int:doctor_id>/', reject_doctor_view, name='reject_doctor'),
+    path('api/referrals/<int:pk>/report_fraud/', report_fraud, name='report_fraud'),
 ]

@@ -10,7 +10,9 @@ import {
   Activity,
   Truck,
   ClipboardCheck,
+  AlertTriangle,
 } from "lucide-react";
+import { FraudReportModal } from "@/components/ui/FraudReportModal";
 
 interface DashboardStats {
   total_referrals_today: number;
@@ -59,6 +61,8 @@ const Index = () => {
   const [activeReferrals, setActiveReferrals] = useState<Referral[]>([]);
   const [dispositionedReferrals, setDispositionedReferrals] = useState<Referral[]>([]);
   const [inTransitReferrals, setInTransitReferrals] = useState<Referral[]>([]);
+  const [showFraudModal, setShowFraudModal] = useState(false);
+  const [selectedReferralForReport, setSelectedReferralForReport] = useState<Referral | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -101,33 +105,38 @@ const Index = () => {
           });
         });
         
+        // REQUESTS: Not entertained yet, going to triage
         const requests = allReferrals.filter((r: Referral) => {
           const isPending = r.status === 'pending';
           console.log(`Checking ${r.referral_id}: status="${r.status}", isPending=${isPending}`);
           return isPending;
         });
         
-        // Active: in_triage, waiting_acceptance, emergent, urgent, schedule_opd
+        // ACTIVE: Under endorsement (triage decision made, awaiting department assignment)
+        // Includes: waiting, in_triage, waiting_acceptance
         const active = allReferrals.filter((r: Referral) => 
+          r.status === 'waiting' || 
           r.status === 'in_triage' || 
-          r.status === 'waiting_acceptance' || 
+          r.status === 'waiting_acceptance'
+        );
+        
+        // DISPOSITIONED: Departments assigned, transit template sent, awaiting completion
+        // Includes: emergent, urgent, schedule_opd
+        const dispositioned = allReferrals.filter((r: Referral) => 
           r.status === 'emergent' || 
           r.status === 'urgent' || 
           r.status === 'schedule_opd'
         );
         
-        const dispositioned = allReferrals.filter((r: Referral) => 
-          r.status === 'dispositioned'
-        );
-        
+        // IN TRANSIT: Transit template completed, patient en route
         const inTransit = allReferrals.filter((r: Referral) => 
           r.status === 'in_transit'
         );
         
         console.log('Filtered Requests (pending):', requests.length, requests);
-        console.log('Filtered Active (emergent/urgent/schedule_opd):', active.length, active);
-        console.log('Filtered Dispositioned:', dispositioned.length, dispositioned);
-        console.log('Filtered In Transit:', inTransit.length, inTransit);
+        console.log('Filtered Active (waiting/in_triage/waiting_acceptance):', active.length, active);
+        console.log('Filtered Dispositioned (emergent/urgent/schedule_opd):', dispositioned.length, dispositioned);
+        console.log('Filtered In Transit (in_transit):', inTransit.length, inTransit);
         console.log('=== END DEBUG ===');
         
         setRequestsReferrals(requests);
@@ -228,49 +237,73 @@ const Index = () => {
       }
       return 'border-gray-200 dark:border-gray-700';
     };
+
+    // Check if user can report fraud (EDCC/EDMA only)
+    const canReportFraud = user?.permissions?.can_transfer_referrals || user?.permissions?.can_triage_referrals;
     
     return (
-      <Link
+      <div
         key={referral.id}
-        to={`/referral/view/${referral.id}`}
-        className={`block border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-all ${getGlowClasses()}`}
+        className={`border rounded-lg p-4 transition-all ${getGlowClasses()}`}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="font-semibold text-gray-900 dark:text-white">
-                {referral.referral_id}
-              </span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeColor(referral.status)}`}>
-                {getStatusLabel(referral.status)}
-              </span>
-              {/* Show endorsement status for active referrals */}
-              {(referral.status === 'emergent' || referral.status === 'urgent' || referral.status === 'schedule_opd') && (
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${
-                  isEndorsed 
-                    ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 animate-pulse'
-                }`}>
-                  {isEndorsed ? 'Endorsed' : 'Not Yet Endorsed'}
+        <Link
+          to={`/referral/view/${referral.id}`}
+          className="block hover:bg-gray-50 dark:hover:bg-gray-700/30 -m-4 p-4 rounded-lg"
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className="font-semibold text-gray-900 dark:text-white">
+                  {referral.referral_id}
                 </span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeColor(referral.status)}`}>
+                  {getStatusLabel(referral.status)}
+                </span>
+                {/* Show endorsement status for active referrals */}
+                {(referral.status === 'emergent' || referral.status === 'urgent' || referral.status === 'schedule_opd') && (
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${
+                    isEndorsed 
+                      ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400'
+                      : 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 animate-pulse'
+                  }`}>
+                    {isEndorsed ? 'Endorsed' : 'Not Yet Endorsed'}
+                  </span>
+                )}
+              </div>
+              <h4 className="font-medium text-gray-900 dark:text-white mb-1">
+                {referral.patient_full_name}
+              </h4>
+              {/* Show assigned departments if endorsed */}
+              {isEndorsed && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Departments: {referral.assigned_departments?.join(', ')}
+                </p>
               )}
-            </div>
-            <h4 className="font-medium text-gray-900 dark:text-white mb-1">
-              {referral.patient_full_name}
-            </h4>
-            {/* Show assigned departments if endorsed */}
-            {isEndorsed && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                Departments: {referral.assigned_departments?.join(', ')}
-              </p>
-            )}
-            <div className="flex items-center gap-2 mt-2">
-              <Clock className="w-3 h-3 text-gray-400" />
-              <span className="text-xs text-gray-400">{formatDate(referral.created_at)}</span>
+              <div className="flex items-center gap-2 mt-2">
+                <Clock className="w-3 h-3 text-gray-400" />
+                <span className="text-xs text-gray-400">{formatDate(referral.created_at)}</span>
+              </div>
             </div>
           </div>
-        </div>
-      </Link>
+        </Link>
+        
+        {/* Report Button - Only show for EDCC/EDMA */}
+        {canReportFraud && (
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedReferralForReport(referral);
+                setShowFraudModal(true);
+              }}
+              className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+            >
+              <AlertTriangle className="w-3 h-3" />
+              <span>Report Request</span>
+            </button>
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -359,7 +392,7 @@ const Index = () => {
                       Active
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      In triage process or triage decision made
+                      Under endorsement (EDMA assigns departments)
                     </p>
                   </div>
                 </div>
@@ -405,7 +438,7 @@ const Index = () => {
                       Dispositioned
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Accepted by departments, awaiting transit form
+                      Departments coordinated, transit template sent
                     </p>
                   </div>
                 </div>
@@ -451,7 +484,7 @@ const Index = () => {
                       In Transit
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Patient being transported to hospital
+                      Transit template completed, patient en route
                     </p>
                   </div>
                 </div>
@@ -485,6 +518,25 @@ const Index = () => {
           </div>
         </div>
       </div>
+      
+      {/* Fraud Report Modal */}
+      {showFraudModal && selectedReferralForReport && (
+        <FraudReportModal
+          referral={{
+            id: selectedReferralForReport.id,
+            referral_id: selectedReferralForReport.referral_id,
+            patient_full_name: selectedReferralForReport.patient_full_name,
+            referring_hospital_name: selectedReferralForReport.referring_hospital?.name,
+          }}
+          onClose={() => {
+            setShowFraudModal(false);
+            setSelectedReferralForReport(null);
+          }}
+          onSuccess={() => {
+            // Optionally refresh the dashboard data
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 };
