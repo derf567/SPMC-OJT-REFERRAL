@@ -124,7 +124,7 @@ class ReferralAdmin(admin.ModelAdmin):
         }),
         ('Referring Hospital', {
             'fields': (
-                'referring_hospital', 'referrer_name', 'referrer_profession',
+                'referring_hospital', 'referrer_name', 'referrer_profession', 'referrer_profession_other',
                 'referrer_cellphone', 'mode_of_transportation'
             )
         }),

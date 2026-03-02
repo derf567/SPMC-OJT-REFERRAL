@@ -200,7 +200,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
             
             # Specialty and referrer info
             'specialty_needed_name', 'referring_hospital_name', 'referrer_name', 
-            'referrer_profession', 'referrer_cellphone', 'contact_numbers', 'mode_of_transportation',
+            'referrer_profession', 'referrer_profession_other', 'referrer_cellphone', 'contact_numbers', 'mode_of_transportation',
             
             # System fields
             'created_by_name', 'assigned_to_name', 'consent_secured',
