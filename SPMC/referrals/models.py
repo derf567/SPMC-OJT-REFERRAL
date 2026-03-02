@@ -235,10 +235,18 @@ class Referral(models.Model):
     is_emergent = models.BooleanField(default=False)
     reason_for_referral = models.TextField()
     
+    REFERRER_PROFESSION_CHOICES = [
+        ('nurse', 'Nurse'),
+        ('barangay_health_worker', 'Barangay Health Worker'),
+        ('doctor', 'Doctor'),
+        ('others', 'Others'),
+    ]
+    
     # Referring Hospital Information
     referring_hospital = models.ForeignKey(ReferringHospital, on_delete=models.CASCADE)
     referrer_name = models.CharField(max_length=200)
-    referrer_profession = models.CharField(max_length=100)
+    referrer_profession = models.CharField(max_length=100, choices=REFERRER_PROFESSION_CHOICES)
+    referrer_profession_other = models.CharField(max_length=100, blank=True, null=True, help_text="Specify if profession is 'Others'")
     referrer_cellphone = models.CharField(max_length=20)
     contact_numbers = models.JSONField(default=list, blank=True, help_text="Patient/Watcher contact numbers")
     mode_of_transportation = models.CharField(max_length=100)

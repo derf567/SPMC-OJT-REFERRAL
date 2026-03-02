@@ -80,6 +80,7 @@ interface ReferralFormData {
   hospitalProvince: string;
   referrerName: string;
   referrerProfession: string;
+  referrerProfessionOther: string;
   referrerCellphone: string;
   modeOfTransportation: string;
   
@@ -130,6 +131,7 @@ const initialFormData: ReferralFormData = {
   hospitalProvince: "",
   referrerName: "",
   referrerProfession: "",
+  referrerProfessionOther: "",
   referrerCellphone: "",
   modeOfTransportation: "",
   
@@ -329,6 +331,7 @@ const ExternalReferral = () => {
             hospitalProvince: referralData.hospital_province || '',
             referrerName: referralData.referrer_name || '',
             referrerProfession: referralData.referrer_profession || '',
+            referrerProfessionOther: referralData.referrer_profession_other || '',
             referrerCellphone: referralData.referrer_cellphone || '',
             modeOfTransportation: referralData.mode_of_transportation || '',
             
@@ -516,6 +519,9 @@ const ExternalReferral = () => {
     if (!formData.hospitalDohLevel) errors.push("Hospital DOH Level is required");
     if (!formData.referrerName.trim()) errors.push("Referrer Name is required");
     if (!formData.referrerProfession.trim()) errors.push("Referrer Profession is required");
+    if (formData.referrerProfession === "others" && !formData.referrerProfessionOther.trim()) {
+      errors.push("Please specify the referrer profession");
+    }
     if (!formData.modeOfTransportation.trim()) errors.push("Mode of Transportation is required");
     
     return errors;
@@ -598,6 +604,7 @@ const ExternalReferral = () => {
         hospital_street: formData.hospitalStreet || null,
         referrer_name: formData.referrerName,
         referrer_profession: formData.referrerProfession,
+        referrer_profession_other: formData.referrerProfession === "others" ? formData.referrerProfessionOther : null,
         referrer_cellphone: formData.referrerCellphone || null,
         mode_of_transportation: formData.modeOfTransportation,
         
@@ -1490,14 +1497,38 @@ const ExternalReferral = () => {
                     </span>
                   )}
                 </label>
-                <input
-                  type="text"
+                <select
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  placeholder="e.g., Emergency Medicine Physician"
                   value={formData.referrerProfession}
-                  onChange={(e) => updateFormData('referrerProfession', e.target.value)}
-                />
+                  onChange={(e) => {
+                    updateFormData('referrerProfession', e.target.value);
+                    if (e.target.value !== 'others') {
+                      updateFormData('referrerProfessionOther', '');
+                    }
+                  }}
+                >
+                  <option value="">Select profession</option>
+                  <option value="nurse">Nurse</option>
+                  <option value="barangay_health_worker">Barangay Health Worker</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="others">Others (Please Specify)</option>
+                </select>
               </div>
+
+              {formData.referrerProfession === 'others' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Please Specify Profession *
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    placeholder="e.g., Emergency Medicine Physician"
+                    value={formData.referrerProfessionOther}
+                    onChange={(e) => updateFormData('referrerProfessionOther', e.target.value)}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
