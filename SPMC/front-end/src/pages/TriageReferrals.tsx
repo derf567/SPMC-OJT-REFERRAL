@@ -190,8 +190,8 @@ export default function TriageReferrals() {
       <div className="container mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <ClipboardList className="w-8 h-8 text-purple-600" />
-          <h1 className="text-2xl font-bold text-gray-800">Triage Referrals</h1>
+          <ClipboardList className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Triage Referrals</h1>
         </div>
         <button
           onClick={fetchTriageReferrals}
@@ -202,14 +202,14 @@ export default function TriageReferrals() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 bg-white p-4 rounded-lg shadow">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+      <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Filter by Status
         </label>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
           <option value="">All Statuses</option>
           <option value="in_triage">Pending Assignment</option>
@@ -220,66 +220,66 @@ export default function TriageReferrals() {
 
       {/* Referrals Table */}
       {referrals.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <ClipboardList className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg">No referrals in triage</p>
-          <p className="text-gray-400 text-sm mt-2">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-12 text-center">
+          <ClipboardList className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-500 dark:text-gray-400 text-lg">No referrals in triage</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
             Transfer referrals from Active Referrals to see them here
           </p>
         </div>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Referral ID
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Patient Info
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Chief Complaint
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Acceptance Progress
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {referrals.map((referral) => (
-                  <tr key={referral.id} className="hover:bg-gray-50">
+                  <tr key={referral.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {referral.referral_id}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(referral.created_at).toLocaleDateString()}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {referral.patient_full_name}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         {referral.age} yrs, {referral.gender}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         {referral.referring_hospital_name}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900 max-w-xs truncate">
+                      <div className="text-sm text-gray-900 dark:text-white max-w-xs truncate">
                         {referral.chief_complaint}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         {referral.specialty_needed_name}
                       </div>
                     </td>
@@ -291,12 +291,12 @@ export default function TriageReferrals() {
                         <div className="flex items-center gap-2">
                           <div className="flex-1">
                             <div className="flex items-center gap-1 text-sm">
-                              <span className="font-medium">
+                              <span className="font-medium text-gray-900 dark:text-white">
                                 {referral.acceptance_summary.accepted}/{referral.acceptance_summary.total}
                               </span>
-                              <span className="text-gray-500">accepted</span>
+                              <span className="text-gray-500 dark:text-gray-400">accepted</span>
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
                               Need {referral.acceptance_summary.majority_needed} for approval
                             </div>
                           </div>
@@ -305,7 +305,7 @@ export default function TriageReferrals() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400">Not assigned</span>
+                        <span className="text-sm text-gray-400 dark:text-gray-500">Not assigned</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -608,34 +608,34 @@ function AssignDepartmentsDialog({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4 text-gray-800">Assign Departments</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">Assign Departments</h2>
         
-        <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-gray-700 mb-1">
+        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
             <span className="font-medium">Referral:</span> {referral.referral_id}
           </p>
-          <p className="text-sm text-gray-700 mb-1">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
             <span className="font-medium">Patient:</span> {referral.patient_full_name}
           </p>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-gray-700 dark:text-gray-300">
             <span className="font-medium">Chief Complaint:</span> {referral.chief_complaint}
           </p>
         </div>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Select Departments <span className="text-red-500">*</span>
-            <span className="text-gray-500 font-normal ml-2">(can select multiple)</span>
+            <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">(can select multiple)</span>
           </label>
-          <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3">
+          <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800">
             {!departments || departments.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No departments available</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No departments available</p>
             ) : (
               departments.map((dept) => (
                 <label 
                   key={dept.code} 
-                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer"
                 >
                   <input
                     type="checkbox"
@@ -649,14 +649,14 @@ function AssignDepartmentsDialog({
                     }}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="flex-1 text-sm font-medium text-gray-900">{dept.name}</span>
-                  <span className="text-sm text-gray-500">{dept.contact_number}</span>
+                  <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{dept.name}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{dept.contact_number}</span>
                 </label>
               ))
             )}
           </div>
           {selectedDepts.length > 0 && (
-            <p className="text-xs text-gray-600 mt-2">
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
               {selectedDepts.length} department(s) selected. 
               Majority needed: {Math.floor(selectedDepts.length / 2) + 1}
             </p>
@@ -665,7 +665,7 @@ function AssignDepartmentsDialog({
 
         {/* Triage Decision */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Triage Decision <span className="text-red-500">*</span>
           </label>
           <div className="grid grid-cols-3 gap-3">
@@ -674,13 +674,13 @@ function AssignDepartmentsDialog({
               onClick={() => setTriageDecision('emergent')}
               className={`p-3 border-2 rounded-lg text-center transition-all ${
                 triageDecision === 'emergent'
-                  ? 'border-red-500 bg-red-50 text-red-700'
-                  : 'border-gray-200 hover:border-red-300 text-gray-700'
+                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-red-300 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-2xl mb-1">🚨</div>
               <div className="font-medium text-sm">Emergent</div>
-              <div className="text-xs text-gray-500">Immediate care</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Immediate care</div>
             </button>
             
             <button
@@ -688,13 +688,13 @@ function AssignDepartmentsDialog({
               onClick={() => setTriageDecision('urgent')}
               className={`p-3 border-2 rounded-lg text-center transition-all ${
                 triageDecision === 'urgent'
-                  ? 'border-orange-500 bg-orange-50 text-orange-700'
-                  : 'border-gray-200 hover:border-orange-300 text-gray-700'
+                  ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-2xl mb-1">⚡</div>
               <div className="font-medium text-sm">Urgent</div>
-              <div className="text-xs text-gray-500">Priority case</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Priority case</div>
             </button>
             
             <button
@@ -702,24 +702,24 @@ function AssignDepartmentsDialog({
               onClick={() => setTriageDecision('schedule_opd')}
               className={`p-3 border-2 rounded-lg text-center transition-all ${
                 triageDecision === 'schedule_opd'
-                  ? 'border-green-500 bg-green-50 text-green-700'
-                  : 'border-gray-200 hover:border-green-300 text-gray-700'
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-green-300 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-2xl mb-1">📅</div>
               <div className="font-medium text-sm">Schedule OPD</div>
-              <div className="text-xs text-gray-500">Outpatient</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Outpatient</div>
             </button>
           </div>
         </div>
 
         {/* Scheduled Date/Time for OPD */}
         {triageDecision === 'schedule_opd' && (
-          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <h4 className="font-medium text-gray-800 mb-3">Schedule Appointment</h4>
+          <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <h4 className="font-medium text-gray-800 dark:text-white mb-3">Schedule Appointment</h4>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Date <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -727,18 +727,18 @@ function AssignDepartmentsDialog({
                   value={scheduledDate}
                   onChange={(e) => setScheduledDate(e.target.value)}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Time <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="time"
                   value={scheduledTime}
                   onChange={(e) => setScheduledTime(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
             </div>
@@ -746,13 +746,13 @@ function AssignDepartmentsDialog({
         )}
 
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Remarks
           </label>
           <textarea
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             rows={3}
             placeholder="Add any remarks or special instructions..."
           />
@@ -761,7 +761,7 @@ function AssignDepartmentsDialog({
         <div className="flex justify-end space-x-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
             disabled={submitting}
           >
             Cancel
@@ -808,76 +808,76 @@ function DetailsDialog({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4 text-gray-800">Department Acceptance Status</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">Department Acceptance Status</h2>
         
-        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm text-gray-700 mb-1">
+        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
             <span className="font-medium">Referral:</span> {referral.referral_id}
           </p>
-          <p className="text-sm text-gray-700 mb-1">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
             <span className="font-medium">Patient:</span> {referral.patient_full_name}
           </p>
           {referral.triage_remarks && (
-            <p className="text-sm text-gray-700 mt-2">
+            <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
               <span className="font-medium">Remarks:</span> {referral.triage_remarks}
             </p>
           )}
         </div>
 
         {/* Progress Summary */}
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-          <h3 className="font-medium text-gray-800 mb-2">Acceptance Progress</h3>
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <h3 className="font-medium text-gray-800 dark:text-white mb-2">Acceptance Progress</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <p className="text-xs text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-800">{referral.acceptance_summary.total}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Total</p>
+              <p className="text-2xl font-bold text-gray-800 dark:text-white">{referral.acceptance_summary.total}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-600">Accepted</p>
-              <p className="text-2xl font-bold text-green-600">{referral.acceptance_summary.accepted}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Accepted</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{referral.acceptance_summary.accepted}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-yellow-600">{referral.acceptance_summary.pending}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Pending</p>
+              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{referral.acceptance_summary.pending}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-600">Needed</p>
-              <p className="text-2xl font-bold text-blue-600">{referral.acceptance_summary.majority_needed}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Needed</p>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{referral.acceptance_summary.majority_needed}</p>
             </div>
           </div>
         </div>
 
         {/* Department List */}
         <div className="space-y-3">
-          <h3 className="font-medium text-gray-800">Assigned Departments</h3>
+          <h3 className="font-medium text-gray-800 dark:text-white">Assigned Departments</h3>
           {referral.department_acceptances.map((acceptance) => (
-            <div key={acceptance.id} className="bg-white border border-gray-200 p-4 rounded-lg">
+            <div key={acceptance.id} className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-4 rounded-lg">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     {getStatusIcon(acceptance.status)}
-                    <p className="font-medium text-gray-900">{acceptance.department_name}</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{acceptance.department_name}</p>
                   </div>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     <span className="font-medium">Contact:</span> {getDepartmentContact(acceptance.department_code)}
                   </p>
                 </div>
                 <span className={`px-2 py-1 rounded text-xs font-medium ${
-                  acceptance.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                  acceptance.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                  'bg-yellow-100 text-yellow-800'
+                  acceptance.status === 'accepted' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' :
+                  acceptance.status === 'rejected' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400' :
+                  'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400'
                 }`}>
                   {acceptance.status.charAt(0).toUpperCase() + acceptance.status.slice(1)}
                 </span>
               </div>
               {acceptance.accepted_by_name && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   By: {acceptance.accepted_by_name} on {new Date(acceptance.accepted_at!).toLocaleString()}
                 </p>
               )}
               {acceptance.notes && (
-                <p className="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded">
+                <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded">
                   <span className="font-medium">Notes:</span> {acceptance.notes}
                 </p>
               )}

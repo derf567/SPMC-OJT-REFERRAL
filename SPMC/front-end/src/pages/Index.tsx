@@ -121,8 +121,9 @@ const Index = () => {
         );
         
         // DISPOSITIONED: Departments assigned, transit template sent, awaiting completion
-        // Includes: emergent, urgent, schedule_opd
+        // NOTE: This should match Fred's branch - checking for 'dispositioned' status
         const dispositioned = allReferrals.filter((r: Referral) => 
+          r.status === 'dispositioned' ||
           r.status === 'emergent' || 
           r.status === 'urgent' || 
           r.status === 'schedule_opd'
@@ -135,8 +136,9 @@ const Index = () => {
         
         console.log('Filtered Requests (pending):', requests.length, requests);
         console.log('Filtered Active (waiting/in_triage/waiting_acceptance):', active.length, active);
-        console.log('Filtered Dispositioned (emergent/urgent/schedule_opd):', dispositioned.length, dispositioned);
+        console.log('Filtered Dispositioned (dispositioned/emergent/urgent/schedule_opd):', dispositioned.length, dispositioned);
         console.log('Filtered In Transit (in_transit):', inTransit.length, inTransit);
+        console.log('=== END DEBUG ===');
         console.log('=== END DEBUG ===');
         
         setRequestsReferrals(requests);
