@@ -26,7 +26,6 @@ class DepartmentAcceptanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = DepartmentAcceptance
         fields = '__all__'
-
 class TransitInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = TransitInfo

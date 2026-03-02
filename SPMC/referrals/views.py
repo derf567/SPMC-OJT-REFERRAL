@@ -62,7 +62,6 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [IsAuthenticated]  # Can add admin check here
         return [permission() for permission in permission_classes]
-
 @method_decorator(csrf_exempt, name='dispatch')
 class ReferralViewSet(viewsets.ModelViewSet):
     queryset = Referral.objects.select_related(
@@ -1735,8 +1734,6 @@ def manage_departments(request):
             })
         except Department.DoesNotExist:
             return Response({'error': 'Department not found'}, status=status.HTTP_404_NOT_FOUND)
-
-
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def pending_doctors(self, request):
         """Get all pending doctor accounts (for admin approval)"""

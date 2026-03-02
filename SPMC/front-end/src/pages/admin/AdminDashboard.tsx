@@ -141,20 +141,20 @@ const AdminDashboard = () => {
             </div>
           </Link>
 
-          <Link to="/admin/departments">
+          <Link to="/admin/headsup">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-lg transition-all cursor-pointer">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Departments</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Doctors</p>
                   <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-                    12
+                    {stats.total_doctors}
                   </p>
                   <p className="text-xs mt-1 text-blue-600 dark:text-blue-400">
-                    Manage contact numbers
+                    Registered in system
                   </p>
                 </div>
                 <div className="p-3 rounded-lg bg-blue-500/10">
-                  <Building2 className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                  <Users className="w-8 h-8 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
             </div>

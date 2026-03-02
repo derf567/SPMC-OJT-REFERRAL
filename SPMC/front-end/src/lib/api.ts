@@ -388,7 +388,6 @@ export const referralsAPI = {
     const queryString = Object.keys(params).length > 0 ? '?' + new URLSearchParams(params).toString() : '';
     return apiRequest(`/referrals/triage_referrals/${queryString}`);
   },
-
   // Accept referral with triage decision (Triage user action)
   acceptWithTriageDecision: async (id: string, triageDecision: string, assignedDepartments: string[], triageNotes?: string, scheduledDate?: string, scheduledTime?: string) => {
     const requestBody: any = {
@@ -571,7 +570,6 @@ export const adminAPI = {
       })
     });
   },
-
   // Update doctor specialties
   updateDoctorSpecialties: async (userId: number, specialtyIds: number[]) => {
     return apiRequest(`/admin/doctors/${userId}/update_specialties/`, {

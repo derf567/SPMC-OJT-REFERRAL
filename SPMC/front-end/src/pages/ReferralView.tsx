@@ -4,15 +4,13 @@ import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
-import { TransitFormDialog } from "@/components/ui/TransitFormDialog";
 import { 
   ArrowLeft, 
   User, 
   Activity, 
   MapPin,
   Edit,
-  Building2,
-  Truck
+  Building2
 } from "lucide-react";
 
 export const ReferralView = () => {
@@ -22,29 +20,28 @@ export const ReferralView = () => {
   const { toast } = useToast();
   const [referral, setReferral] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showTransitDialog, setShowTransitDialog] = useState(false);
-
-  const loadReferral = async () => {
-    if (!id) return;
-    
-    try {
-      setLoading(true);
-      const data = await referralsAPI.getById(id);
-      setReferral(data);
-    } catch (error: any) {
-      console.error('Error loading referral:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load referral details.",
-        variant: "destructive",
-      });
-      navigate('/referrer/referred');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
+    const loadReferral = async () => {
+      if (!id) return;
+      
+      try {
+        setLoading(true);
+        const data = await referralsAPI.getById(id);
+        setReferral(data);
+      } catch (error: any) {
+        console.error('Error loading referral:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load referral details.",
+          variant: "destructive",
+        });
+        navigate('/referrer/referred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadReferral();
   }, [id, navigate, toast]);
 
@@ -64,7 +61,6 @@ export const ReferralView = () => {
   }
 
   const canEdit = referral.status === 'pending' && referral.created_by === user?.id;
-  const canFillTransit = referral.status === 'dispositioned' && referral.created_by === user?.id;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -101,26 +97,14 @@ export const ReferralView = () => {
                 Back
               </Button>
               
-              <div className="flex gap-2">
-                {canEdit && (
-                  <Link to={`/referral/edit/${id}`}>
-                    <Button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
-                      <Edit className="w-4 h-4" />
-                      Edit Referral
-                    </Button>
-                  </Link>
-                )}
-                
-                {canFillTransit && (
-                  <Button 
-                    onClick={() => setShowTransitDialog(true)}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 animate-pulse shadow-lg shadow-green-500/50"
-                  >
-                    <Truck className="w-4 h-4" />
-                    Fill In-Transit Form
+              {canEdit && (
+                <Link to={`/referral/edit/${id}`}>
+                  <Button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
+                    <Edit className="w-4 h-4" />
+                    Edit Referral
                   </Button>
-                )}
-              </div>
+                </Link>
+              )}
             </div>
             
             <div className="flex items-center justify-between">
@@ -389,18 +373,6 @@ export const ReferralView = () => {
           )}
         </div>
       </div>
-
-      {/* Transit Form Dialog */}
-      <TransitFormDialog
-        open={showTransitDialog}
-        onOpenChange={setShowTransitDialog}
-        referralId={id!}
-        patientName={referral.patient_full_name}
-        onSuccess={() => {
-          setShowTransitDialog(false);
-          loadReferral(); // Reload referral data
-        }}
-      />
     </div>
   );
 };

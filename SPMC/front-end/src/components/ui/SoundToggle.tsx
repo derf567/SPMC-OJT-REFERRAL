@@ -17,12 +17,10 @@ export const SoundToggle = () => {
   };
 
   return (
-    <div className="flex items-center gap-1 ">
-      
-
+    <div className="flex items-center gap-1">
       <Button
         variant="ghost"
-        size="icon"  // ← Use icon size for consistent alignment
+        size="icon"
         onClick={toggleSound}
         className="relative"
         title={soundEnabled ? 'Disable notification sounds' : 'Enable notification sounds'}

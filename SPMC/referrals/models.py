@@ -103,7 +103,6 @@ class Department(models.Model):
     
     def __str__(self):
         return self.name
-
 class ReferringHospital(models.Model):
     """Model for referring hospitals/facilities"""
     name = models.CharField(max_length=200)
@@ -444,8 +443,6 @@ class DepartmentAcceptance(models.Model):
         if notes:
             self.notes = notes
         self.save()
-
-
 class ReferrerAccount(models.Model):
     """Model for external referrers (doctors, hospital accounts, authorized employees)"""
     REFERRER_TYPE_CHOICES = [

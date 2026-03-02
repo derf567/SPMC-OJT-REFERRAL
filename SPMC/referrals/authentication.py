@@ -574,7 +574,6 @@ def all_doctors_view(request):
         import traceback
         traceback.print_exc()
         return Response({'error': f'Failed to fetch doctors: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def approve_doctor_view(request, doctor_id):
