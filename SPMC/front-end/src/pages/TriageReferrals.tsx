@@ -62,6 +62,7 @@ export default function TriageReferrals() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showApproveForTransitDialog, setShowApproveForTransitDialog] = useState(false);
   const [completionNotes, setCompletionNotes] = useState('');
   const [cancellationReason, setCancellationReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -70,6 +71,13 @@ export default function TriageReferrals() {
   useEffect(() => {
     fetchTriageReferrals();
     fetchDepartments();
+    
+    // Set up auto-refresh every 10 seconds to catch department decisions
+    const interval = setInterval(() => {
+      fetchTriageReferrals();
+    }, 10000);
+    
+    return () => clearInterval(interval);
   }, [statusFilter]);
 
   const fetchTriageReferrals = async () => {
@@ -121,6 +129,11 @@ export default function TriageReferrals() {
     setShowCancelDialog(true);
   };
 
+  const handleApproveForTransit = (referral: TriageReferral) => {
+    setSelectedReferral(referral);
+    setShowApproveForTransitDialog(true);
+  };
+
   const submitComplete = async () => {
     if (!selectedReferral) return;
 
@@ -164,6 +177,7 @@ export default function TriageReferrals() {
     const badges: Record<string, { bg: string; text: string; label: string }> = {
       in_triage: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Pending Assignment' },
       waiting_acceptance: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Waiting Acceptance' },
+      awaiting_triage_verification: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Awaiting Verification' },
       dispositioned: { bg: 'bg-green-100', text: 'text-green-800', label: 'Dispositioned' },
       in_transit: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'In Transit' },
     };
@@ -214,6 +228,7 @@ export default function TriageReferrals() {
           <option value="">All Statuses</option>
           <option value="in_triage">Pending Assignment</option>
           <option value="waiting_acceptance">Waiting Acceptance</option>
+          <option value="awaiting_triage_verification">Awaiting Verification</option>
           <option value="dispositioned">Dispositioned</option>
         </select>
       </div>
@@ -310,6 +325,16 @@ export default function TriageReferrals() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex gap-2">
+                        {/* Edit button - available for all referrals */}
+                        <button
+                          onClick={() => {
+                            window.location.href = `/referral/edit/${referral.id}`;
+                          }}
+                          className="px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors"
+                        >
+                          Edit
+                        </button>
+                        
                         {referral.status === 'in_triage' && (
                           <button
                             onClick={() => handleAssignDepartments(referral)}
@@ -319,12 +344,42 @@ export default function TriageReferrals() {
                           </button>
                         )}
                         {referral.status === 'waiting_acceptance' && (
-                          <button
-                            onClick={() => handleViewDetails(referral)}
-                            className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
-                          >
-                            View Status
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleViewDetails(referral)}
+                              className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                            >
+                              View Status
+                            </button>
+                            <button
+                              disabled={referral.acceptance_summary.rejected < referral.acceptance_summary.majority_needed}
+                              onClick={() => referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed && handleAssignDepartments(referral)}
+                              className={`px-3 py-1 rounded transition-colors ${
+                                referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed
+                                  ? 'bg-orange-500 text-white hover:bg-orange-600 cursor-pointer'
+                                  : 'bg-orange-300 text-orange-100 cursor-not-allowed opacity-60'
+                              }`}
+                              title={referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed ? 'Redirect to assign new departments' : 'Waiting for department responses'}
+                            >
+                              Redirect
+                            </button>
+                          </>
+                        )}
+                        {referral.status === 'awaiting_triage_verification' && (
+                          <>
+                            <button
+                              onClick={() => handleViewDetails(referral)}
+                              className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                            >
+                              View Status
+                            </button>
+                            <button
+                              onClick={() => handleApproveForTransit(referral)}
+                              className="px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
+                            >
+                              Approve for Transit
+                            </button>
+                          </>
                         )}
                         {referral.status === 'dispositioned' && (
                           <button
@@ -387,6 +442,10 @@ export default function TriageReferrals() {
           onClose={() => {
             setShowDetailsDialog(false);
             setSelectedReferral(null);
+          }}
+          onRedirect={() => {
+            setShowDetailsDialog(false);
+            handleAssignDepartments(selectedReferral);
           }}
         />
       )}
@@ -532,6 +591,23 @@ export default function TriageReferrals() {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Approve for Transit Dialog */}
+      {showApproveForTransitDialog && selectedReferral && (
+        <ApproveForTransitDialog
+          referral={selectedReferral}
+          departments={departments}
+          onClose={() => {
+            setShowApproveForTransitDialog(false);
+            setSelectedReferral(null);
+          }}
+          onSuccess={() => {
+            fetchTriageReferrals();
+            setShowApproveForTransitDialog(false);
+            setSelectedReferral(null);
+          }}
+        />
       )}
     </div>
     </DashboardLayout>
@@ -784,12 +860,30 @@ function AssignDepartmentsDialog({
 function DetailsDialog({
   referral,
   departments,
-  onClose
+  onClose,
+  onRedirect
 }: {
   referral: TriageReferral;
   departments: Department[];
   onClose: () => void;
+  onRedirect?: () => void;
 }) {
+  const [currentReferral, setCurrentReferral] = useState(referral);
+  
+  useEffect(() => {
+    // Auto-refresh the referral data every 5 seconds while dialog is open
+    const interval = setInterval(async () => {
+      try {
+        const response = await referralsAPI.getById(referral.id.toString());
+        setCurrentReferral(response);
+      } catch (error) {
+        console.error('Error refreshing referral:', error);
+      }
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [referral.id]);
+
   const getDepartmentContact = (code: string) => {
     const dept = departments.find(d => d.code === code);
     return dept?.contact_number || 'N/A';
@@ -813,14 +907,14 @@ function DetailsDialog({
         
         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
           <p className="text-sm text-gray-700 mb-1">
-            <span className="font-medium">Referral:</span> {referral.referral_id}
+            <span className="font-medium">Referral:</span> {currentReferral.referral_id}
           </p>
           <p className="text-sm text-gray-700 mb-1">
-            <span className="font-medium">Patient:</span> {referral.patient_full_name}
+            <span className="font-medium">Patient:</span> {currentReferral.patient_full_name}
           </p>
-          {referral.triage_remarks && (
+          {currentReferral.triage_remarks && (
             <p className="text-sm text-gray-700 mt-2">
-              <span className="font-medium">Remarks:</span> {referral.triage_remarks}
+              <span className="font-medium">Remarks:</span> {currentReferral.triage_remarks}
             </p>
           )}
         </div>
@@ -831,19 +925,19 @@ function DetailsDialog({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <p className="text-xs text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-800">{referral.acceptance_summary.total}</p>
+              <p className="text-2xl font-bold text-gray-800">{currentReferral.acceptance_summary.total}</p>
             </div>
             <div>
               <p className="text-xs text-gray-600">Accepted</p>
-              <p className="text-2xl font-bold text-green-600">{referral.acceptance_summary.accepted}</p>
+              <p className="text-2xl font-bold text-green-600">{currentReferral.acceptance_summary.accepted}</p>
             </div>
             <div>
               <p className="text-xs text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-yellow-600">{referral.acceptance_summary.pending}</p>
+              <p className="text-2xl font-bold text-yellow-600">{currentReferral.acceptance_summary.pending}</p>
             </div>
             <div>
               <p className="text-xs text-gray-600">Needed</p>
-              <p className="text-2xl font-bold text-blue-600">{referral.acceptance_summary.majority_needed}</p>
+              <p className="text-2xl font-bold text-blue-600">{currentReferral.acceptance_summary.majority_needed}</p>
             </div>
           </div>
         </div>
@@ -851,7 +945,7 @@ function DetailsDialog({
         {/* Department List */}
         <div className="space-y-3">
           <h3 className="font-medium text-gray-800">Assigned Departments</h3>
-          {referral.department_acceptances.map((acceptance) => (
+          {currentReferral.department_acceptances.map((acceptance) => (
             <div key={acceptance.id} className="bg-white border border-gray-200 p-4 rounded-lg">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1">
@@ -885,12 +979,174 @@ function DetailsDialog({
           ))}
         </div>
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            disabled={currentReferral.acceptance_summary.rejected < currentReferral.acceptance_summary.majority_needed}
+            onClick={() => {
+              if (currentReferral.acceptance_summary.rejected >= currentReferral.acceptance_summary.majority_needed) {
+                onClose();
+                onRedirect?.();
+              }
+            }}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              currentReferral.acceptance_summary.rejected >= currentReferral.acceptance_summary.majority_needed
+                ? 'bg-orange-500 text-white hover:bg-orange-600 cursor-pointer'
+                : 'bg-orange-300 text-orange-100 cursor-not-allowed opacity-60'
+            }`}
+            title={currentReferral.acceptance_summary.rejected >= currentReferral.acceptance_summary.majority_needed ? 'Redirect to assign new departments' : 'Waiting for department responses'}
+          >
+            Redirect to Assign Departments
+          </button>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
           >
             Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Approve for Transit Dialog Component
+function ApproveForTransitDialog({
+  referral,
+  departments,
+  onClose,
+  onSuccess
+}: {
+  referral: TriageReferral;
+  departments: Department[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [verificationNotes, setVerificationNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const getDepartmentContact = (code: string) => {
+    const dept = departments.find(d => d.code === code);
+    return dept?.contact_number || 'N/A';
+  };
+
+  const handleSubmit = async () => {
+    try {
+      setSubmitting(true);
+      
+      await referralsAPI.approveForTransit(
+        referral.id.toString(),
+        verificationNotes
+      );
+      
+      toast.success('Referral approved for transit! Referrer will be notified to fill the transit form.');
+      onSuccess();
+    } catch (error: any) {
+      console.error('Error approving for transit:', error);
+      toast.error(error.message || 'Failed to approve for transit');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <h2 className="text-xl font-bold mb-4 text-gray-800">Approve Referral for Transit</h2>
+        
+        <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+          <p className="text-sm text-gray-700 mb-1">
+            <span className="font-medium">Referral:</span> {referral.referral_id}
+          </p>
+          <p className="text-sm text-gray-700 mb-1">
+            <span className="font-medium">Patient:</span> {referral.patient_full_name}
+          </p>
+          <p className="text-sm text-gray-700">
+            <span className="font-medium">Chief Complaint:</span> {referral.chief_complaint}
+          </p>
+        </div>
+
+        {/* Department Acceptance Summary */}
+        <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+          <h3 className="font-medium text-gray-800 mb-3">Department Acceptance Summary</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-xs text-gray-600">Total</p>
+              <p className="text-2xl font-bold text-gray-800">{referral.acceptance_summary.total}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600">Accepted</p>
+              <p className="text-2xl font-bold text-green-600">{referral.acceptance_summary.accepted}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600">Rejected</p>
+              <p className="text-2xl font-bold text-red-600">{referral.acceptance_summary.rejected}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600">Pending</p>
+              <p className="text-2xl font-bold text-yellow-600">{referral.acceptance_summary.pending}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Accepted Departments List */}
+        <div className="mb-6">
+          <h3 className="font-medium text-gray-800 mb-3">Departments That Accepted - Call for Verification</h3>
+          <div className="space-y-3">
+            {referral.department_acceptances
+              .filter(a => a.status === 'accepted')
+              .map((acceptance) => (
+                <div key={acceptance.id} className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{acceptance.department_name}</p>
+                      {acceptance.accepted_by_name && (
+                        <p className="text-xs text-gray-600 mt-1">
+                          Accepted by: {acceptance.accepted_by_name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-white p-3 rounded border border-green-100 mt-2">
+                    <p className="text-sm font-medium text-gray-700 mb-1">Contact Number:</p>
+                    <p className="text-lg font-bold text-green-600">
+                      {getDepartmentContact(acceptance.department_code)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Verification Notes */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Verification Notes (Optional)
+          </label>
+          <textarea
+            value={verificationNotes}
+            onChange={(e) => setVerificationNotes(e.target.value)}
+            placeholder="Add any notes about your verification call with the department..."
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+            rows={4}
+          />
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            disabled={submitting}
+          >
+            {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+            {submitting ? 'Approving...' : 'Approve for Transit'}
           </button>
         </div>
       </div>

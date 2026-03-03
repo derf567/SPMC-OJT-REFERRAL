@@ -347,6 +347,14 @@ export const referralsAPI = {
     });
   },
 
+  // NEW: Approve referral for transit (Triage/EDCC action)
+  approveForTransit: async (id: string, verificationNotes?: string) => {
+    return apiRequest(`/referrals/${id}/approve_for_transit/`, {
+      method: 'POST',
+      body: JSON.stringify({ verification_notes: verificationNotes || '' }),
+    });
+  },
+
   // NEW: Fill in-transit form
   fillTransitInfo: async (id: string, transitData: {
     watcher_name: string;
@@ -359,10 +367,19 @@ export const referralsAPI = {
     latest_vs?: string;
     gcs?: string;
     time_ambulance_left?: string;
+    remarks?: string;
   }) => {
     return apiRequest(`/referrals/${id}/fill_transit_info/`, {
       method: 'POST',
       body: JSON.stringify(transitData),
+    });
+  },
+
+  // NEW: Delay transfer notification
+  delayTransfer: async (id: string, delayReason?: string) => {
+    return apiRequest(`/referrals/${id}/delay_transfer/`, {
+      method: 'POST',
+      body: JSON.stringify({ delay_reason: delayReason || 'Transfer delayed by referrer' }),
     });
   },
 
@@ -377,6 +394,14 @@ export const referralsAPI = {
   // NEW: Mark in-transit referral as cancelled
   markInTransitCancelled: async (id: string, reason: string) => {
     return apiRequest(`/referrals/${id}/mark_in_transit_cancelled/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  // NEW: Cancel referral anytime (for referrer, EDCC, Triage)
+  cancelReferral: async (id: string, reason: string) => {
+    return apiRequest(`/referrals/${id}/cancel_referral/`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });

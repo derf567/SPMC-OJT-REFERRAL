@@ -35,6 +35,7 @@ export function TransitFormDialog({
   // Medical Information
   const [latestVS, setLatestVS] = useState('');
   const [gcs, setGCS] = useState('');
+  const [remarks, setRemarks] = useState('');
   
   const [submitting, setSubmitting] = useState(false);
 
@@ -61,6 +62,7 @@ export function TransitFormDialog({
         latest_vs: latestVS,
         gcs: gcs,
         time_ambulance_left: timeAmbulanceLeft || undefined,
+        remarks: remarks,
       });
 
       toast.success('Transit information saved successfully!');
@@ -77,6 +79,7 @@ export function TransitFormDialog({
       setTimeAmbulanceLeft('');
       setLatestVS('');
       setGCS('');
+      setRemarks('');
     } catch (error: any) {
       console.error('Error submitting transit info:', error);
       toast.error(error.message || 'Failed to save transit information');
@@ -256,6 +259,29 @@ export function TransitFormDialog({
                   onChange={(e) => setGCS(e.target.value)}
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Remarks */}
+          <div className="bg-amber-50 dark:bg-amber-900/20 p-6 rounded-lg border border-amber-200 dark:border-amber-800">
+            <h4 className="font-semibold text-amber-800 dark:text-amber-200 mb-4">
+              Additional Remarks
+            </h4>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Remarks (Optional)
+              </label>
+              <textarea
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                placeholder="Add any additional remarks or notes before submitting the transit form..."
+                rows={4}
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                Use this field to add any important notes or special instructions for the transit team.
+              </p>
             </div>
           </div>
 

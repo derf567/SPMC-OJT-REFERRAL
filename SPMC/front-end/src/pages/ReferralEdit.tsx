@@ -31,25 +31,39 @@ export const ReferralEdit = () => {
         setLoading(true);
         const data = await referralsAPI.getById(id);
         
-        // Check if can edit
-        if (data.status !== 'pending') {
-          toast({
-            title: "Cannot Edit",
-            description: "This referral is already under triage and cannot be edited.",
-            variant: "destructive",
-          });
-          navigate(`/referral/view/${id}`);
-          return;
-        }
+        // Check permissions based on user role or permissions
+        // Role values: 'edcc_personnel', 'call_triage', 'referrer', 'doctor', 'admin'
+        const isEDCCorTriage = user?.role === 'edcc_personnel' || user?.role === 'call_triage' || user?.permissions?.can_triage_referrals;
         
-        if (data.created_by !== user?.id) {
-          toast({
-            title: "Access Denied",
-            description: "You can only edit your own referrals.",
-            variant: "destructive",
-          });
-          navigate('/referrer/referred');
-          return;
+        // Debug logging
+        console.log('User:', user);
+        console.log('User role:', user?.role);
+        console.log('Can triage:', user?.permissions?.can_triage_referrals);
+        console.log('Is EDCC or Triage:', isEDCCorTriage);
+        console.log('Referral created_by:', data.created_by);
+        console.log('User ID:', user?.id);
+        
+        // Referrers can only edit pending referrals they created
+        if (!isEDCCorTriage) {
+          if (data.status !== 'pending') {
+            toast({
+              title: "Cannot Edit",
+              description: "This referral is already under triage and cannot be edited.",
+              variant: "destructive",
+            });
+            navigate(`/referral/view/${id}`);
+            return;
+          }
+          
+          if (data.created_by !== user?.id) {
+            toast({
+              title: "Access Denied",
+              description: "You can only edit your own referrals.",
+              variant: "destructive",
+            });
+            navigate('/referrer/referred');
+            return;
+          }
         }
         
         setReferral(data);
@@ -152,14 +166,32 @@ export const ReferralEdit = () => {
       setSaving(true);
       
       // Prepare data for API
-      const updateData = {
-        ...formData,
+      let updateData: any = {
         patient_full_name: `${formData.patient_last_name}, ${formData.patient_first_name} ${formData.patient_middle_name}${formData.patient_suffix ? ' ' + formData.patient_suffix : ''}`.trim(),
         age: parseInt(formData.age) || 0,
+        // Patient info
+        patient_first_name: formData.patient_first_name,
+        patient_middle_name: formData.patient_middle_name,
+        patient_last_name: formData.patient_last_name,
+        patient_suffix: formData.patient_suffix,
+        patient_category: formData.patient_category,
+        birthday: formData.birthday,
+        gender: formData.gender,
+        current_address: formData.current_address,
+        // Patient status
+        chief_complaint: formData.chief_complaint,
+        working_impression: formData.working_impression,
+        pertinent_history: formData.pertinent_history,
+        pertinent_physical_exam: formData.pertinent_physical_exam,
+        // Vital signs
+        bp: formData.bp,
         hr: parseInt(formData.hr) || 0,
         rr: parseInt(formData.rr) || 0,
         temp: parseFloat(formData.temp) || 0,
         o2_sat: parseInt(formData.o2_sat) || 0,
+        gcs_score: formData.gcs_score,
+        o2_support: formData.o2_support,
+        rtpcr_result: formData.rtpcr_result,
       };
       
       await referralsAPI.update(id!, updateData);
@@ -170,7 +202,15 @@ export const ReferralEdit = () => {
         className: "bg-green-50 border-green-200 text-green-800",
       });
       
-      navigate(`/referral/view/${id}`);
+      // Navigate based on user role
+      // Role values: 'edcc_personnel', 'call_triage', 'referrer'
+      if (user?.role === 'edcc_personnel' || user?.role === 'call_triage' || user?.permissions?.can_triage_referrals) {
+        // For EDCC/Triage, go back to Triage page
+        navigate('/triage');
+      } else {
+        // Navigate back to My Referrals page for referrers
+        navigate('/referrer/referred');
+      }
     } catch (error: any) {
       console.error('Error saving referral:', error);
       toast({
@@ -195,6 +235,10 @@ export const ReferralEdit = () => {
   }
 
   if (!referral) return null;
+
+  // Check if user is EDCC or Triage
+  // Role values: 'edcc_personnel', 'call_triage'
+  const isEDCCorTriage = user?.role === 'edcc_personnel' || user?.role === 'call_triage' || user?.permissions?.can_triage_referrals;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -227,7 +271,7 @@ export const ReferralEdit = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/referral/view/${id}`)}
+              onClick={() => navigate(-1)}
               className="flex items-center gap-2 mb-4"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -236,19 +280,32 @@ export const ReferralEdit = () => {
             
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Patient Referral</h2>
             <p className="text-gray-500 dark:text-gray-400">
-              Editing referral {referral.referral_id} - You can only edit referrals that are still pending
+              Editing referral {referral.referral_id}
+              {!isEDCCorTriage && ' - You can only edit referrals that are still pending'}
             </p>
             
-            {/* Warning */}
-            <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-amber-800 dark:text-amber-200">
-                  <p className="font-medium">⚠️ Editing Mode</p>
-                  <p>Once this referral is under triage (status changes from "Pending"), you will no longer be able to edit it.</p>
+            {/* Warning - Different for referrers vs EDCC/Triage */}
+            {!isEDCCorTriage ? (
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-amber-800 dark:text-amber-200">
+                    <p className="font-medium">⚠️ Editing Mode</p>
+                    <p>Once this referral is under triage (status changes from "Pending"), you will no longer be able to edit it. Vital signs cannot be edited by referrers.</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-blue-800 dark:text-blue-200">
+                    <p className="font-medium">ℹ️ EDCC/Triage Edit Mode</p>
+                    <p>As EDCC/Triage staff, you can edit all referral details including vital signs.</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Patient Information */}
@@ -356,7 +413,7 @@ export const ReferralEdit = () => {
                     Gender *
                   </label>
                   <select
-                    value={formData.gender || ''}
+                    value={formData.gender?.charAt(0).toUpperCase() + formData.gender?.slice(1).toLowerCase() || ''}
                     onChange={(e) => handleChange('gender', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
@@ -441,9 +498,14 @@ export const ReferralEdit = () => {
             </div>
           </div>
 
-          {/* Vital Signs */}
+          {/* Vital Signs - Editable for EDCC/Triage, Read-only for Referrers */}
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Latest Vital Signs</h4>
+            {!isEDCCorTriage && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                ℹ️ Vital signs cannot be edited by referrers. Only EDCC/Triage can update these values.
+              </p>
+            )}
             
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div>
@@ -454,8 +516,14 @@ export const ReferralEdit = () => {
                   type="text"
                   value={formData.bp || ''}
                   onChange={(e) => handleChange('bp', e.target.value)}
+                  readOnly={!isEDCCorTriage}
+                  disabled={!isEDCCorTriage}
                   placeholder="120/80"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
+                    isEDCCorTriage 
+                      ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  }`}
                 />
               </div>
               <div>
@@ -466,7 +534,13 @@ export const ReferralEdit = () => {
                   type="number"
                   value={formData.hr || ''}
                   onChange={(e) => handleChange('hr', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  readOnly={!isEDCCorTriage}
+                  disabled={!isEDCCorTriage}
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
+                    isEDCCorTriage 
+                      ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  }`}
                 />
               </div>
               <div>
@@ -477,7 +551,13 @@ export const ReferralEdit = () => {
                   type="number"
                   value={formData.rr || ''}
                   onChange={(e) => handleChange('rr', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  readOnly={!isEDCCorTriage}
+                  disabled={!isEDCCorTriage}
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
+                    isEDCCorTriage 
+                      ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  }`}
                 />
               </div>
               <div>
@@ -489,7 +569,13 @@ export const ReferralEdit = () => {
                   step="0.1"
                   value={formData.temp || ''}
                   onChange={(e) => handleChange('temp', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  readOnly={!isEDCCorTriage}
+                  disabled={!isEDCCorTriage}
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
+                    isEDCCorTriage 
+                      ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  }`}
                 />
               </div>
               <div>
@@ -500,7 +586,13 @@ export const ReferralEdit = () => {
                   type="number"
                   value={formData.o2_sat || ''}
                   onChange={(e) => handleChange('o2_sat', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  readOnly={!isEDCCorTriage}
+                  disabled={!isEDCCorTriage}
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
+                    isEDCCorTriage 
+                      ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  }`}
                 />
               </div>
             </div>
@@ -514,7 +606,13 @@ export const ReferralEdit = () => {
                   type="text"
                   value={formData.gcs_score || ''}
                   onChange={(e) => handleChange('gcs_score', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  readOnly={!isEDCCorTriage}
+                  disabled={!isEDCCorTriage}
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
+                    isEDCCorTriage 
+                      ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  }`}
                 />
               </div>
               <div>
@@ -525,23 +623,39 @@ export const ReferralEdit = () => {
                   type="text"
                   value={formData.o2_support || ''}
                   onChange={(e) => handleChange('o2_support', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  readOnly={!isEDCCorTriage}
+                  disabled={!isEDCCorTriage}
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
+                    isEDCCorTriage 
+                      ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  }`}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   RTPCR Result
                 </label>
-                <select
-                  value={formData.rtpcr_result || ''}
-                  onChange={(e) => handleChange('rtpcr_result', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="">Select result</option>
-                  <option value="positive">Positive</option>
-                  <option value="negative">Negative</option>
-                  <option value="not_done">Not Done</option>
-                </select>
+                {isEDCCorTriage ? (
+                  <select
+                    value={formData.rtpcr_result || ''}
+                    onChange={(e) => handleChange('rtpcr_result', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select result</option>
+                    <option value="positive">Positive</option>
+                    <option value="negative">Negative</option>
+                    <option value="not_done">Not Done</option>
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={formData.rtpcr_result || ''}
+                    readOnly
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -550,7 +664,7 @@ export const ReferralEdit = () => {
           <div className="p-6 flex justify-end gap-3">
             <Button
               variant="outline"
-              onClick={() => navigate(`/referral/view/${id}`)}
+              onClick={() => navigate(-1)}
               disabled={saving}
             >
               Cancel

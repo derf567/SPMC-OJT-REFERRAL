@@ -174,6 +174,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
     triaged_by_user = serializers.CharField(source='triaged_by.get_full_name', read_only=True)
     department_acceptances = DepartmentAcceptanceSerializer(many=True, read_only=True)
     acceptance_summary = serializers.SerializerMethodField()
+    triage_verified_by_name = serializers.CharField(source='triage_verified_by.get_full_name', read_only=True)
     
     def get_acceptance_summary(self, obj):
         """Get department acceptance summary"""
@@ -215,7 +216,10 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'assigned_department', 'assigned_departments',
             
             # Triage workflow
-            'in_triage', 'triage_remarks', 'department_acceptances', 'acceptance_summary'
+            'in_triage', 'triage_remarks', 'department_acceptances', 'acceptance_summary',
+            
+            # Triage verification
+            'triage_verified_by_name', 'triage_verified_at', 'triage_verification_notes'
         ]
 
 class ReferralDetailSerializer(serializers.ModelSerializer):

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Truck, AlertTriangle, Check, Calendar, AlertCircle } from "lucide-react";
+import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Truck, AlertTriangle, Check, Calendar, AlertCircle, Edit, XCircle } from "lucide-react";
 import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
@@ -568,6 +568,11 @@ export const ReferralTable = () => {
   const [dateError, setDateError] = useState("");
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedReferralForTimeline, setSelectedReferralForTimeline] = useState<ReferralData | null>(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [selectedReferralForCancel, setSelectedReferralForCancel] = useState<ReferralData | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -1120,6 +1125,46 @@ export const ReferralTable = () => {
       return sortOrder === "asc" ? comparison : -comparison;
     });
 
+  // Handle cancel referral
+  const handleCancelReferral = async () => {
+    if (!selectedReferralForCancel || !cancellationReason.trim()) {
+      toast({
+        title: "Error",
+        description: "Please provide a cancellation reason.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setCancelling(true);
+      await referralsAPI.cancelReferral(
+        String(selectedReferralForCancel.id || selectedReferralForCancel.referral_id),
+        cancellationReason
+      );
+      
+      toast({
+        title: "Success! ✅",
+        description: "Referral cancelled successfully.",
+        className: "bg-green-50 border-green-200 text-green-800",
+      });
+      
+      setShowCancelDialog(false);
+      setCancellationReason("");
+      setSelectedReferralForCancel(null);
+      fetchReferrals(); // Reload referrals
+    } catch (error: any) {
+      console.error('Error cancelling referral:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel referral.",
+        variant: "destructive",
+      });
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-8 transition-colors duration-300">
@@ -1538,6 +1583,21 @@ export const ReferralTable = () => {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
+                        {/* Edit button for EDCC/Triage users */}
+                        {(user?.role === 'edcc_personnel' || user?.role === 'call_triage' || user?.permissions?.can_triage_referrals) && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-purple-500 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/20"
+                            onClick={() => {
+                              const editUrl = `/referral/edit/${referral.id}`;
+                              window.location.href = editUrl;
+                            }}
+                            title="Edit Referral"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
                         {user?.permissions?.can_transfer_referrals && (
                           <Button 
                             variant="ghost" 
@@ -1572,6 +1632,21 @@ export const ReferralTable = () => {
                             title="Confirm Arrival"
                           >
                             <Check className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {/* Cancel button - available for all users if referral is not already cancelled/completed */}
+                        {referral.status !== 'cancelled' && referral.status !== 'completed' && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-red-500 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/20"
+                            onClick={() => {
+                              setSelectedReferralForCancel(referral);
+                              setShowCancelDialog(true);
+                            }}
+                            title="Cancel Referral"
+                          >
+                            <XCircle className="w-4 h-4" />
                           </Button>
                         )}
                       </div>
@@ -2211,6 +2286,77 @@ export const ReferralTable = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Referral Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="w-5 h-5 text-red-600" />
+              Cancel Referral
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel this referral?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Patient Info */}
+            {selectedReferralForCancel && (
+              <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  {selectedReferralForCancel.patient_full_name}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Referral ID: {selectedReferralForCancel.referral_id}
+                </p>
+              </div>
+            )}
+
+            {/* Reason Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Cancellation Reason <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                placeholder="Please provide a reason for cancelling this referral..."
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white resize-none"
+                rows={3}
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowCancelDialog(false)}
+                disabled={cancelling}
+              >
+                Keep Referral
+              </Button>
+              <Button
+                onClick={handleCancelReferral}
+                disabled={cancelling || !cancellationReason.trim()}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {cancelling ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Cancelling...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Cancel Referral
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>

@@ -153,18 +153,26 @@ class ReferralViewSet(viewsets.ModelViewSet):
         """Override update to check if referral can be edited"""
         referral = self.get_object()
         
-        # Only allow editing if status is 'pending' (not yet under triage)
-        if referral.status != 'pending':
-            return Response({
-                'error': 'Cannot edit referral. Referral is already under triage or has been processed.',
-                'status': referral.status
-            }, status=status.HTTP_403_FORBIDDEN)
+        # Check if user is EDCC/Triage personnel
+        try:
+            profile = request.user.profile
+            is_edcc_or_triage = profile.role in ['edcc_personnel', 'call_triage'] or profile.can_triage_referrals
+        except:
+            is_edcc_or_triage = False
         
-        # Only allow the creator to edit their own referral
-        if referral.created_by != request.user:
-            return Response({
-                'error': 'You can only edit your own referrals'
-            }, status=status.HTTP_403_FORBIDDEN)
+        # EDCC/Triage can edit any referral
+        if not is_edcc_or_triage:
+            # Referrers can only edit pending referrals they created
+            if referral.status != 'pending':
+                return Response({
+                    'error': 'Cannot edit referral. Referral is already under triage or has been processed.',
+                    'status': referral.status
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            if referral.created_by != request.user:
+                return Response({
+                    'error': 'You can only edit your own referrals'
+                }, status=status.HTTP_403_FORBIDDEN)
         
         return super().update(request, *args, **kwargs)
     
@@ -172,18 +180,26 @@ class ReferralViewSet(viewsets.ModelViewSet):
         """Override partial_update to check if referral can be edited"""
         referral = self.get_object()
         
-        # Only allow editing if status is 'pending' (not yet under triage)
-        if referral.status != 'pending':
-            return Response({
-                'error': 'Cannot edit referral. Referral is already under triage or has been processed.',
-                'status': referral.status
-            }, status=status.HTTP_403_FORBIDDEN)
+        # Check if user is EDCC/Triage personnel
+        try:
+            profile = request.user.profile
+            is_edcc_or_triage = profile.role in ['edcc_personnel', 'call_triage'] or profile.can_triage_referrals
+        except:
+            is_edcc_or_triage = False
         
-        # Only allow the creator to edit their own referral
-        if referral.created_by != request.user:
-            return Response({
-                'error': 'You can only edit your own referrals'
-            }, status=status.HTTP_403_FORBIDDEN)
+        # EDCC/Triage can edit any referral
+        if not is_edcc_or_triage:
+            # Referrers can only edit pending referrals they created
+            if referral.status != 'pending':
+                return Response({
+                    'error': 'Cannot edit referral. Referral is already under triage or has been processed.',
+                    'status': referral.status
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            if referral.created_by != request.user:
+                return Response({
+                    'error': 'You can only edit your own referrals'
+                }, status=status.HTTP_403_FORBIDDEN)
         
         return super().partial_update(request, *args, **kwargs)
     
@@ -287,6 +303,51 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         return Response({
             'message': 'Referral marked as cancelled',
+            'new_status': referral.status
+        })
+    
+    @action(detail=True, methods=['post'])
+    def cancel_referral(self, request, pk=None):
+        """Cancel referral anytime - allowed for referrer (own referrals), EDCC, and Triage"""
+        referral = self.get_object()
+        
+        # Check permissions
+        try:
+            profile = request.user.profile
+            is_edcc_or_triage = profile.role in ['edcc_personnel', 'call_triage'] or profile.can_triage_referrals
+        except:
+            is_edcc_or_triage = False
+        
+        # Allow if: EDCC/Triage OR referrer who created the referral
+        if not is_edcc_or_triage and referral.created_by != request.user:
+            return Response({
+                'error': 'You do not have permission to cancel this referral'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if referral is already cancelled or completed
+        if referral.status in ['cancelled', 'completed']:
+            return Response({
+                'error': f'Cannot cancel referral with status: {referral.status}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        cancellation_reason = request.data.get('reason', 'No reason provided')
+        
+        # Update referral status to cancelled
+        old_status = referral.status
+        referral.status = 'cancelled'
+        referral.save()
+        
+        # Create status history record
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=old_status,
+            new_status='cancelled',
+            changed_by=request.user,
+            notes=f'Referral cancelled. Reason: {cancellation_reason}'
+        )
+        
+        return Response({
+            'message': 'Referral cancelled successfully',
             'new_status': referral.status
         })
     
@@ -538,6 +599,50 @@ class ReferralViewSet(viewsets.ModelViewSet):
         })
     
     @action(detail=True, methods=['post'])
+    def approve_for_transit(self, request, pk=None):
+        """Triage/EDCC approves referral for transit after verifying with departments"""
+        referral = self.get_object()
+        
+        # Check if referral is awaiting triage verification
+        if referral.status != 'awaiting_triage_verification':
+            return Response({
+                'error': 'Referral must be in awaiting_triage_verification status'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if user is triage/EDCC personnel
+        user_profile = request.user.profile if hasattr(request.user, 'profile') else None
+        if not user_profile or user_profile.role not in ['edcc_personnel', 'call_triage']:
+            return Response({
+                'error': 'Only triage/EDCC personnel can approve referrals for transit'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get verification notes
+        verification_notes = request.data.get('verification_notes', '')
+        
+        # Update referral status to dispositioned
+        referral.status = 'dispositioned'
+        referral.triage_verified_by = request.user
+        referral.triage_verified_at = timezone.now()
+        referral.triage_verification_notes = verification_notes
+        referral.save()
+        
+        # Create status history
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status='awaiting_triage_verification',
+            new_status='dispositioned',
+            changed_by=request.user,
+            notes=f'Approved for transit by triage/EDCC. Verification notes: {verification_notes}' if verification_notes else 'Approved for transit by triage/EDCC'
+        )
+        
+        return Response({
+            'message': 'Referral approved for transit. Referrer will be notified to fill transit form.',
+            'referral_status': referral.status,
+            'triage_verified_at': referral.triage_verified_at,
+            'triage_verified_by': referral.triage_verified_by.get_full_name()
+        })
+    
+    @action(detail=True, methods=['post'])
     def fill_transit_info(self, request, pk=None):
         """Fill in-transit form for dispositioned referral"""
         referral = self.get_object()
@@ -565,6 +670,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
         latest_vs = request.data.get('latest_vs', '')
         gcs = request.data.get('gcs', '')
         time_ambulance_left = request.data.get('time_ambulance_left')
+        remarks = request.data.get('remarks', '')
         
         # Validate required fields
         if not all([watcher_name, watcher_age, relation_to_patient, contact_number]):
@@ -586,6 +692,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'latest_vs': latest_vs,
                 'gcs': gcs,
                 'time_ambulance_left': time_ambulance_left if time_ambulance_left else None,
+                'remarks': remarks,
             }
         )
         
@@ -1489,6 +1596,41 @@ class ReferralViewSet(viewsets.ModelViewSet):
             })
         
         return Response(result)
+
+    @action(detail=True, methods=['post'])
+    def delay_transfer(self, request, pk=None):
+        """Notify EDCC/Triage that transfer is delayed"""
+        referral = self.get_object()
+        
+        # Check if referral is dispositioned (ready for transit)
+        if referral.status != 'dispositioned':
+            return Response({
+                'error': 'Can only delay transfer for dispositioned referrals'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if user is the referrer
+        if referral.created_by != request.user:
+            return Response({
+                'error': 'Only the referrer can delay transfer'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get delay reason from request
+        delay_reason = request.data.get('delay_reason', 'Transfer delayed by referrer')
+        
+        # Create status history to track the delay notification
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status='dispositioned',
+            new_status='dispositioned',  # Status stays the same
+            changed_by=request.user,
+            notes=f'Transfer delayed: {delay_reason}'
+        )
+        
+        return Response({
+            'message': 'EDCC/Triage staff have been notified of the delayed transfer',
+            'referral_status': referral.status,
+            'delay_reason': delay_reason
+        })
 
 class TransitInfoViewSet(viewsets.ModelViewSet):
     queryset = TransitInfo.objects.select_related('referral')

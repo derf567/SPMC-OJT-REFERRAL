@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { ReferrerDashboardLayout } from "@/components/layout/ReferrerDashboardLayout";
+import { TransferActionDropdown } from "@/components/ui/TransferActionDropdown";
+import { TransitFormDialog } from "@/components/ui/TransitFormDialog";
 import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "react-router-dom";
@@ -52,6 +54,8 @@ const ReferrerDashboard = () => {
   const [selectedReferral, setSelectedReferral] = useState<any>(null);
   const [transitDecisionModalOpen, setTransitDecisionModalOpen] = useState(false);
   const [transitDecisionReferral, setTransitDecisionReferral] = useState<any>(null);
+  const [transitFormModalOpen, setTransitFormModalOpen] = useState(false);
+  const [transitFormReferral, setTransitFormReferral] = useState<any>(null);
   const { user } = useAuth();
   const location = useLocation();
 
@@ -372,12 +376,37 @@ const ReferrerDashboard = () => {
               </p>
             </div>
             <div className="flex-shrink-0">
-              <Link
-                to={`/referral/view/${recentReferrals.find(r => r.status === 'dispositioned')?.id}`}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap"
-              >
-                Fill Form →
-              </Link>
+              <TransferActionDropdown
+                referralId={recentReferrals.find(r => r.status === 'dispositioned')?.id || ''}
+                patientName={recentReferrals.find(r => r.status === 'dispositioned')?.patient_full_name || ''}
+                onFillForm={() => {
+                  const referral = recentReferrals.find(r => r.status === 'dispositioned');
+                  if (referral) {
+                    setTransitFormReferral(referral);
+                    setTransitFormModalOpen(true);
+                  }
+                }}
+                onDelaySuccess={() => {
+                  // Refresh the dashboard data
+                  const fetchDashboardData = async () => {
+                    try {
+                      const response = await referralsAPI.getMySubmittedReferrals();
+                      const referrals = response.results || response;
+                      if (Array.isArray(referrals)) {
+                        setAllReferrals(referrals);
+                        const sortedReferrals = referrals
+                          .filter(r => r.status !== 'completed' && r.status !== 'uncoordinated')
+                          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                          .slice(0, 5);
+                        setRecentReferrals(sortedReferrals);
+                      }
+                    } catch (error) {
+                      console.error('Error refreshing dashboard:', error);
+                    }
+                  };
+                  fetchDashboardData();
+                }}
+              />
             </div>
           </div>
         </div>
@@ -1265,6 +1294,37 @@ const ReferrerDashboard = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Transit Form Modal */}
+      {transitFormReferral && (
+        <TransitFormDialog
+          open={transitFormModalOpen}
+          onOpenChange={setTransitFormModalOpen}
+          referralId={transitFormReferral.id}
+          patientName={transitFormReferral.patient_full_name}
+          onSuccess={() => {
+            setTransitFormModalOpen(false);
+            // Refresh the dashboard data
+            const fetchDashboardData = async () => {
+              try {
+                const response = await referralsAPI.getMySubmittedReferrals();
+                const referrals = response.results || response;
+                if (Array.isArray(referrals)) {
+                  setAllReferrals(referrals);
+                  const sortedReferrals = referrals
+                    .filter(r => r.status !== 'completed' && r.status !== 'uncoordinated')
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .slice(0, 5);
+                  setRecentReferrals(sortedReferrals);
+                }
+              } catch (error) {
+                console.error('Error refreshing dashboard:', error);
+              }
+            };
+            fetchDashboardData();
+          }}
+        />
+      )}
     </ReferrerDashboardLayout>
   );
 };

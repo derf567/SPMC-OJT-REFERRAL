@@ -134,6 +134,7 @@ class Referral(models.Model):
         ('pending', 'Pending'),
         ('in_triage', 'In Triage'),
         ('waiting_acceptance', 'Waiting Department Acceptance'),
+        ('awaiting_triage_verification', 'Awaiting Triage Verification'),
         ('dispositioned', 'Dispositioned'),
         ('in_transit', 'In Transit'),
         ('waiting', 'Waiting'),
@@ -195,7 +196,7 @@ class Referral(models.Model):
     
     # Basic referral info
     referral_id = models.CharField(max_length=20, unique=True, editable=False)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='pending')
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='routine')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -272,6 +273,11 @@ class Referral(models.Model):
     in_triage = models.BooleanField(default=False, help_text="Flag indicating referral is in triage tab")
     triage_remarks = models.TextField(blank=True, null=True, help_text="Remarks when assigning departments")
     
+    # Triage verification fields (for awaiting_triage_verification status)
+    triage_verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_referrals', help_text="Triage/EDCC personnel who verified the referral")
+    triage_verified_at = models.DateTimeField(null=True, blank=True, help_text="When triage/EDCC verified the referral for transit")
+    triage_verification_notes = models.TextField(blank=True, null=True, help_text="Notes from triage/EDCC verification")
+    
     # Department assignment (set by EDCC when transferring to triage)
     assigned_department = models.CharField(
         max_length=50, 
@@ -322,8 +328,8 @@ class Referral(models.Model):
         majority = (total // 2) + 1
         
         if accepted >= majority:
-            # Majority accepted - move to dispositioned
-            self.status = 'dispositioned'
+            # Majority accepted - move to awaiting_triage_verification for triage/EDCC to verify
+            self.status = 'awaiting_triage_verification'
             self.save()
         elif rejected >= majority:
             # Majority rejected - move back to pending or handle accordingly
@@ -367,6 +373,7 @@ class TransitInfo(models.Model):
     latest_vs = models.TextField(verbose_name="Latest Vital Signs", blank=True, null=True)
     gcs = models.CharField(max_length=50, verbose_name="GCS", blank=True, null=True)
     time_ambulance_left = models.TimeField(blank=True, null=True)
+    remarks = models.TextField(blank=True, null=True, help_text="Additional remarks before submitting transit form")
     
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -376,8 +383,8 @@ class TransitInfo(models.Model):
 class ReferralStatusHistory(models.Model):
     """Track status changes for referrals"""
     referral = models.ForeignKey(Referral, on_delete=models.CASCADE, related_name='status_history')
-    old_status = models.CharField(max_length=20)
-    new_status = models.CharField(max_length=20)
+    old_status = models.CharField(max_length=30)
+    new_status = models.CharField(max_length=30)
     changed_by = models.ForeignKey(User, on_delete=models.CASCADE)
     changed_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True, null=True)
