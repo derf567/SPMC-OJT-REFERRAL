@@ -554,11 +554,8 @@ export const ReferralTable = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [showTriageModal, setShowTriageModal] = useState(false);
-  const [showDepartmentModal, setShowDepartmentModal] = useState(false);
   const [showChangeDepartmentModal, setShowChangeDepartmentModal] = useState(false);
-  const [selectedReferralForTransfer, setSelectedReferralForTransfer] = useState<ReferralData | null>(null);
   const [selectedReferralForDepartmentChange, setSelectedReferralForDepartmentChange] = useState<ReferralData | null>(null);
-  const [selectedDepartment, setSelectedDepartment] = useState("");
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [newDepartment, setNewDepartment] = useState("");
   const [triageDecision, setTriageDecision] = useState("");
@@ -572,7 +569,6 @@ export const ReferralTable = () => {
   const [selectedReferralForCancel, setSelectedReferralForCancel] = useState<ReferralData | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
-  
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -621,30 +617,16 @@ export const ReferralTable = () => {
     fetchReferrals();
   }, [user]);
 
-  // Handle transfer to triage (EDCC Personnel action) - Show department selection modal
-  const handleTransferToTriage = (referralId: string) => {
+  // Handle transfer to triage (EDCC Personnel action) - Transfer directly without department selection
+  const handleTransferToTriage = async (referralId: string) => {
     const referral = referrals.find(r => (r.id || r.referral_id) === referralId);
-    if (referral) {
-      setSelectedReferralForTransfer(referral);
-      setShowDepartmentModal(true);
-    }
-  };
-
-  // Handle department selection and actual transfer
-  const handleDepartmentTransfer = async () => {
-    if (!selectedReferralForTransfer || !selectedDepartment) {
-      toast({
-        variant: "destructive",
-        title: "Missing Information",
-        description: "Please select a department before transferring the referral.",
-      });
-      return;
-    }
+    if (!referral) return;
 
     try {
-      const response = await referralsAPI.transferToTriage(
-        selectedReferralForTransfer.id || selectedReferralForTransfer.referral_id, 
-        selectedDepartment
+      // Transfer directly without department selection
+      // Department will be assigned in the Triage tab
+      const response = await referralsAPI.transferToTriageTab(
+        referral.id || referral.referral_id
       );
       
       // Refresh the referrals list with role-based filtering
@@ -667,15 +649,10 @@ export const ReferralTable = () => {
       
       setReferrals(filteredByRole);
       
-      // Close modal and reset state
-      setShowDepartmentModal(false);
-      setSelectedReferralForTransfer(null);
-      setSelectedDepartment("");
-      
       // Success notification
       toast({
         title: "Transfer Successful! 🚀",
-        description: response.message || "The referral has been successfully transferred to EDMAR/EDHO Triage.",
+        description: response.message || "The referral has been successfully transferred to EDMAR/EDHO Triage. You can now assign departments in the Triage tab.",
         className: "bg-green-50 border-green-200 text-green-800",
       });
     } catch (err: any) {
@@ -903,7 +880,6 @@ export const ReferralTable = () => {
       setScheduledDate("");
       setScheduledTime("");
       setDateError("");
-      setSelectedDepartment(""); // Reset department selection
       setSelectedDepartments([]); // Reset multiple departments selection
       
       // Success notification with triage decision
@@ -1703,7 +1679,6 @@ export const ReferralTable = () => {
                   setScheduledDate("");
                   setScheduledTime("");
                   setDateError("");
-                  setSelectedDepartment("");
                 }}
               >
                 <X className="w-4 h-4" />
@@ -1916,7 +1891,6 @@ export const ReferralTable = () => {
                   setScheduledDate("");
                   setScheduledTime("");
                   setDateError("");
-                  setSelectedDepartment("");
                   setSelectedDepartments([]);
                 }}
               >
@@ -1934,110 +1908,8 @@ export const ReferralTable = () => {
         </div>
       )}
 
-      {/* Department Selection Modal */}
-      {showDepartmentModal && selectedReferralForTransfer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Select Department
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {selectedReferralForTransfer.referral_id} - {selectedReferralForTransfer.patient_full_name}
-                </p>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => {
-                  setShowDepartmentModal(false);
-                  setSelectedReferralForTransfer(null);
-                  setSelectedDepartment("");
-                }}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">🏥 Department Assignment</h4>
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Select the appropriate department for this referral. The referral will be transferred to EDMAR/EDHO Triage 
-                  and assigned to the selected department for specialized review.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Department *
-                </label>
-                <select
-                  value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  required
-                >
-                  <option value="">Select department...</option>
-                  {DEPARTMENT_OPTIONS.map((dept) => (
-                    <option key={dept.value} value={dept.value}>
-                      {dept.icon} {dept.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Patient Summary */}
-              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
-                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Patient Summary</h5>
-                <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                  <p><strong>Chief Complaint:</strong> {selectedReferralForTransfer.chief_complaint}</p>
-                  <p><strong>Specialty Needed:</strong> {selectedReferralForTransfer.specialty_needed_name}</p>
-                  <p><strong>Referring Hospital:</strong> {selectedReferralForTransfer.referring_hospital_name}</p>
-                </div>
-              </div>
-
-              {/* Warning */}
-              <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
-                <div className="flex items-start gap-2">
-                  <div className="text-amber-600 dark:text-amber-400 mt-0.5">⚠️</div>
-                  <div>
-                    <h5 className="font-medium text-amber-800 dark:text-amber-200">Important</h5>
-                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                      Once transferred, this referral will be removed from your EDCC queue and appear in the 
-                      EDMAR/EDHO Triage queue for the selected department. This action cannot be undone.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setShowDepartmentModal(false);
-                  setSelectedReferralForTransfer(null);
-                  setSelectedDepartment("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button 
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={handleDepartmentTransfer}
-                disabled={!selectedDepartment}
-              >
-                Transfer to {selectedDepartment ? DEPARTMENT_OPTIONS.find(d => d.value === selectedDepartment)?.label : 'Department'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Department Selection Modal - REMOVED: Department selection now happens in Triage tab */}
+      {/* showDepartmentModal is no longer used */}
 
       {/* Change Department Modal */}
       {showChangeDepartmentModal && selectedReferralForDepartmentChange && (
