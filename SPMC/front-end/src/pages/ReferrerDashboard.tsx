@@ -359,33 +359,29 @@ const ReferrerDashboard = () => {
         </div>
       </div>
 
-      {/* Dispositioned - In Transit Form Needed */}
-      {recentReferrals.some(r => r.status === 'dispositioned') && (
-        <div className="bg-green-100 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-600 rounded-lg p-4 mb-6 animate-pulse">
-          <div className="flex items-center gap-3">
+      {/* Dispositioned - In Transit Form Needed - Individual banners for each referral */}
+      {recentReferrals.filter(r => r.status === 'dispositioned').map((referral) => (
+        <div key={referral.id} className="bg-green-100 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-600 rounded-lg p-4 mb-4 animate-pulse">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-shrink-0">
               <CheckCircle className="w-6 h-6 text-green-600 animate-bounce" />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <h3 className="text-lg font-semibold text-green-800 dark:text-green-200">
-                ✅ Referral Accepted - Fill In-Transit Form
+                ✅ {referral.patient_full_name} - Fill In-Transit Form
               </h3>
-              <p className="text-green-700 dark:text-green-300 mt-1">
-                You have {recentReferrals.filter(r => r.status === 'dispositioned').length} referral(s) 
-                accepted by departments. Please fill out the In-Transit form to proceed with patient transport.
+              <p className="text-green-700 dark:text-green-300 mt-1 text-sm">
+                Referral ID: {referral.referral_id} • Accepted by departments. Please fill out the In-Transit form to proceed with patient transport.
               </p>
             </div>
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 flex gap-2">
               <TransferActionDropdown
-                referralId={recentReferrals.find(r => r.status === 'dispositioned')?.id || ''}
-                patientName={recentReferrals.find(r => r.status === 'dispositioned')?.patient_full_name || ''}
-                hasDelayNotification={!!recentReferrals.find(r => r.status === 'dispositioned')?.delay_notified_at}
+                referralId={referral.id || ''}
+                patientName={referral.patient_full_name || ''}
+                hasDelayNotification={!!referral.delay_notified_at}
                 onFillForm={() => {
-                  const referral = recentReferrals.find(r => r.status === 'dispositioned');
-                  if (referral) {
-                    setTransitFormReferral(referral);
-                    setTransitFormModalOpen(true);
-                  }
+                  setTransitFormReferral(referral);
+                  setTransitFormModalOpen(true);
                 }}
                 onDelaySuccess={() => {
                   // Refresh the dashboard data
@@ -411,7 +407,7 @@ const ReferrerDashboard = () => {
             </div>
           </div>
         </div>
-      )}
+      ))}
 
       {/* Emergent Notification */}
       {recentReferrals.some(r => r.triage_decision === 'emergent' && r.status === 'in_transit') && (
