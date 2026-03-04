@@ -215,7 +215,9 @@ const Register = () => {
       fd.append('region', selectedRegion?.name || '');
       fd.append('province', selectedProvince?.name || '');
       fd.append('city', selectedCity?.name || '');
-      fd.append('barangay', selectedBarangay?.name || '');
+      // Handle barangay: if selectedBarangay exists (from dropdown), use its name; otherwise use the text value directly
+      // This handles both cases: when barangays load (dropdown with codes) and when they fail (text input with names)
+      fd.append('barangay', selectedBarangay?.name || formData.barangay || '');
       fd.append('complete_address', formData.completeAddress);
       fd.append('address', formData.completeAddress); // Also send as 'address' for hospital_location
       

@@ -195,37 +195,47 @@ const ExternalReferral = () => {
             });
             
             // Auto-fill hospital information from logged-in account
-            setFormData(prev => ({
-              ...prev,
-              // For hospital accounts, auto-fill ALL hospital information including address
-              ...(user.hospital_name && {
-                referringFacilityName: user.hospital_name,
-                hospitalLocation: user.hospital_location || '',
-                isInsideDavaoCity: user.is_inside_davao !== undefined ? user.is_inside_davao : true,
-                hospitalContactNumbers: user.contact_numbers || [],
-                hospitalDohLevel: user.hospital_doh_level || '',
-                // Detailed address fields - auto-filled from registration
-                hospitalRegion: user.hospital_region || '',
-                hospitalProvince: user.hospital_province || '',
-                hospitalCity: user.hospital_city || '',
-                hospitalBarangay: user.hospital_barangay || '',
-                hospitalStreet: user.hospital_street || '',
-                hospitalDistrict: user.hospital_district || '',
-              }),
-              // For doctors with affiliate hospitals
-              ...(profileData.referrer_type === 'doctor' && profileData.affiliate_hospitals?.length > 0 && !user.hospital_name && {
-                referringFacilityName: profileData.affiliate_hospitals[0].id.toString(),
-                isInsideDavaoCity: profileData.affiliate_hospitals[0].is_inside_davao_city,
-                hospitalLocation: profileData.affiliate_hospitals[0].location || ''
-              }),
-              // For non-doctors, use hospital info from profile
-              ...(profileData.referrer_type !== 'doctor' && profileData.hospital_name && {
-                // Find hospital by name or use the name directly
-                referringFacilityName: profileData.hospital_name,
-                isInsideDavaoCity: profileData.is_inside_davao,
-                hospitalLocation: profileData.hospital_location || ''
-              })
-            }));
+            setFormData(prev => {
+              const newFormData = {
+                ...prev,
+                // For hospital accounts, auto-fill ALL hospital information including address
+                ...(user.hospital_name && {
+                  referringFacilityName: user.hospital_name,
+                  hospitalLocation: user.hospital_location || '',
+                  isInsideDavaoCity: user.is_inside_davao !== undefined ? user.is_inside_davao : true,
+                  hospitalContactNumbers: user.contact_numbers || [],
+                  hospitalDohLevel: user.hospital_doh_level || '',
+                  // Detailed address fields - auto-filled from registration
+                  hospitalRegion: user.hospital_region || '',
+                  hospitalProvince: user.hospital_province || '',
+                  hospitalCity: user.hospital_city || '',
+                  hospitalBarangay: user.hospital_barangay || '',
+                  hospitalStreet: user.hospital_street || '',
+                  hospitalDistrict: user.hospital_district || '',
+                }),
+                // For doctors with affiliate hospitals
+                ...(profileData.referrer_type === 'doctor' && profileData.affiliate_hospitals?.length > 0 && !user.hospital_name && {
+                  referringFacilityName: profileData.affiliate_hospitals[0].id.toString(),
+                  isInsideDavaoCity: profileData.affiliate_hospitals[0].is_inside_davao_city,
+                  hospitalLocation: profileData.affiliate_hospitals[0].location || ''
+                }),
+                // For non-doctors, use hospital info from profile
+                ...(profileData.referrer_type !== 'doctor' && profileData.hospital_name && {
+                  // Find hospital by name or use the name directly
+                  referringFacilityName: profileData.hospital_name,
+                  isInsideDavaoCity: profileData.is_inside_davao,
+                  hospitalLocation: profileData.hospital_location || ''
+                })
+              };
+              
+              // Debug: Log the barangay value
+              console.log('🏥 Hospital Barangay Debug:');
+              console.log('  user.hospital_barangay:', user.hospital_barangay);
+              console.log('  newFormData.hospitalBarangay:', newFormData.hospitalBarangay);
+              console.log('  user.hospital_name:', user.hospital_name);
+              
+              return newFormData;
+            });
             
             // Debug: Log what was set
             console.log('Hospital data loaded:', {
@@ -238,6 +248,7 @@ const ExternalReferral = () => {
               hospital_doh_level: user.hospital_doh_level,
             });
             console.log('Set referringFacilityName to:', user.hospital_name || profileData.hospital_name);
+            console.log('✅ Hospital barangay set to:', user.hospital_barangay);
           } catch (error) {
             console.warn('Could not load referrer profile:', error);
             // Continue without auto-filling - user can still fill manually

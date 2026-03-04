@@ -260,6 +260,14 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
         write_only=True,
         help_text="Contact numbers from hospital/referrer profile"
     )
+    # Explicitly define hospital address fields to ensure they're accepted
+    hospital_region = serializers.CharField(required=False, allow_blank=True)
+    hospital_province = serializers.CharField(required=False, allow_blank=True)
+    hospital_city = serializers.CharField(required=False, allow_blank=True)
+    hospital_barangay = serializers.CharField(required=False, allow_blank=True)
+    hospital_street = serializers.CharField(required=False, allow_blank=True)
+    hospital_district = serializers.CharField(required=False, allow_blank=True)
+    hospital_doh_level = serializers.CharField(required=False, allow_blank=True)
     
     class Meta:
         model = Referral
@@ -286,8 +294,15 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
             validated_data['referring_hospital'] = hospital
             print(f"Created/found hospital: {hospital.name} (ID: {hospital.id})")
         
-        # Debug logging
-        print("Creating referral with data:", validated_data)
+        # Debug logging - show all hospital address fields
+        print("Creating referral with data:")
+        print(f"  hospital_region: {validated_data.get('hospital_region')}")
+        print(f"  hospital_province: {validated_data.get('hospital_province')}")
+        print(f"  hospital_city: {validated_data.get('hospital_city')}")
+        print(f"  hospital_barangay: {validated_data.get('hospital_barangay')}")
+        print(f"  hospital_street: {validated_data.get('hospital_street')}")
+        print(f"  hospital_district: {validated_data.get('hospital_district')}")
+        print(f"  hospital_doh_level: {validated_data.get('hospital_doh_level')}")
         print("Transit info data:", transit_info_data)
         
         # Set the created_by from the request user if authenticated, otherwise use a default
@@ -309,6 +324,11 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
         
         referral = Referral.objects.create(**validated_data)
         
+        # Verify the data was saved
+        print(f"Referral created with ID: {referral.id}")
+        print(f"  Saved hospital_barangay: {referral.hospital_barangay}")
+        print(f"  Saved hospital_street: {referral.hospital_street}")
+        
         # Create transit info if provided
         if transit_info_data:
             TransitInfo.objects.create(referral=referral, **transit_info_data)
@@ -318,6 +338,14 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
 class ReferralUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating referrals"""
     transit_info = TransitInfoSerializer(required=False, allow_null=True)
+    # Explicitly define hospital address fields to ensure they're accepted
+    hospital_region = serializers.CharField(required=False, allow_blank=True)
+    hospital_province = serializers.CharField(required=False, allow_blank=True)
+    hospital_city = serializers.CharField(required=False, allow_blank=True)
+    hospital_barangay = serializers.CharField(required=False, allow_blank=True)
+    hospital_street = serializers.CharField(required=False, allow_blank=True)
+    hospital_district = serializers.CharField(required=False, allow_blank=True)
+    hospital_doh_level = serializers.CharField(required=False, allow_blank=True)
     
     class Meta:
         model = Referral
