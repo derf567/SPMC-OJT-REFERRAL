@@ -82,7 +82,10 @@ interface ReferralFormData {
   referrerProfession: string;
   referrerProfessionOther: string;
   referrerCellphone: string;
+  referrerContactNumbers: string[];
   modeOfTransportation: string;
+  modeOfTransportationOther: string;
+  patientWatcherContactNumbers: string[];
   
   // Consent & Transfer
   consentSecured: boolean;
@@ -133,7 +136,10 @@ const initialFormData: ReferralFormData = {
   referrerProfession: "",
   referrerProfessionOther: "",
   referrerCellphone: "",
+  referrerContactNumbers: [],
   modeOfTransportation: "",
+  modeOfTransportationOther: "",
+  patientWatcherContactNumbers: [],
   
   consentSecured: false,
   reasonForReferral: "",
@@ -159,6 +165,10 @@ const ExternalReferral = () => {
   const [loadingRegions, setLoadingRegions] = useState(false);
   const [loadingProvinces, setLoadingProvinces] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
+  
+  // Contact number input states
+  const [currentReferrerContact, setCurrentReferrerContact] = useState("");
+  const [currentPatientWatcherContact, setCurrentPatientWatcherContact] = useState("");
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -353,7 +363,21 @@ const ExternalReferral = () => {
             referrerProfession: referralData.referrer_profession || '',
             referrerProfessionOther: referralData.referrer_profession_other || '',
             referrerCellphone: referralData.referrer_cellphone || '',
-            modeOfTransportation: referralData.mode_of_transportation || '',
+            referrerContactNumbers: referralData.referrer_contact_numbers || [],
+            patientWatcherName: referralData.patient_watcher_name || '',
+            patientWatcherContactNumbers: referralData.patient_watcher_contact_numbers || referralData.contact_numbers || [],
+            modeOfTransportation: (() => {
+              const transportMode = referralData.mode_of_transportation || '';
+              const validOptions = ['ambulance', 'private_vehicle', 'patient_transport_vehicle', 'air_ambulance'];
+              return validOptions.includes(transportMode.toLowerCase().replace(/\s+/g, '_')) 
+                ? transportMode.toLowerCase().replace(/\s+/g, '_')
+                : transportMode ? 'others' : '';
+            })(),
+            modeOfTransportationOther: (() => {
+              const transportMode = referralData.mode_of_transportation || '';
+              const validOptions = ['ambulance', 'private_vehicle', 'patient_transport_vehicle', 'air_ambulance'];
+              return validOptions.includes(transportMode.toLowerCase().replace(/\s+/g, '_')) ? '' : transportMode;
+            })(),
             
             consentSecured: referralData.consent_secured || false,
             reasonForReferral: referralData.reason_for_referral || '',
@@ -540,11 +564,16 @@ const ExternalReferral = () => {
     const hospitalDohLevel = (user && user.hospital_doh_level) ? user.hospital_doh_level : formData.hospitalDohLevel;
     if (!hospitalDohLevel) errors.push("Hospital DOH Level is required");
     if (!formData.referrerName.trim()) errors.push("Referrer Name is required");
+    if (formData.referrerContactNumbers.length === 0) errors.push("At least one Referrer Contact Number is required");
     if (!formData.referrerProfession.trim()) errors.push("Referrer Profession is required");
     if (formData.referrerProfession === "others" && !formData.referrerProfessionOther.trim()) {
       errors.push("Please specify the referrer profession");
     }
     if (!formData.modeOfTransportation.trim()) errors.push("Mode of Transportation is required");
+    if (formData.modeOfTransportation === "others" && !formData.modeOfTransportationOther.trim()) {
+      errors.push("Please specify the mode of transportation");
+    }
+    if (formData.patientWatcherContactNumbers.length === 0) errors.push("At least one Patient/Watcher Contact Number is required");
     
     return errors;
   };
@@ -627,8 +656,12 @@ const ExternalReferral = () => {
         referrer_name: formData.referrerName,
         referrer_profession: formData.referrerProfession,
         referrer_profession_other: formData.referrerProfession === "others" ? formData.referrerProfessionOther : null,
-        referrer_cellphone: formData.referrerCellphone || null,
-        mode_of_transportation: formData.modeOfTransportation,
+        referrer_cellphone: formData.referrerContactNumbers[0] || null,
+        referrer_contact_numbers: formData.referrerContactNumbers,
+        patient_watcher_name: formData.patientWatcherName || null,
+        patient_watcher_contact_numbers: formData.patientWatcherContactNumbers,
+        contact_numbers: formData.patientWatcherContactNumbers,
+        mode_of_transportation: formData.modeOfTransportation === "others" ? formData.modeOfTransportationOther : formData.modeOfTransportation,
         
         // Consent
         consent_secured: formData.consentSecured,
@@ -1537,95 +1570,234 @@ const ExternalReferral = () => {
             </div>
 
             {/* Referrer Information and Contact Numbers */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Name of the Referrer *
-                  {user && user.role === 'referrer' && referrerProfile && (
-                    <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
-                      (Auto-filled from your profile - editable)
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  placeholder="Dr. Full Name"
-                  value={formData.referrerName}
-                  onChange={(e) => updateFormData('referrerName', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Profession of the Referrer *
-                  {user && user.role === 'referrer' && referrerProfile && (
-                    <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
-                      (Auto-filled from your profile - editable)
-                    </span>
-                  )}
-                </label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  value={formData.referrerProfession}
-                  onChange={(e) => {
-                    updateFormData('referrerProfession', e.target.value);
-                    if (e.target.value !== 'others') {
-                      updateFormData('referrerProfessionOther', '');
-                    }
-                  }}
-                >
-                  <option value="">Select profession</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="barangay_health_worker">Barangay Health Worker</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="others">Others (Please Specify)</option>
-                </select>
-              </div>
-
-              {formData.referrerProfession === 'others' && (
+            <div className="space-y-6">
+              {/* Row 1: Name of Referrer - Referrer Contact Number */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Please Specify Profession *
+                    Name of the Referrer *
+                    {user && user.role === 'referrer' && referrerProfile && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
+                        (Auto-filled from your profile - editable)
+                      </span>
+                    )}
                   </label>
                   <input
                     type="text"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                    placeholder="e.g., Emergency Medicine Physician"
-                    value={formData.referrerProfessionOther}
-                    onChange={(e) => updateFormData('referrerProfessionOther', e.target.value)}
+                    placeholder="Dr. Full Name"
+                    value={formData.referrerName}
+                    onChange={(e) => updateFormData('referrerName', e.target.value)}
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Referrer Contact Number *
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      value={currentReferrerContact}
+                      onChange={(e) => setCurrentReferrerContact(e.target.value)}
+                      placeholder="e.g., 0912-345-6789 or 082-123-4567"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (currentReferrerContact.trim()) {
+                          updateFormData('referrerContactNumbers', [...formData.referrerContactNumbers, currentReferrerContact.trim()]);
+                          setCurrentReferrerContact("");
+                        }
+                      }}
+                      className="px-4 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Add at least one contact number
+                  </p>
+                  
+                  {formData.referrerContactNumbers.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {formData.referrerContactNumbers.map((number, index) => (
+                        <div key={index} className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm">
+                          <Phone className="w-3 h-3" />
+                          <span>{number}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateFormData('referrerContactNumbers', formData.referrerContactNumbers.filter((_, i) => i !== index));
+                            }}
+                            className="ml-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Row 2: Profession of Referrer - Mode of Transportation */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Profession of the Referrer *
+                    {user && user.role === 'referrer' && referrerProfile && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
+                        (Auto-filled from your profile - editable)
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    value={formData.referrerProfession}
+                    onChange={(e) => {
+                      updateFormData('referrerProfession', e.target.value);
+                      if (e.target.value !== 'others') {
+                        updateFormData('referrerProfessionOther', '');
+                      }
+                    }}
+                  >
+                    <option value="">Select profession</option>
+                    <option value="nurse">Nurse</option>
+                    <option value="barangay_health_worker">Barangay Health Worker</option>
+                    <option value="doctor">Doctor</option>
+                    <option value="others">Others (Please Specify)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Mode of Transportation *
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    value={formData.modeOfTransportation}
+                    onChange={(e) => {
+                      updateFormData('modeOfTransportation', e.target.value);
+                      if (e.target.value !== 'others') {
+                        updateFormData('modeOfTransportationOther', '');
+                      }
+                    }}
+                  >
+                    <option value="">Select mode of transportation</option>
+                    <option value="ambulance">Ambulance</option>
+                    <option value="private_vehicle">Private Vehicle</option>
+                    <option value="patient_transport_vehicle">Patient Transport Vehicle</option>
+                    <option value="air_ambulance">Air Ambulance</option>
+                    <option value="others">Others (Please Specify)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Conditional: Specify Profession and/or Mode of Transportation if "others" selected */}
+              {(formData.referrerProfession === 'others' || formData.modeOfTransportation === 'others') && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {formData.referrerProfession === 'others' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Please Specify Profession *
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                        placeholder="e.g., Emergency Medicine Physician"
+                        value={formData.referrerProfessionOther}
+                        onChange={(e) => updateFormData('referrerProfessionOther', e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  {formData.modeOfTransportation === 'others' && (
+                    <div className={formData.referrerProfession !== 'others' ? 'md:col-start-2' : ''}>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Please Specify Mode of Transportation *
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                        placeholder="e.g., Motorcycle, Tricycle"
+                        value={formData.modeOfTransportationOther}
+                        onChange={(e) => updateFormData('modeOfTransportationOther', e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Mode of Transportation *
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                  placeholder="Ambulance, Private vehicle, etc."
-                  value={formData.modeOfTransportation}
-                  onChange={(e) => updateFormData('modeOfTransportation', e.target.value)}
-                />
-              </div>
+              {/* Row 3: Patient/Watcher - Patient/Watcher Contact Number */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Patient/Watcher *
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Name of patient or watcher for emergency communication during referral
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Full Name"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient/Watcher Contact Number *
-                </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                  Contact number of patient or watcher for emergency communication during referral
-                </p>
-                
-                <input
-                  type="text"
-                  value={formData.referrerCellphone}
-                  onChange={(e) => updateFormData('referrerCellphone', e.target.value)}
-                  placeholder="e.g., 0912-345-6789 or 082-123-4567"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Patient/Watcher Contact Number *
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    Contact number of patient or watcher for emergency communication during referral
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      value={currentPatientWatcherContact}
+                      onChange={(e) => setCurrentPatientWatcherContact(e.target.value)}
+                      placeholder="e.g., 0912-345-6789 or 082-123-4567"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (currentPatientWatcherContact.trim()) {
+                          updateFormData('patientWatcherContactNumbers', [...formData.patientWatcherContactNumbers, currentPatientWatcherContact.trim()]);
+                          setCurrentPatientWatcherContact("");
+                        }
+                      }}
+                      className="px-4 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Add at least one contact number
+                  </p>
+                  
+                  {formData.patientWatcherContactNumbers.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {formData.patientWatcherContactNumbers.map((number, index) => (
+                        <div key={index} className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm">
+                          <Phone className="w-3 h-3" />
+                          <span>{number}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateFormData('patientWatcherContactNumbers', formData.patientWatcherContactNumbers.filter((_, i) => i !== index));
+                            }}
+                            className="ml-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

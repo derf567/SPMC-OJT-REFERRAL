@@ -14,8 +14,12 @@ import {
   Edit,
   Building2,
   Truck,
-  XCircle
+  XCircle,
+  Download,
+  Phone
 } from "lucide-react";
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 export const ReferralView = () => {
   const { id } = useParams();
@@ -28,6 +32,7 @@ export const ReferralView = () => {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const loadReferral = async () => {
     if (!id) return;
@@ -83,6 +88,244 @@ export const ReferralView = () => {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      setDownloading(true);
+      
+      // Create new PDF document
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPos = 20;
+
+      // Header
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SPMC Referral System', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 8;
+      
+      doc.setFontSize(14);
+      doc.text('Patient Referral Details', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 6;
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Referral ID: ${referral.referral_id}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 5;
+      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+
+      // Patient Information Section
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(37, 99, 235); // Blue color
+      doc.text('Patient Information', 14, yPos);
+      yPos += 2;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, yPos, pageWidth - 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(0, 0, 0);
+      
+      const patientInfo = [
+        ['Patient Name:', referral.patient_full_name],
+        ['Category:', referral.patient_category?.replace('_', ' ') || 'N/A'],
+        ['Birthday:', referral.birthday || 'N/A'],
+        ['Age:', `${referral.age} years`],
+        ['Gender:', referral.gender || 'N/A'],
+        ['Address:', referral.current_address || 'N/A'],
+        ['Admission Status:', referral.admission_status?.replace('_', ' ') || 'N/A']
+      ];
+
+      patientInfo.forEach(([label, value]) => {
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        const lines = doc.splitTextToSize(value, pageWidth - 70);
+        doc.text(lines, 70, yPos);
+        yPos += 6 * lines.length;
+      });
+
+      yPos += 4;
+
+      // Patient Status Section
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(37, 99, 235);
+      doc.text('Patient Status', 14, yPos);
+      yPos += 2;
+      doc.line(14, yPos, pageWidth - 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+
+      const statusInfo = [
+        ['Chief Complaint:', referral.chief_complaint],
+        ['Working Impression:', referral.working_impression],
+        ...(referral.pertinent_history ? [['Pertinent History:', referral.pertinent_history]] : []),
+        ...(referral.pertinent_physical_exam ? [['Physical Examination:', referral.pertinent_physical_exam]] : []),
+        ...(referral.management_done ? [['Management Done:', referral.management_done]] : [])
+      ];
+
+      statusInfo.forEach(([label, value]) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        const lines = doc.splitTextToSize(value || 'N/A', pageWidth - 70);
+        doc.text(lines, 70, yPos);
+        yPos += 6 * lines.length;
+      });
+
+      yPos += 4;
+
+      // Vital Signs Section
+      if (referral.bp || referral.hr || referral.rr || referral.temp || referral.o2_sat) {
+        if (yPos > 240) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(37, 99, 235);
+        doc.text('Latest Vital Signs', 14, yPos);
+        yPos += 2;
+        doc.line(14, yPos, pageWidth - 14, yPos);
+        yPos += 8;
+
+        const vitalSigns = [];
+        if (referral.bp) vitalSigns.push(['Blood Pressure', referral.bp]);
+        if (referral.hr) vitalSigns.push(['Heart Rate', `${referral.hr} bpm`]);
+        if (referral.rr) vitalSigns.push(['Respiratory Rate', `${referral.rr} /min`]);
+        if (referral.temp) vitalSigns.push(['Temperature', `${referral.temp}°C`]);
+        if (referral.o2_sat) vitalSigns.push(['O2 Saturation', `${referral.o2_sat}%`]);
+        if (referral.gcs_score) vitalSigns.push(['GCS Score', referral.gcs_score]);
+        if (referral.o2_support) vitalSigns.push(['O2 Support', referral.o2_support]);
+        if (referral.rtpcr_result) vitalSigns.push(['RTPCR Result', referral.rtpcr_result.toUpperCase()]);
+
+        (doc as any).autoTable({
+          startY: yPos,
+          head: [['Vital Sign', 'Value']],
+          body: vitalSigns,
+          theme: 'grid',
+          headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+          margin: { left: 14, right: 14 },
+          styles: { fontSize: 9 }
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 8;
+      }
+
+      // Referring Hospital Section
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(37, 99, 235);
+      doc.text('Referring Hospital & Referrer Information', 14, yPos);
+      yPos += 2;
+      doc.line(14, yPos, pageWidth - 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+
+      const hospitalInfo = [
+        ['Facility Name:', referral.referring_hospital_name],
+        ...(referral.hospital_doh_level ? [['DOH Level:', referral.hospital_doh_level]] : []),
+        ['Referrer Name:', referral.referrer_name],
+        ...(referral.referrer_profession ? [['Profession:', referral.referrer_profession.replace(/_/g, ' ')]] : []),
+        ...(referral.referrer_contact_numbers && referral.referrer_contact_numbers.length > 0 
+          ? [['Referrer Contacts:', referral.referrer_contact_numbers.join(', ')]] : []),
+        ...(referral.mode_of_transportation ? [['Transportation:', referral.mode_of_transportation.replace(/_/g, ' ')]] : []),
+        ...(referral.patient_watcher_name ? [['Patient/Watcher:', referral.patient_watcher_name]] : []),
+        ...(referral.patient_watcher_contact_numbers && referral.patient_watcher_contact_numbers.length > 0 
+          ? [['Watcher Contacts:', referral.patient_watcher_contact_numbers.join(', ')]] : [])
+      ];
+
+      hospitalInfo.forEach(([label, value]) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        const lines = doc.splitTextToSize(value || 'N/A', pageWidth - 70);
+        doc.text(lines, 70, yPos);
+        yPos += 6 * lines.length;
+      });
+
+      yPos += 4;
+
+      // Referral Information Section
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(37, 99, 235);
+      doc.text('Referral Information', 14, yPos);
+      yPos += 2;
+      doc.line(14, yPos, pageWidth - 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+
+      const referralInfo = [
+        ['Status:', referral.status.replace('_', ' ').toUpperCase()],
+        ['Priority:', referral.priority || 'N/A'],
+        ['Specialty Needed:', referral.specialty_needed_name || 'N/A'],
+        ['Reason for Referral:', referral.reason_for_referral],
+        ['Created:', new Date(referral.created_at).toLocaleString()]
+      ];
+
+      referralInfo.forEach(([label, value]) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        const lines = doc.splitTextToSize(value || 'N/A', pageWidth - 70);
+        doc.text(lines, 70, yPos);
+        yPos += 6 * lines.length;
+      });
+
+      // Save the PDF
+      const fileName = `Referral_${referral.referral_id}_${referral.patient_full_name.replace(/\s+/g, '_')}.pdf`;
+      doc.save(fileName);
+
+      toast({
+        title: "Success! ✅",
+        description: "PDF downloaded successfully.",
+        className: "bg-green-50 border-green-200 text-green-800",
+      });
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   useEffect(() => {
     loadReferral();
   }, [id, navigate, toast]);
@@ -109,6 +352,8 @@ export const ReferralView = () => {
   const canFillTransit = referral.status === 'dispositioned' && referral.created_by === user?.id;
   // Anyone can cancel except if already cancelled or completed
   const canCancel = referral.status !== 'cancelled' && referral.status !== 'completed';
+  // EDCC and EDMA can download PDF
+  const canDownloadPDF = isEDCCorTriage;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -146,6 +391,26 @@ export const ReferralView = () => {
               </Button>
               
               <div className="flex gap-2">
+                {canDownloadPDF && (
+                  <Button 
+                    onClick={handleDownloadPDF}
+                    disabled={downloading}
+                    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700"
+                  >
+                    {downloading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        Download PDF
+                      </>
+                    )}
+                  </Button>
+                )}
+
                 {canEdit && (
                   <Link to={`/referral/edit/${id}`}>
                     <Button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
@@ -383,7 +648,49 @@ export const ReferralView = () => {
               {referral.referrer_profession && (
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Profession</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{referral.referrer_profession}</p>
+                  <p className="font-medium text-gray-900 dark:text-white capitalize">{referral.referrer_profession.replace(/_/g, ' ')}</p>
+                </div>
+              )}
+
+              {referral.referrer_contact_numbers && referral.referrer_contact_numbers.length > 0 && (
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Referrer Contact Numbers</p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {referral.referrer_contact_numbers.map((number: string, index: number) => (
+                      <span key={index} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm font-medium">
+                        <Phone className="w-3 h-3" />
+                        {number}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {referral.mode_of_transportation && (
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Mode of Transportation</p>
+                  <p className="font-medium text-gray-900 dark:text-white capitalize">{referral.mode_of_transportation.replace(/_/g, ' ')}</p>
+                </div>
+              )}
+
+              {referral.patient_watcher_name && (
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Patient/Watcher Name</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{referral.patient_watcher_name}</p>
+                </div>
+              )}
+
+              {referral.patient_watcher_contact_numbers && referral.patient_watcher_contact_numbers.length > 0 && (
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Patient/Watcher Contact Numbers</p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {referral.patient_watcher_contact_numbers.map((number: string, index: number) => (
+                      <span key={index} className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm font-medium">
+                        <Phone className="w-3 h-3" />
+                        {number}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
