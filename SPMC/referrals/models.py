@@ -7,7 +7,7 @@ class UserProfile(models.Model):
     """Extended user profile with roles"""
     ROLE_CHOICES = [
         ('edcc_personnel', 'EDCC Personnel'),
-        ('call_triage', 'EDMAR/EDHO (Call Triage)'),
+        ('call_triage', 'EDMA/EDHO (Call Triage)'),  # EDMA = Emergency Department Medical Authority
         ('admin', 'Administrator'),
         ('doctor', 'Doctor'),
         ('referrer', 'Referrer'),
@@ -51,7 +51,11 @@ class UserProfile(models.Model):
     
     @property
     def can_triage_referrals(self):
-        """Both EDCC and Triage can decide on referral priority/status"""
+        """Both EDCC and EDMA (Call Triage) can decide on referral priority/status
+        
+        Note: EDMA (Emergency Department Medical Authority) is the primary triage authority.
+        EDCC is authorized to facilitate the process under EDMA's coordination.
+        """
         return self.role in ['call_triage', 'edcc_personnel']
     
     @property
@@ -129,7 +133,8 @@ class Specialty(models.Model):
 class Referral(models.Model):
     """Main referral model containing all referral information"""
     
-    # Status choices
+    # Status choices - aligned with process flow
+    # Note: emergent/urgent/schedule_opd are triage_decision values, not status values
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('in_triage', 'In Triage'),
@@ -137,10 +142,6 @@ class Referral(models.Model):
         ('awaiting_triage_verification', 'Awaiting Triage Verification'),
         ('dispositioned', 'Dispositioned'),
         ('in_transit', 'In Transit'),
-        ('waiting', 'Waiting'),
-        ('emergent', 'Emergent'),
-        ('urgent', 'Urgent'),
-        ('schedule_opd', 'Schedule for OPD'),
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
     ]
@@ -298,6 +299,10 @@ class Referral(models.Model):
     # Outpatient scheduling (for schedule_opd triage decisions)
     scheduled_date = models.DateField(blank=True, null=True, help_text="Scheduled appointment date for OPD")
     scheduled_time = models.TimeField(blank=True, null=True, help_text="Scheduled appointment time for OPD")
+    
+    # Delay notification tracking
+    delay_notified_at = models.DateTimeField(null=True, blank=True, help_text="When triage/EDCC was notified of transfer delay")
+    delay_reason = models.TextField(blank=True, null=True, help_text="Reason for transfer delay")
     
     class Meta:
         ordering = ['-created_at']

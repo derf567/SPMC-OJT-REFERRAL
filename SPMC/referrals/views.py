@@ -406,6 +406,46 @@ class ReferralViewSet(viewsets.ModelViewSet):
         })
     
     @action(detail=True, methods=['post'])
+    def cancel_referral(self, request, pk=None):
+        """Cancel referral - referrer can cancel pending referrals"""
+        referral = self.get_object()
+        
+        # Check if referral can be cancelled (only pending referrals)
+        if referral.status != 'pending':
+            return Response({
+                'error': 'Can only cancel pending referrals. This referral is already being processed.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if user is the creator or has admin permissions
+        if referral.created_by != request.user and not (hasattr(request.user, 'profile') and request.user.profile.is_admin_user):
+            return Response({
+                'error': 'You can only cancel your own referrals'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get cancellation reason
+        reason = request.data.get('reason', 'No reason provided')
+        
+        # Update referral status
+        old_status = referral.status
+        referral.status = 'cancelled'
+        referral.save()
+        
+        # Create status history
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=old_status,
+            new_status='cancelled',
+            changed_by=request.user,
+            notes=f'Cancelled by referrer: {reason}'
+        )
+        
+        return Response({
+            'message': 'Referral cancelled successfully',
+            'referral_id': referral.referral_id,
+            'reason': reason
+        })
+    
+    @action(detail=True, methods=['post'])
     def transfer_to_triage(self, request, pk=None):
         """Transfer referral to triage tab (EDCC/Triage action)"""
         referral = self.get_object()
@@ -1616,6 +1656,11 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         # Get delay reason from request
         delay_reason = request.data.get('delay_reason', 'Transfer delayed by referrer')
+        
+        # Update referral with delay notification info
+        referral.delay_notified_at = timezone.now()
+        referral.delay_reason = delay_reason
+        referral.save()
         
         # Create status history to track the delay notification
         ReferralStatusHistory.objects.create(

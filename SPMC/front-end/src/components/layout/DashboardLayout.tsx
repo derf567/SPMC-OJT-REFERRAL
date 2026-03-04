@@ -6,9 +6,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { referralsAPI } from "@/lib/api";
 import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { NotificationContainer } from "@/components/ui/NotificationContainer";
+import { NotificationPanel } from "@/components/ui/NotificationPanel";
 import { TestNotificationButton } from "@/components/ui/TestNotificationButton";
 import { SoundToggle } from "@/components/ui/SoundToggle";
-import { startNotificationPolling, stopNotificationPolling, NotificationData } from "@/lib/notificationService";
+import { startNotificationPolling, stopNotificationPolling, checkReferrerAccountStatus, getStoredNotifications, NotificationData } from "@/lib/notificationService";
 import {
   Home,
   Users,
@@ -48,9 +49,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     return saved !== null ? JSON.parse(saved) : true;
   });
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotificationPanel, setShowNotificationPanel] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [activeReferralsCount, setActiveReferralsCount] = useState(0);
   const [liveNotifications, setLiveNotifications] = useState<NotificationData[]>([]);
+  const [displayedNotifications, setDisplayedNotifications] = useState<NotificationData[]>([]);
   const [dropdownNotifications, setDropdownNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [selectedReferral, setSelectedReferral] = useState<any | null>(null);
@@ -258,6 +261,14 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
+  // Load stored notifications on mount
+  useEffect(() => {
+    const storedNotifications = getStoredNotifications();
+    if (storedNotifications.length > 0) {
+      setLiveNotifications(storedNotifications);
+    }
+  }, []);
+
   // Start notification polling
   useEffect(() => {
     if (user && user.permissions) {
@@ -279,21 +290,44 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     }
   }, [user]);
 
+  // Check referrer account status for referrers
+  useEffect(() => {
+    if (user && user.role === 'referrer') {
+      const handleNotification = (notification: NotificationData) => {
+        setLiveNotifications((prev) => {
+          // Avoid duplicates
+          if (prev.some(n => n.id === notification.id)) {
+            return prev;
+          }
+          return [...prev, notification];
+        });
+      };
+
+      // Check immediately
+      checkReferrerAccountStatus(true, handleNotification);
+
+      // Check every 10 seconds
+      const interval = setInterval(() => {
+        checkReferrerAccountStatus(true, handleNotification);
+      }, 10000);
+
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
   const removeNotification = (id: string) => {
     setLiveNotifications((prev) => prev.filter(n => n.id !== id));
   };
 
-  const handleNotificationClick = async (referralId?: string) => {
+  const handleNotificationClick = async (referralId?: string, notificationType?: string) => {
     if (!referralId) return;
     
     try {
-      // Fetch the referral details
-      const referral = await referralsAPI.getById(referralId);
-      setSelectedReferral(referral);
+      // Don't navigate - just close the notification panel
+      // The user can manually click "View Status" button on the Triage page if needed
+      setShowNotificationPanel(false);
     } catch (error) {
-      console.error('Error fetching referral:', error);
-      // Fallback: navigate to active referrals page
-      navigate('/referrals');
+      console.error('Error handling notification click:', error);
     }
   };
 
@@ -353,7 +387,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           if (type === 'account_approval') {
             handleAccountApprovalClick();
           } else {
-            handleNotificationClick(referralId);
+            handleNotificationClick(referralId, type);
           }
         }}
       />
@@ -478,12 +512,12 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                 </Button>
 
-                {/* Notifications */}
+                {/* Notifications Bell Icon */}
                 <div className="relative" ref={notificationRef}>
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setShowNotifications(!showNotifications)}
+                    onClick={() => setShowNotificationPanel(!showNotificationPanel)}
                     className={cn(
                       "relative transition-colors duration-300",
                       isDarkMode 
@@ -492,79 +526,20 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     )}
                   >
                     <Bell className="w-5 h-5" />
-                    {unreadCount > 0 && (
+                    {liveNotifications.length > 0 && (
                       <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 rounded-full text-xs flex items-center justify-center text-white font-medium">
-                        {unreadCount}
+                        {Math.min(liveNotifications.length, 99)}
                       </span>
                     )}
                   </Button>
 
-                  {showNotifications && (
-                    <div className={cn(
-                      "absolute right-0 top-full mt-2 w-80 border rounded-lg shadow-lg py-2 z-50 transition-colors duration-300",
-                      isDarkMode 
-                        ? "bg-gray-800 border-gray-700" 
-                        : "bg-white border-gray-200"
-                    )}>
-                      <div className={cn(
-                        "px-4 py-2 border-b transition-colors duration-300",
-                        isDarkMode ? "border-gray-700" : "border-gray-200"
-                      )}>
-                        <h3 className={cn(
-                          "font-medium transition-colors duration-300",
-                          isDarkMode ? "text-white" : "text-gray-900"
-                        )}>Notifications</h3>
-                      </div>
-                      <div className="max-h-96 overflow-y-auto">
-                        {dropdownNotifications.length > 0 ? (
-                          dropdownNotifications.map((notification) => (
-                            <div key={notification.id} className={cn(
-                              "px-4 py-3 border-b transition-colors duration-300",
-                              isDarkMode 
-                                ? "hover:bg-gray-700 border-gray-700/50" 
-                                : "hover:bg-gray-50 border-gray-200/50"
-                            )}>
-                              <div className="flex items-start gap-3">
-                                <div className={`w-2 h-2 rounded-full mt-2 ${
-                                  notification.type === 'critical' ? 'bg-red-500' :
-                                  notification.type === 'success' ? 'bg-green-500' : 'bg-blue-500'
-                                }`}></div>
-                                <div className="flex-1">
-                                  <p className={cn(
-                                    "text-sm font-medium transition-colors duration-300",
-                                    isDarkMode ? "text-white" : "text-gray-900"
-                                  )}>{notification.title}</p>
-                                  <p className={cn(
-                                    "text-xs mt-1 transition-colors duration-300",
-                                    isDarkMode ? "text-gray-400" : "text-gray-600"
-                                  )}>{notification.message}</p>
-                                  <p className={cn(
-                                    "text-xs mt-1 transition-colors duration-300",
-                                    isDarkMode ? "text-gray-500" : "text-gray-500"
-                                  )}>{notification.time}</p>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="px-4 py-8 text-center">
-                            <p className={cn(
-                              "text-sm transition-colors duration-300",
-                              isDarkMode ? "text-gray-400" : "text-gray-500"
-                            )}>No notifications</p>
-                          </div>
-                        )}
-                      </div>
-                      <div className={cn(
-                        "px-4 py-2 border-t transition-colors duration-300",
-                        isDarkMode ? "border-gray-700" : "border-gray-200"
-                      )}>
-                        <Button variant="ghost" className="w-full text-blue-400 hover:text-blue-300 text-sm">
-                          View All Notifications
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  {/* Notification Panel */}
+                  <NotificationPanel
+                    isOpen={showNotificationPanel}
+                    onClose={() => setShowNotificationPanel(false)}
+                    notifications={liveNotifications}
+                    onNotificationClick={handleNotificationClick}
+                  />
                 </div>
 
                 {/* User Menu */}

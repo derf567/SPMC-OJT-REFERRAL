@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { referralsAPI } from "@/lib/api";
 import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { NotificationContainer } from "@/components/ui/NotificationContainer";
-import { startNotificationPolling, stopNotificationPolling, NotificationData } from "@/lib/notificationService";
+import { startNotificationPolling, stopNotificationPolling, checkReferrerAccountStatus, NotificationData } from "@/lib/notificationService";
 import {
   Home,
   FileText,
@@ -199,6 +199,31 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
   const removeNotification = (id: string) => {
     setLiveNotifications((prev) => prev.filter(n => n.id !== id));
   };
+
+  // Check referrer account status for account approval/rejection notifications
+  useEffect(() => {
+    if (user && user.role === 'referrer') {
+      const handleNotification = (notification: NotificationData) => {
+        setLiveNotifications((prev) => {
+          // Avoid duplicates
+          if (prev.some(n => n.id === notification.id)) {
+            return prev;
+          }
+          return [...prev, notification];
+        });
+      };
+
+      // Check immediately
+      checkReferrerAccountStatus(true, handleNotification);
+
+      // Check every 10 seconds
+      const interval = setInterval(() => {
+        checkReferrerAccountStatus(true, handleNotification);
+      }, 10000);
+
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);

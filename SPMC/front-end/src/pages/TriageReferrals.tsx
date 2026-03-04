@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { referralsAPI, departmentsAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { Loader2, ClipboardList, CheckCircle, Clock, XCircle } from 'lucide-react';
@@ -47,13 +46,14 @@ interface TriageReferral {
   created_at: string;
   in_triage: boolean;
   triage_remarks?: string;
+  delay_reason?: string;
+  delay_notified_at?: string;
   department_acceptances: DepartmentAcceptance[];
   acceptance_summary: AcceptanceSummary;
   assigned_departments: string[];
 }
 
 export default function TriageReferrals() {
-  const { user } = useAuth();
   const [referrals, setReferrals] = useState<TriageReferral[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -79,6 +79,12 @@ export default function TriageReferrals() {
     
     return () => clearInterval(interval);
   }, [statusFilter]);
+
+  // Handle viewDetails URL parameter from notification click (DISABLED - use manual View Status button instead)
+  // This was causing modal to reopen infinitely
+  useEffect(() => {
+    // Do nothing - let users manually click "View Status" button
+  }, []);
 
   const fetchTriageReferrals = async () => {
     try {
@@ -900,6 +906,10 @@ function DetailsDialog({
     }
   };
 
+  const handleRedirect = () => {
+    onRedirect?.();
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
@@ -916,6 +926,18 @@ function DetailsDialog({
             <p className="text-sm text-gray-700 mt-2">
               <span className="font-medium">Remarks:</span> {currentReferral.triage_remarks}
             </p>
+          )}
+          {currentReferral.delay_reason && (
+            <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded">
+              <p className="text-sm text-orange-900">
+                <span className="font-medium">⏱️ Transfer Delay:</span> {currentReferral.delay_reason}
+              </p>
+              {currentReferral.delay_notified_at && (
+                <p className="text-xs text-orange-700 mt-1">
+                  Reported: {new Date(currentReferral.delay_notified_at).toLocaleString()}
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -982,12 +1004,7 @@ function DetailsDialog({
         <div className="mt-6 flex justify-end gap-2">
           <button
             disabled={currentReferral.acceptance_summary.rejected < currentReferral.acceptance_summary.majority_needed}
-            onClick={() => {
-              if (currentReferral.acceptance_summary.rejected >= currentReferral.acceptance_summary.majority_needed) {
-                onClose();
-                onRedirect?.();
-              }
-            }}
+            onClick={handleRedirect}
             className={`px-4 py-2 rounded-lg transition-colors ${
               currentReferral.acceptance_summary.rejected >= currentReferral.acceptance_summary.majority_needed
                 ? 'bg-orange-500 text-white hover:bg-orange-600 cursor-pointer'

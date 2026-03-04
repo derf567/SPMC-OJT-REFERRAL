@@ -219,7 +219,10 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'in_triage', 'triage_remarks', 'department_acceptances', 'acceptance_summary',
             
             # Triage verification
-            'triage_verified_by_name', 'triage_verified_at', 'triage_verification_notes'
+            'triage_verified_by_name', 'triage_verified_at', 'triage_verification_notes',
+            
+            # Delay notification tracking
+            'delay_notified_at', 'delay_reason'
         ]
 
 class ReferralDetailSerializer(serializers.ModelSerializer):

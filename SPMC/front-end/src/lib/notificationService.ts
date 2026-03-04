@@ -2,14 +2,53 @@ import { referralsAPI } from './api';
 
 export interface NotificationData {
   id: string;
-  type: 'new_referral' | 'referral_transferred' | 'account_approval';
+  type: 'new_referral' | 'referral_transferred' | 'account_approval' | 'account_rejected' | 'account_approved' | 'referrer_account_update';
   message: string;
   referralId?: string;
+  accountId?: string;
   timestamp: string;
+  isAccountNotification?: boolean;
 }
 
 let lastCheckedTimestamp: string | null = null;
 let notificationCheckInterval: NodeJS.Timeout | null = null;
+let shownNotificationIds: Set<string> = new Set();
+
+// Persist notifications to localStorage
+const NOTIFICATIONS_STORAGE_KEY = 'spmc_notifications';
+
+export const getStoredNotifications = (): NotificationData[] => {
+  try {
+    const stored = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error reading stored notifications:', error);
+    return [];
+  }
+};
+
+export const saveNotificationToStorage = (notification: NotificationData) => {
+  try {
+    const stored = getStoredNotifications();
+    // Check if notification already exists
+    if (!stored.some(n => n.id === notification.id)) {
+      stored.unshift(notification); // Add to beginning
+      // Keep only last 100 notifications
+      const limited = stored.slice(0, 100);
+      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(limited));
+    }
+  } catch (error) {
+    console.error('Error saving notification to storage:', error);
+  }
+};
+
+export const clearAllStoredNotifications = () => {
+  try {
+    localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY);
+  } catch (error) {
+    console.error('Error clearing stored notifications:', error);
+  }
+};
 
 export const startNotificationPolling = (
   userPermissions: any,
@@ -45,6 +84,7 @@ export const stopNotificationPolling = () => {
     clearInterval(notificationCheckInterval);
     notificationCheckInterval = null;
   }
+  shownNotificationIds.clear();
 };
 
 const checkForNewNotifications = async (
@@ -61,6 +101,15 @@ const checkForNewNotifications = async (
     let newNotificationCount = 0;
 
     referrals.forEach((referral: any) => {
+      // Debug: Log delay notifications for triage users
+      if (userPermissions?.can_triage_referrals && referral.status === 'dispositioned') {
+        console.log('🔍 Checking dispositioned referral:', {
+          referral_id: referral.referral_id,
+          delay_notified_at: referral.delay_notified_at,
+          delay_reason: referral.delay_reason,
+          lastCheckedTimestamp
+        });
+      }
       // Check for new referrals (EDCC users)
       if (
         userPermissions?.can_transfer_referrals &&
@@ -68,15 +117,21 @@ const checkForNewNotifications = async (
         referral.status === 'pending' &&
         referral.created_at > (lastCheckedTimestamp || '')
       ) {
-        console.log('🔵 New referral detected:', referral.referral_id);
-        onNotification({
-          id: `new_referral_${referral.id}`,
-          type: 'new_referral',
-          message: `New referral from ${referral.referring_hospital || 'External Hospital'}: ${referral.patient_name}`,
-          referralId: referral.referral_id,
-          timestamp: referral.created_at,
-        });
-        newNotificationCount++;
+        const notifId = `new_referral_${referral.id}`;
+        if (!shownNotificationIds.has(notifId)) {
+          console.log('🔵 New referral detected:', referral.referral_id);
+          shownNotificationIds.add(notifId);
+          const notification: NotificationData = {
+            id: notifId,
+            type: 'new_referral',
+            message: `New referral from ${referral.referring_hospital || 'External Hospital'}: ${referral.patient_name}`,
+            referralId: referral.referral_id,
+            timestamp: referral.created_at,
+          };
+          saveNotificationToStorage(notification);
+          onNotification(notification);
+          newNotificationCount++;
+        }
       }
 
       // Check for transferred referrals (Triage users)
@@ -86,15 +141,46 @@ const checkForNewNotifications = async (
         referral.transferred_at &&
         referral.transferred_at > (lastCheckedTimestamp || '')
       ) {
-        console.log('🟢 Transferred referral detected:', referral.referral_id);
-        onNotification({
-          id: `referral_transferred_${referral.id}`,
-          type: 'referral_transferred',
-          message: `New referral transferred by EDCC: ${referral.patient_name} - ${referral.referral_id}`,
-          referralId: referral.referral_id,
-          timestamp: referral.transferred_at,
-        });
-        newNotificationCount++;
+        const notifId = `referral_transferred_${referral.id}`;
+        if (!shownNotificationIds.has(notifId)) {
+          console.log('🟢 Transferred referral detected:', referral.referral_id);
+          shownNotificationIds.add(notifId);
+          const notification: NotificationData = {
+            id: notifId,
+            type: 'referral_transferred',
+            message: `New referral transferred by EDCC: ${referral.patient_name} - ${referral.referral_id}`,
+            referralId: referral.referral_id,
+            timestamp: referral.transferred_at,
+          };
+          saveNotificationToStorage(notification);
+          onNotification(notification);
+          newNotificationCount++;
+        }
+      }
+
+      // Check for delayed transfer notifications (Triage users)
+      if (
+        userPermissions?.can_triage_referrals &&
+        referral.status === 'dispositioned' &&
+        referral.delay_notified_at
+      ) {
+        const delayId = `delay_transfer_${referral.id}_${referral.delay_notified_at}`;
+        const isNewDelay = referral.delay_notified_at > (lastCheckedTimestamp || '');
+        
+        if (isNewDelay && !shownNotificationIds.has(delayId)) {
+          console.log('🟠 Delayed transfer detected:', referral.referral_id);
+          shownNotificationIds.add(delayId);
+          const notification: NotificationData = {
+            id: delayId,
+            type: 'referral_transferred',
+            message: `Transfer delayed for ${referral.patient_full_name}: ${referral.delay_reason} - ${referral.referral_id}`,
+            referralId: referral.referral_id,
+            timestamp: referral.delay_notified_at,
+          };
+          saveNotificationToStorage(notification);
+          onNotification(notification);
+          newNotificationCount++;
+        }
       }
 
       // Check for department-assigned referrals (View Only doctors)
@@ -106,16 +192,22 @@ const checkForNewNotifications = async (
         referral.transferred_at &&
         referral.transferred_at > (lastCheckedTimestamp || '')
       ) {
-        console.log('🟣 New patient assigned to department:', referral.referral_id);
-        const departmentName = userPermissions.department.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-        onNotification({
-          id: `department_referral_${referral.id}`,
-          type: 'referral_transferred',
-          message: `New patient in ${departmentName}: ${referral.patient_full_name} - ${referral.referral_id}`,
-          referralId: referral.referral_id,
-          timestamp: referral.transferred_at,
-        });
-        newNotificationCount++;
+        const notifId = `department_referral_${referral.id}`;
+        if (!shownNotificationIds.has(notifId)) {
+          console.log('🟣 New patient assigned to department:', referral.referral_id);
+          const departmentName = userPermissions.department.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+          shownNotificationIds.add(notifId);
+          const notification: NotificationData = {
+            id: notifId,
+            type: 'referral_transferred',
+            message: `New patient in ${departmentName}: ${referral.patient_full_name} - ${referral.referral_id}`,
+            referralId: referral.referral_id,
+            timestamp: referral.transferred_at,
+          };
+          saveNotificationToStorage(notification);
+          onNotification(notification);
+          newNotificationCount++;
+        }
       }
     });
 
@@ -132,6 +224,9 @@ const checkForNewNotifications = async (
 // Track last checked timestamp for account approvals
 let lastApprovalCheckTimestamp: string | null = null;
 let isFirstCheck = true;
+let lastReferrerAccountCheckTimestamp: string | null = null;
+let isFirstReferrerCheck = true;
+let referrerAccountCache: Map<number, any> = new Map();
 
 // For admin account approval notifications
 export const checkAccountApprovals = async (
@@ -172,7 +267,7 @@ export const checkAccountApprovals = async (
 
     console.log(`📋 Found ${pendingApprovals.length} pending approval(s)`);
 
-    if (Array.isArray(pendingApprovals) && pendingApprovals.length > 0) {
+        if (Array.isArray(pendingApprovals) && pendingApprovals.length > 0) {
       const currentTimestamp = new Date().toISOString();
       let newApprovalCount = 0;
       
@@ -188,12 +283,15 @@ export const checkAccountApprovals = async (
                              approval.referrer_type === 'hospital_employee' ? 'Hospital Employee' : 
                              'Referrer';
           
-          onNotification({
+          const notification: NotificationData = {
             id: `account_approval_${approval.id}_${approval.created_at}`,
             type: 'account_approval',
             message: `New ${accountType} registration: ${approval.first_name} ${approval.last_name}`,
             timestamp: approval.created_at,
-          });
+            isAccountNotification: true,
+          };
+          saveNotificationToStorage(notification);
+          onNotification(notification);
           
           newApprovalCount++;
         }
@@ -213,5 +311,106 @@ export const checkAccountApprovals = async (
     }
   } catch (error) {
     console.error('❌ Error checking account approvals:', error);
+  }
+};
+
+// For referrer account status notifications (approval/rejection for referrers)
+export const checkReferrerAccountStatus = async (
+  isReferrer: boolean,
+  onNotification: (notification: NotificationData) => void
+) => {
+  if (!isReferrer) return;
+
+  try {
+    console.log('🔍 Checking referrer account status...');
+    
+    // Set initial timestamp if not set
+    if (!lastReferrerAccountCheckTimestamp) {
+      lastReferrerAccountCheckTimestamp = new Date().toISOString();
+      console.log('📅 Initial referrer check timestamp set:', lastReferrerAccountCheckTimestamp);
+    }
+
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      console.error('❌ No auth token found');
+      return;
+    }
+
+    // Get current user's referrer profile
+    const response = await fetch('/api/referrers/my_profile/', {
+      headers: {
+        'Authorization': `Token ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error('❌ Failed to fetch referrer profile:', response.status);
+      return;
+    }
+
+    const referrerData = await response.json();
+    const referrerId = referrerData.id;
+    const isActive = referrerData.user?.is_active || false;
+    const currentTimestamp = new Date().toISOString();
+
+    // Check if this is the first check
+    if (isFirstReferrerCheck) {
+      // Cache the current status
+      referrerAccountCache.set(referrerId, { isActive, checkedAt: currentTimestamp });
+      isFirstReferrerCheck = false;
+      console.log('✅ First referrer check complete - will now monitor for status changes');
+      lastReferrerAccountCheckTimestamp = currentTimestamp;
+      return;
+    }
+
+    // Check if status has changed
+    const cachedData = referrerAccountCache.get(referrerId);
+    if (cachedData && cachedData.isActive !== isActive) {
+      console.log('🔄 Referrer account status changed:', { from: cachedData.isActive, to: isActive });
+
+      if (isActive) {
+        // Account was approved
+        console.log('🟢 Referrer account approved');
+        const notifId = `account_approved_${referrerId}_${currentTimestamp}`;
+        if (!shownNotificationIds.has(notifId)) {
+          shownNotificationIds.add(notifId);
+          const notification: NotificationData = {
+            id: notifId,
+            type: 'account_approved',
+            message: 'Your account has been approved! You can now submit referrals.',
+            accountId: referrerId.toString(),
+            timestamp: currentTimestamp,
+            isAccountNotification: true,
+          };
+          saveNotificationToStorage(notification);
+          onNotification(notification);
+        }
+      } else {
+        // Account was rejected
+        console.log('🔴 Referrer account rejected');
+        const notifId = `account_rejected_${referrerId}_${currentTimestamp}`;
+        if (!shownNotificationIds.has(notifId)) {
+          shownNotificationIds.add(notifId);
+          const notification: NotificationData = {
+            id: notifId,
+            type: 'account_rejected',
+            message: 'Your account registration was rejected. Please contact admin for details.',
+            accountId: referrerId.toString(),
+            timestamp: currentTimestamp,
+            isAccountNotification: true,
+          };
+          saveNotificationToStorage(notification);
+          onNotification(notification);
+        }
+      }
+
+      // Update cache
+      referrerAccountCache.set(referrerId, { isActive, checkedAt: currentTimestamp });
+    }
+
+    lastReferrerAccountCheckTimestamp = currentTimestamp;
+  } catch (error) {
+    console.error('❌ Error checking referrer account status:', error);
   }
 };

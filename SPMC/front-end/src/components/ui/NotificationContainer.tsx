@@ -55,7 +55,7 @@ export const NotificationContainer = ({ notifications, onRemove, onNotificationC
         });
 
         setVisibleNotifications(shouldShow);
-        // Remove from delayed list
+        // Remove from delayed list ONLY after showing
         setDelayedNotifications(prev => 
           prev.filter(n => n.showAt > now)
         );
