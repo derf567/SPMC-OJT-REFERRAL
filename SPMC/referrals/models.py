@@ -116,6 +116,17 @@ class ReferringHospital(models.Model):
     address = models.TextField(blank=True, null=True)
     contact_number = models.CharField(max_length=20, blank=True, null=True)
     
+    # DOH Level
+    doh_level = models.CharField(max_length=50, blank=True, null=True, help_text="Primary, Secondary, or Tertiary")
+    
+    # Detailed address fields (from PSGC API)
+    region = models.CharField(max_length=200, blank=True, null=True)
+    province = models.CharField(max_length=200, blank=True, null=True)
+    city = models.CharField(max_length=200, blank=True, null=True)
+    barangay = models.CharField(max_length=200, blank=True, null=True)
+    street = models.TextField(blank=True, null=True)
+    district = models.CharField(max_length=100, blank=True, null=True)
+    
     def __str__(self):
         return self.name
 

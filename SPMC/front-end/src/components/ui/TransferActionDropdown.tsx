@@ -16,6 +16,7 @@ interface TransferActionDropdownProps {
   patientName: string;
   onFillForm: () => void;
   onDelaySuccess: () => void;
+  hasDelayNotification?: boolean; // New prop to check if delay already submitted
 }
 
 export function TransferActionDropdown({
@@ -23,6 +24,7 @@ export function TransferActionDropdown({
   patientName,
   onFillForm,
   onDelaySuccess,
+  hasDelayNotification = false, // Default to false
 }: TransferActionDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [delayModalOpen, setDelayModalOpen] = useState(false);
@@ -82,16 +84,26 @@ export function TransferActionDropdown({
 
             <button
               onClick={() => {
-                setDelayModalOpen(true);
-                setIsOpen(false);
+                if (!hasDelayNotification) {
+                  setDelayModalOpen(true);
+                  setIsOpen(false);
+                }
               }}
-              className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-900 dark:text-white transition-colors"
+              disabled={hasDelayNotification}
+              className={`w-full text-left px-4 py-3 flex items-center gap-2 transition-colors ${
+                hasDelayNotification
+                  ? 'opacity-50 cursor-not-allowed bg-gray-50 dark:bg-gray-900'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
+              }`}
+              title={hasDelayNotification ? 'Delay notification already submitted' : 'Notify EDCC/Triage of delay'}
             >
-              <Clock className="w-4 h-4 text-orange-600" />
+              <Clock className={`w-4 h-4 ${hasDelayNotification ? 'text-gray-400' : 'text-orange-600'}`} />
               <div>
-                <div className="font-medium">Delay Transfer</div>
+                <div className={`font-medium ${hasDelayNotification ? 'text-gray-500 dark:text-gray-600' : ''}`}>
+                  {hasDelayNotification ? 'Delay Already Notified' : 'Delay Transfer'}
+                </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Notify EDCC/Triage
+                  {hasDelayNotification ? 'Cannot submit again' : 'Notify EDCC/Triage'}
                 </div>
               </div>
             </button>

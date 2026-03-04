@@ -228,6 +228,15 @@ const ExternalReferral = () => {
             }));
             
             // Debug: Log what was set
+            console.log('Hospital data loaded:', {
+              hospital_name: user.hospital_name,
+              hospital_region: user.hospital_region,
+              hospital_province: user.hospital_province,
+              hospital_city: user.hospital_city,
+              hospital_barangay: user.hospital_barangay,
+              hospital_street: user.hospital_street,
+              hospital_doh_level: user.hospital_doh_level,
+            });
             console.log('Set referringFacilityName to:', user.hospital_name || profileData.hospital_name);
           } catch (error) {
             console.warn('Could not load referrer profile:', error);
@@ -516,7 +525,9 @@ const ExternalReferral = () => {
     // For doctors/others, check formData.referringFacilityName
     const referringFacility = (user && user.hospital_name) ? user.hospital_name : formData.referringFacilityName;
     if (!referringFacility) errors.push("Referring Facility is required");
-    if (!formData.hospitalDohLevel) errors.push("Hospital DOH Level is required");
+    // For hospital accounts, check user.hospital_doh_level; for others, check formData.hospitalDohLevel
+    const hospitalDohLevel = (user && user.hospital_doh_level) ? user.hospital_doh_level : formData.hospitalDohLevel;
+    if (!hospitalDohLevel) errors.push("Hospital DOH Level is required");
     if (!formData.referrerName.trim()) errors.push("Referrer Name is required");
     if (!formData.referrerProfession.trim()) errors.push("Referrer Profession is required");
     if (formData.referrerProfession === "others" && !formData.referrerProfessionOther.trim()) {
@@ -594,7 +605,7 @@ const ExternalReferral = () => {
             ? { hospital_name: hospitalValue } 
             : { referring_hospital: parseInt(hospitalValue) };
         })(),
-        hospital_doh_level: formData.hospitalDohLevel || null,
+        hospital_doh_level: (user && user.hospital_doh_level) ? user.hospital_doh_level : formData.hospitalDohLevel || null,
         hospital_location: formData.hospitalLocation || null,
         hospital_contact_numbers: user?.contact_numbers || [],
         hospital_region: selectedRegion?.name || formData.hospitalRegion || null,
@@ -1244,11 +1255,27 @@ const ExternalReferral = () => {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
                     value={formData.referringFacilityName}
                     onChange={(e) => {
-                      updateFormData('referringFacilityName', e.target.value);
-                      const selectedHospital = referrerProfile.affiliate_hospitals.find((h: any) => h.id.toString() === e.target.value);
+                      const hospitalId = e.target.value;
+                      updateFormData('referringFacilityName', hospitalId);
+                      
+                      // Find selected hospital and auto-fill its details
+                      const selectedHospital = referrerProfile.affiliate_hospitals.find((h: any) => h.id.toString() === hospitalId);
                       if (selectedHospital) {
-                        updateFormData('isInsideDavaoCity', selectedHospital.is_inside_davao_city);
+                        // Auto-fill hospital details from database
+                        updateFormData('isInsideDavaoCity', selectedHospital.is_inside_davao_city || true);
                         updateFormData('hospitalLocation', selectedHospital.location || '');
+                        updateFormData('hospitalDohLevel', selectedHospital.doh_level || '');
+                        
+                        // Auto-fill address fields if available
+                        if (selectedHospital.region) updateFormData('hospitalRegion', selectedHospital.region);
+                        if (selectedHospital.province) updateFormData('hospitalProvince', selectedHospital.province);
+                        if (selectedHospital.city) updateFormData('hospitalCity', selectedHospital.city);
+                        if (selectedHospital.barangay) updateFormData('hospitalBarangay', selectedHospital.barangay);
+                        if (selectedHospital.street) updateFormData('hospitalStreet', selectedHospital.street);
+                        if (selectedHospital.district) updateFormData('hospitalDistrict', selectedHospital.district);
+                        if (selectedHospital.contact_number) {
+                          updateFormData('hospitalContactNumbers', [selectedHospital.contact_number]);
+                        }
                       }
                     }}
                   >
@@ -1262,7 +1289,30 @@ const ExternalReferral = () => {
                   <select 
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
                     value={formData.referringFacilityName}
-                    onChange={(e) => updateFormData('referringFacilityName', e.target.value)}
+                    onChange={(e) => {
+                      const hospitalId = e.target.value;
+                      updateFormData('referringFacilityName', hospitalId);
+                      
+                      // Find selected hospital and auto-fill its details
+                      const selectedHospital = hospitals.find((h: any) => h.id.toString() === hospitalId);
+                      if (selectedHospital) {
+                        // Auto-fill hospital details from database
+                        updateFormData('isInsideDavaoCity', selectedHospital.is_inside_davao_city || true);
+                        updateFormData('hospitalLocation', selectedHospital.location || '');
+                        updateFormData('hospitalDohLevel', selectedHospital.doh_level || '');
+                        
+                        // Auto-fill address fields if available
+                        if (selectedHospital.region) updateFormData('hospitalRegion', selectedHospital.region);
+                        if (selectedHospital.province) updateFormData('hospitalProvince', selectedHospital.province);
+                        if (selectedHospital.city) updateFormData('hospitalCity', selectedHospital.city);
+                        if (selectedHospital.barangay) updateFormData('hospitalBarangay', selectedHospital.barangay);
+                        if (selectedHospital.street) updateFormData('hospitalStreet', selectedHospital.street);
+                        if (selectedHospital.district) updateFormData('hospitalDistrict', selectedHospital.district);
+                        if (selectedHospital.contact_number) {
+                          updateFormData('hospitalContactNumbers', [selectedHospital.contact_number]);
+                        }
+                      }
+                    }}
                   >
                     <option value="">Select hospital</option>
                     {hospitals.map((hospital) => (
@@ -1286,6 +1336,14 @@ const ExternalReferral = () => {
                   <input
                     type="text"
                     value={user.hospital_doh_level.charAt(0).toUpperCase() + user.hospital_doh_level.slice(1)}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
+                  />
+                ) : formData.referringFacilityName ? (
+                  // Show auto-filled DOH level as text when hospital is selected
+                  <input
+                    type="text"
+                    value={formData.hospitalDohLevel ? formData.hospitalDohLevel.charAt(0).toUpperCase() + formData.hospitalDohLevel.slice(1) : ''}
                     readOnly
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed"
                   />
@@ -1322,7 +1380,7 @@ const ExternalReferral = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Region *
                   </label>
-                  {user?.hospital_name && formData.hospitalRegion ? (
+                  {(user?.hospital_name || (formData.referringFacilityName && formData.hospitalRegion)) ? (
                     <input
                       type="text"
                       value={formData.hospitalRegion}
@@ -1334,7 +1392,6 @@ const ExternalReferral = () => {
                       value={formData.hospitalRegion}
                       onChange={(e) => {
                         const selectedCode = e.target.value;
-                        // Store the code for useEffect to trigger, but we'll store the name on submit
                         updateFormData('hospitalRegion', selectedCode);
                       }}
                       disabled={loadingRegions}
@@ -1353,7 +1410,7 @@ const ExternalReferral = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Province *
                   </label>
-                  {user?.hospital_name && formData.hospitalProvince ? (
+                  {(user?.hospital_name || (formData.referringFacilityName && formData.hospitalProvince)) ? (
                     <input
                       type="text"
                       value={formData.hospitalProvince}
@@ -1389,7 +1446,7 @@ const ExternalReferral = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     City / Municipality *
                   </label>
-                  {user?.hospital_name && formData.hospitalCity ? (
+                  {(user?.hospital_name || (formData.referringFacilityName && formData.hospitalCity)) ? (
                     <input
                       type="text"
                       value={formData.hospitalCity}
@@ -1429,9 +1486,9 @@ const ExternalReferral = () => {
                     type="text"
                     value={formData.hospitalBarangay}
                     onChange={(e) => updateFormData('hospitalBarangay', e.target.value)}
-                    readOnly={!!(user?.hospital_name && formData.hospitalBarangay)}
+                    readOnly={!!((user?.hospital_name || formData.referringFacilityName) && formData.hospitalBarangay)}
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
-                      (user?.hospital_name && formData.hospitalBarangay)
+                      ((user?.hospital_name || formData.referringFacilityName) && formData.hospitalBarangay)
                         ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
                         : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     }`}
@@ -1448,13 +1505,13 @@ const ExternalReferral = () => {
                     value={formData.hospitalStreet}
                     onChange={(e) => {
                       // For auto-filled fields, don't allow editing
-                      if (!(user?.hospital_name && formData.hospitalStreet)) {
+                      if (!((user?.hospital_name || formData.referringFacilityName) && formData.hospitalStreet)) {
                         updateFormData('hospitalStreet', e.target.value);
                       }
                     }}
-                    readOnly={!!(user?.hospital_name && formData.hospitalStreet)}
+                    readOnly={!!((user?.hospital_name || formData.referringFacilityName) && formData.hospitalStreet)}
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
-                      (user?.hospital_name && formData.hospitalStreet)
+                      ((user?.hospital_name || formData.referringFacilityName) && formData.hospitalStreet)
                         ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-not-allowed' 
                         : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                     }`}

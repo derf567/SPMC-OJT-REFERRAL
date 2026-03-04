@@ -356,7 +356,20 @@ def user_profile(request):
                     'is_admin_user': profile.is_admin_user,
                     'is_doctor': profile.is_doctor,
                     'can_view_department_referrals': profile.can_view_department_referrals,
-                }
+                },
+                # Hospital information for referrers
+                'hospital_name': profile.hospital_name,
+                'hospital_location': profile.hospital_location,
+                'hospital_doh_level': profile.hospital_doh_level,
+                'is_inside_davao': profile.is_inside_davao,
+                'contact_numbers': profile.contact_numbers,
+                # Detailed hospital address
+                'hospital_region': profile.hospital_region,
+                'hospital_province': profile.hospital_province,
+                'hospital_city': profile.hospital_city,
+                'hospital_barangay': profile.hospital_barangay,
+                'hospital_street': profile.hospital_street,
+                'hospital_district': profile.hospital_district,
             }
         })
     else:

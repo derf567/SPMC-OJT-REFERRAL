@@ -69,10 +69,16 @@ class NotificationSound {
       audio.currentTime = 0;
       audio.volume = volume;
       
-      // Play the audio
-      await audio.play();
+      // Play the audio with error handling
+      try {
+        await audio.play();
+      } catch (playError) {
+        console.warn('Audio playback failed, using generated sound instead:', playError);
+        // Fallback to generated sound if file fails to load
+        this.playGeneratedNotification();
+      }
     } catch (error) {
-      console.error('Error playing audio file:', error);
+      console.error('Error preparing audio file:', error);
       // Fallback to generated sound if file fails to load
       this.playGeneratedNotification();
     }
@@ -178,7 +184,10 @@ class NotificationSound {
       if (this.selectedSound === 'generated') {
         this.playGeneratedUrgentNotification();
       } else {
-        this.playAudioFile(NOTIFICATION_SOUNDS[this.selectedSound], 0.7);
+        this.playAudioFile(NOTIFICATION_SOUNDS[this.selectedSound], 0.7).catch(() => {
+          // If all else fails, use generated urgent sound
+          this.playGeneratedUrgentNotification();
+        });
       }
     });
   }

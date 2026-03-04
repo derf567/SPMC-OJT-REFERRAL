@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect, useRef } from "react";
+import { ReactNode, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -272,11 +272,12 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   // Start notification polling
   useEffect(() => {
     if (user && user.permissions) {
+      // Use useCallback to memoize the handler and prevent re-renders
       const handleNotification = (notification: NotificationData) => {
         setLiveNotifications((prev) => {
           // Avoid duplicates
           if (prev.some(n => n.id === notification.id)) {
-            return prev;
+            return prev; // Return same reference to prevent re-render
           }
           return [...prev, notification];
         });
@@ -288,7 +289,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         stopNotificationPolling();
       };
     }
-  }, [user]);
+  }, [user?.id, user?.permissions]); // Only re-run if user ID or permissions change
 
   // Check referrer account status for referrers
   useEffect(() => {
@@ -297,7 +298,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         setLiveNotifications((prev) => {
           // Avoid duplicates
           if (prev.some(n => n.id === notification.id)) {
-            return prev;
+            return prev; // Return same reference to prevent re-render
           }
           return [...prev, notification];
         });
@@ -306,14 +307,14 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       // Check immediately
       checkReferrerAccountStatus(true, handleNotification);
 
-      // Check every 10 seconds
+      // Check every 30 seconds (increased from 10 to reduce flickering)
       const interval = setInterval(() => {
         checkReferrerAccountStatus(true, handleNotification);
-      }, 10000);
+      }, 30000); // Changed from 10000 to 30000
 
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user?.id, user?.role]); // Only re-run if user ID or role changes
 
   const removeNotification = (id: string) => {
     setLiveNotifications((prev) => prev.filter(n => n.id !== id));

@@ -66,14 +66,14 @@ export const startNotificationPolling = (
 
   console.log('🔔 Notification polling started for user with permissions:', userPermissions);
 
-  // Poll every 5 seconds
+  // Poll every 30 seconds (reduced from 5 seconds to prevent flickering)
   notificationCheckInterval = setInterval(async () => {
     try {
       await checkForNewNotifications(userPermissions, onNotification);
     } catch (error) {
       console.error('Error checking notifications:', error);
     }
-  }, 5000);
+  }, 30000); // Changed from 5000 to 30000 (30 seconds)
 
   // Also check immediately
   checkForNewNotifications(userPermissions, onNotification);
@@ -227,6 +227,7 @@ let isFirstCheck = true;
 let lastReferrerAccountCheckTimestamp: string | null = null;
 let isFirstReferrerCheck = true;
 let referrerAccountCache: Map<number, any> = new Map();
+let referrerAccountNotFound = false; // Track if user has no ReferrerAccount
 
 // For admin account approval notifications
 export const checkAccountApprovals = async (
@@ -321,9 +322,12 @@ export const checkReferrerAccountStatus = async (
 ) => {
   if (!isReferrer) return;
 
+  // If we already know the user doesn't have a ReferrerAccount, skip the check
+  if (referrerAccountNotFound) {
+    return;
+  }
+
   try {
-    console.log('🔍 Checking referrer account status...');
-    
     // Set initial timestamp if not set
     if (!lastReferrerAccountCheckTimestamp) {
       lastReferrerAccountCheckTimestamp = new Date().toISOString();
@@ -345,6 +349,13 @@ export const checkReferrerAccountStatus = async (
     });
 
     if (!response.ok) {
+      // 404 means user doesn't have a ReferrerAccount yet - this is normal for new users
+      if (response.status === 404) {
+        // Cache this result so we don't keep making the same request
+        referrerAccountNotFound = true;
+        console.log('ℹ️ Referrer profile not found (user may not have created one yet) - will not check again');
+        return;
+      }
       console.error('❌ Failed to fetch referrer profile:', response.status);
       return;
     }

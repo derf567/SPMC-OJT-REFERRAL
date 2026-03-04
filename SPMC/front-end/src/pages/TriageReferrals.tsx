@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { referralsAPI, departmentsAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { Loader2, ClipboardList, CheckCircle, Clock, XCircle } from 'lucide-react';
@@ -67,14 +67,20 @@ export default function TriageReferrals() {
   const [cancellationReason, setCancellationReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
+  
+  // Use ref to track if modal is open to prevent flickering during re-renders
+  const isModalOpenRef = useRef(false);
 
   useEffect(() => {
     fetchTriageReferrals();
     fetchDepartments();
     
     // Set up auto-refresh every 10 seconds to catch department decisions
+    // BUT: Only refresh if no modal is open to prevent flickering
     const interval = setInterval(() => {
-      fetchTriageReferrals();
+      if (!isModalOpenRef.current) {
+        fetchTriageReferrals();
+      }
     }, 10000);
     
     return () => clearInterval(interval);
@@ -116,28 +122,43 @@ export default function TriageReferrals() {
   const handleAssignDepartments = (referral: TriageReferral) => {
     setSelectedReferral(referral);
     setShowAssignDialog(true);
+    isModalOpenRef.current = true;
   };
 
   const handleViewDetails = (referral: TriageReferral) => {
     setSelectedReferral(referral);
     setShowDetailsDialog(true);
+    isModalOpenRef.current = true;
   };
 
   const handleMarkComplete = (referral: TriageReferral) => {
     setSelectedReferral(referral);
     setCompletionNotes('');
     setShowCompleteDialog(true);
+    isModalOpenRef.current = true;
   };
 
   const handleMarkCancelled = (referral: TriageReferral) => {
     setSelectedReferral(referral);
     setCancellationReason('');
     setShowCancelDialog(true);
+    isModalOpenRef.current = true;
   };
 
   const handleApproveForTransit = (referral: TriageReferral) => {
     setSelectedReferral(referral);
     setShowApproveForTransitDialog(true);
+    isModalOpenRef.current = true;
+  };
+
+  const closeModal = () => {
+    setShowAssignDialog(false);
+    setShowDetailsDialog(false);
+    setShowCompleteDialog(false);
+    setShowCancelDialog(false);
+    setShowApproveForTransitDialog(false);
+    setSelectedReferral(null);
+    isModalOpenRef.current = false;
   };
 
   const submitComplete = async () => {
@@ -428,14 +449,10 @@ export default function TriageReferrals() {
         <AssignDepartmentsDialog
           referral={selectedReferral}
           departments={departments}
-          onClose={() => {
-            setShowAssignDialog(false);
-            setSelectedReferral(null);
-          }}
+          onClose={closeModal}
           onSuccess={() => {
             fetchTriageReferrals();
-            setShowAssignDialog(false);
-            setSelectedReferral(null);
+            closeModal();
           }}
         />
       )}
@@ -445,12 +462,9 @@ export default function TriageReferrals() {
         <DetailsDialog
           referral={selectedReferral}
           departments={departments}
-          onClose={() => {
-            setShowDetailsDialog(false);
-            setSelectedReferral(null);
-          }}
+          onClose={closeModal}
           onRedirect={() => {
-            setShowDetailsDialog(false);
+            closeModal();
             handleAssignDepartments(selectedReferral);
           }}
         />
@@ -458,7 +472,7 @@ export default function TriageReferrals() {
 
       {/* Complete Dialog */}
       {showCompleteDialog && selectedReferral && (
-        <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
+        <Dialog open={showCompleteDialog} onOpenChange={closeModal}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -499,7 +513,7 @@ export default function TriageReferrals() {
               <div className="flex gap-2 justify-end">
                 <Button
                   variant="outline"
-                  onClick={() => setShowCompleteDialog(false)}
+                  onClick={closeModal}
                   disabled={submitting}
                 >
                   Cancel
@@ -529,7 +543,7 @@ export default function TriageReferrals() {
 
       {/* Cancel Dialog */}
       {showCancelDialog && selectedReferral && (
-        <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <Dialog open={showCancelDialog} onOpenChange={closeModal}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -571,7 +585,7 @@ export default function TriageReferrals() {
               <div className="flex gap-2 justify-end">
                 <Button
                   variant="outline"
-                  onClick={() => setShowCancelDialog(false)}
+                  onClick={closeModal}
                   disabled={submitting}
                 >
                   Cancel

@@ -379,6 +379,7 @@ const ReferrerDashboard = () => {
               <TransferActionDropdown
                 referralId={recentReferrals.find(r => r.status === 'dispositioned')?.id || ''}
                 patientName={recentReferrals.find(r => r.status === 'dispositioned')?.patient_full_name || ''}
+                hasDelayNotification={!!recentReferrals.find(r => r.status === 'dispositioned')?.delay_notified_at}
                 onFillForm={() => {
                   const referral = recentReferrals.find(r => r.status === 'dispositioned');
                   if (referral) {

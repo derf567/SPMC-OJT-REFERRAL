@@ -8,7 +8,7 @@ from .models import (
 class ReferringHospitalSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReferringHospital
-        fields = '__all__'
+        fields = '__all__'  # Include all fields including new address fields
 
 class SpecialtySerializer(serializers.ModelSerializer):
     class Meta:
