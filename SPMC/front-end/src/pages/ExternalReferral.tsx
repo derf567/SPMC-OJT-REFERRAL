@@ -83,9 +83,10 @@ interface ReferralFormData {
   referrerProfessionOther: string;
   referrerCellphone: string;
   referrerContactNumbers: string[];
+  patientWatcherName: string;
+  patientWatcherContactNumbers: string[];
   modeOfTransportation: string;
   modeOfTransportationOther: string;
-  patientWatcherContactNumbers: string[];
   
   // Consent & Transfer
   consentSecured: boolean;
@@ -137,9 +138,10 @@ const initialFormData: ReferralFormData = {
   referrerProfessionOther: "",
   referrerCellphone: "",
   referrerContactNumbers: [],
+  patientWatcherName: "",
+  patientWatcherContactNumbers: [],
   modeOfTransportation: "",
   modeOfTransportationOther: "",
-  patientWatcherContactNumbers: [],
   
   consentSecured: false,
   reasonForReferral: "",

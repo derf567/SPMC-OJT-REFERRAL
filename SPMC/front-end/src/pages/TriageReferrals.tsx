@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { referralsAPI, departmentsAPI } from '@/lib/api';
 import { toast } from 'sonner';
-import { Loader2, ClipboardList, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Loader2, ClipboardList, CheckCircle, Clock, XCircle, FileText, MapPin, X } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,10 @@ export default function TriageReferrals() {
   const [cancellationReason, setCancellationReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
+  
+  // Timeline modal state
+  const [timelineModalOpen, setTimelineModalOpen] = useState(false);
+  const [selectedReferralForTimeline, setSelectedReferralForTimeline] = useState<TriageReferral | null>(null);
   
   // Use ref to track if modal is open to prevent flickering during re-renders
   const isModalOpenRef = useRef(false);
@@ -225,6 +229,106 @@ export default function TriageReferrals() {
       </DashboardLayout>
     );
   }
+
+  // Timeline functions
+  const openTimelineModal = (referral: TriageReferral) => {
+    setSelectedReferralForTimeline(referral);
+    setTimelineModalOpen(true);
+  };
+
+  const getStepColors = (color: string, completed: boolean) => {
+    if (!completed) {
+      return {
+        bg: 'bg-gray-200 dark:bg-gray-700',
+        border: 'border-gray-300 dark:border-gray-600',
+        icon: 'text-gray-400 dark:text-gray-500'
+      };
+    }
+
+    const colorMap: Record<string, { bg: string; border: string; icon: string }> = {
+      green: { bg: 'bg-green-500', border: 'border-green-200', icon: 'text-white' },
+      blue: { bg: 'bg-blue-500', border: 'border-blue-200', icon: 'text-white' },
+      cyan: { bg: 'bg-cyan-500', border: 'border-cyan-200', icon: 'text-white' },
+      purple: { bg: 'bg-purple-500', border: 'border-purple-200', icon: 'text-white' },
+      orange: { bg: 'bg-orange-500', border: 'border-orange-200', icon: 'text-white' },
+      red: { bg: 'bg-red-500', border: 'border-red-200', icon: 'text-white' }
+    };
+
+    return colorMap[color] || colorMap.green;
+  };
+
+  const getTimelineSteps = (referral: TriageReferral) => {
+    const isCancelled = referral.status === 'cancelled';
+    const isScheduleOPD = referral.status === 'schedule_opd';
+    
+    const triageConfirmed = referral.assigned_departments && referral.assigned_departments.length > 0;
+    const mainServiceAccepted = referral.status === 'dispositioned' || 
+                                 referral.status === 'in_transit' || 
+                                 referral.status === 'completed' ||
+                                 isScheduleOPD;
+    const dispositionFinalized = referral.status === 'dispositioned' || 
+                                  referral.status === 'in_transit' || 
+                                  referral.status === 'completed';
+    const inTransit = referral.status === 'in_transit' || referral.status === 'completed';
+    const isCompleted = referral.status === 'completed' || isScheduleOPD;
+
+    return [
+      {
+        status: 'pending',
+        label: 'Request Submitted',
+        description: 'Referral request submitted',
+        icon: FileText,
+        color: 'green',
+        completed: true,
+        date: referral.created_at,
+      },
+      {
+        status: 'triage_confirmed',
+        label: 'Triage Confirmed',
+        description: 'EDCC/EDMA assigned departments',
+        icon: Clock,
+        color: 'blue',
+        completed: isCancelled ? false : (triageConfirmed || mainServiceAccepted || dispositionFinalized || inTransit || isCompleted),
+        date: referral.created_at,
+      },
+      {
+        status: 'endorsement_complete',
+        label: 'Endorsement Complete',
+        description: 'Main Service accepted',
+        icon: CheckCircle,
+        color: 'cyan',
+        completed: isCancelled ? false : (isScheduleOPD ? false : (mainServiceAccepted || dispositionFinalized || inTransit || isCompleted)),
+        date: null,
+      },
+      {
+        status: 'dispositioned',
+        label: 'Disposition Finalized',
+        description: 'Transit template sent',
+        icon: FileText,
+        color: 'purple',
+        completed: isCancelled ? false : (isScheduleOPD ? false : (dispositionFinalized || inTransit || isCompleted)),
+        date: null,
+      },
+      {
+        status: 'in_transit',
+        label: 'In Transit',
+        description: 'Patient in transport',
+        icon: MapPin,
+        color: 'orange',
+        completed: isCancelled ? false : (isScheduleOPD ? false : inTransit),
+        date: null,
+      },
+      {
+        status: 'completed',
+        label: isCancelled ? 'Cancelled' : 'Complete',
+        description: isCancelled ? 'Referral cancelled' : isScheduleOPD ? 'Scheduled for OPD' : 'Process completed',
+        icon: isCancelled ? X : CheckCircle,
+        color: isCancelled ? 'red' : 'green',
+        completed: isCompleted || isCancelled,
+        date: null,
+      }
+    ];
+  };
 
   return (
     <DashboardLayout>
@@ -434,6 +538,14 @@ export default function TriageReferrals() {
                             </button>
                           </>
                         )}
+                        {/* Timeline Button - Icon only to save space */}
+                        <button
+                          onClick={() => openTimelineModal(referral)}
+                          className="p-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                          title="View timeline"
+                        >
+                          <Clock className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -628,6 +740,89 @@ export default function TriageReferrals() {
             setSelectedReferral(null);
           }}
         />
+      )}
+
+      {/* Timeline Modal */}
+      {timelineModalOpen && selectedReferralForTimeline && (
+        <Dialog open={timelineModalOpen} onOpenChange={setTimelineModalOpen}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-gray-900 text-white border-gray-800">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-white">Referral Timeline</DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Track the progress of referral {selectedReferralForTimeline.referral_id}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6">
+              {/* Patient Info */}
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="font-semibold text-white mb-3">Patient Information</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-400">Name:</span>
+                    <span className="ml-2 font-medium text-white">
+                      {selectedReferralForTimeline.patient_full_name}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Age/Gender:</span>
+                    <span className="ml-2 font-medium text-white">
+                      {selectedReferralForTimeline.age} yrs, {selectedReferralForTimeline.gender}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400">Chief Complaint:</span>
+                    <span className="ml-2 font-medium text-white">
+                      {selectedReferralForTimeline.chief_complaint}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div className="relative">
+                {getTimelineSteps(selectedReferralForTimeline).map((step, index) => {
+                  const Icon = step.icon;
+                  const isLast = index === getTimelineSteps(selectedReferralForTimeline).length - 1;
+                  const colors = getStepColors(step.color, step.completed);
+                  
+                  return (
+                    <div key={step.status} className="flex gap-4 pb-8 relative">
+                      {/* Vertical Line */}
+                      {!isLast && (
+                        <div 
+                          className={`absolute left-6 top-12 w-0.5 h-full ${
+                            step.completed ? 'bg-green-500' : 'bg-gray-700'
+                          }`}
+                        />
+                      )}
+                      
+                      {/* Icon Circle */}
+                      <div className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full border-4 ${colors.bg} ${colors.border}`}>
+                        <Icon className={`w-6 h-6 ${colors.icon}`} />
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="flex-1 pt-1">
+                        <h4 className={`font-semibold ${step.completed ? 'text-white' : 'text-gray-500'}`}>
+                          {step.label}
+                        </h4>
+                        <p className={`text-sm ${step.completed ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {step.description}
+                        </p>
+                        {step.date && step.completed && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(step.date).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
     </DashboardLayout>

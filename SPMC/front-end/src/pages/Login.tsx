@@ -97,11 +97,12 @@ const Login = () => {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
+                  style={{ WebkitTextSecurity: showPassword ? 'none' : 'disc' } as React.CSSProperties}
                 />
                 <button
                   type="button"
@@ -155,9 +156,9 @@ const Login = () => {
               </Link>
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Are you a doctor?{" "}
+              Are you a doctor working in SPMC?{" "}
               <Link to="/register/doctor" className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 font-medium">
-                Register as Doctor
+                Register your Department
               </Link>
             </p>
           </div>

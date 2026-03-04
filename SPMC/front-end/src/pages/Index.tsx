@@ -10,7 +10,17 @@ import {
   Activity,
   Truck,
   ClipboardCheck,
+  MapPin,
+  X,
+  AlertTriangle,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface DashboardStats {
   total_referrals_today: number;
@@ -59,6 +69,10 @@ const Index = () => {
   const [activeReferrals, setActiveReferrals] = useState<Referral[]>([]);
   const [dispositionedReferrals, setDispositionedReferrals] = useState<Referral[]>([]);
   const [inTransitReferrals, setInTransitReferrals] = useState<Referral[]>([]);
+  
+  // Timeline modal state
+  const [timelineModalOpen, setTimelineModalOpen] = useState(false);
+  const [selectedReferralForTimeline, setSelectedReferralForTimeline] = useState<Referral | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -202,6 +216,87 @@ const Index = () => {
     return labels[status] || status;
   };
 
+  // Timeline functions
+  const openTimelineModal = (e: React.MouseEvent, referral: Referral) => {
+    e.preventDefault(); // Prevent Link navigation
+    e.stopPropagation();
+    setSelectedReferralForTimeline(referral);
+    setTimelineModalOpen(true);
+  };
+
+  const getTimelineSteps = (referral: Referral) => {
+    const isCancelled = referral.status === 'cancelled';
+    const isScheduleOPD = referral.status === 'schedule_opd';
+    
+    const triageConfirmed = referral.triage_decision || referral.assigned_departments;
+    const mainServiceAccepted = referral.status === 'dispositioned' || 
+                                 referral.status === 'in_transit' || 
+                                 referral.status === 'completed' ||
+                                 isScheduleOPD;
+    const dispositionFinalized = referral.status === 'dispositioned' || 
+                                  referral.status === 'in_transit' || 
+                                  referral.status === 'completed';
+    const inTransit = referral.status === 'in_transit' || referral.status === 'completed';
+    const isCompleted = referral.status === 'completed' || isScheduleOPD;
+
+    return [
+      {
+        status: 'pending',
+        label: 'Request Submitted',
+        description: 'Referral request submitted',
+        icon: FileText,
+        color: 'green',
+        completed: true,
+        date: referral.created_at,
+      },
+      {
+        status: 'triage_confirmed',
+        label: 'Triage Confirmed',
+        description: 'EDCC/EDMA assigned departments',
+        icon: Clock,
+        color: 'blue',
+        completed: isCancelled ? false : (triageConfirmed || mainServiceAccepted || dispositionFinalized || inTransit || isCompleted),
+        date: referral.created_at,
+      },
+      {
+        status: 'endorsement_complete',
+        label: 'Endorsement Complete',
+        description: 'Main Service accepted',
+        icon: CheckCircle,
+        color: 'cyan',
+        completed: isCancelled ? false : (isScheduleOPD ? false : (mainServiceAccepted || dispositionFinalized || inTransit || isCompleted)),
+        date: null,
+      },
+      {
+        status: 'dispositioned',
+        label: 'Disposition Finalized',
+        description: 'Transit template sent',
+        icon: FileText,
+        color: 'purple',
+        completed: isCancelled ? false : (isScheduleOPD ? false : (dispositionFinalized || inTransit || isCompleted)),
+        date: null,
+      },
+      {
+        status: 'in_transit',
+        label: 'In Transit',
+        description: 'Patient in transport',
+        icon: MapPin,
+        color: 'orange',
+        completed: isCancelled ? false : (isScheduleOPD ? false : inTransit),
+        date: null,
+      },
+      {
+        status: 'completed',
+        label: isCancelled ? 'Cancelled' : 'Complete',
+        description: isCancelled ? 'Referral cancelled' : isScheduleOPD ? 'Scheduled for OPD' : 'Process completed',
+        icon: isCancelled ? X : CheckCircle,
+        color: isCancelled ? 'red' : 'green',
+        completed: isCompleted || isCancelled,
+        date: null,
+      }
+    ];
+  };
+
   const renderReferralCard = (referral: Referral) => {
     // Check if referral is endorsed (has assigned departments)
     const isEndorsed = referral.assigned_departments && referral.assigned_departments.length > 0;
@@ -267,6 +362,14 @@ const Index = () => {
             <div className="flex items-center gap-2 mt-2">
               <Clock className="w-3 h-3 text-gray-400" />
               <span className="text-xs text-gray-400">{formatDate(referral.created_at)}</span>
+              <button
+                onClick={(e) => openTimelineModal(e, referral)}
+                className="ml-auto text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline"
+                title="View timeline"
+              >
+                <Clock className="w-3 h-3" />
+                Timeline
+              </button>
             </div>
           </div>
         </div>
@@ -485,6 +588,104 @@ const Index = () => {
           </div>
         </div>
       </div>
+
+      {/* Timeline Modal */}
+      <Dialog open={timelineModalOpen} onOpenChange={setTimelineModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-gray-900 text-white border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-white">Referral Timeline</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Track the progress of referral {selectedReferralForTimeline?.referral_id}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedReferralForTimeline && (
+            <div className="space-y-6">
+              {/* Patient Information */}
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="font-semibold text-white mb-3">Patient Information</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-400">Name:</span>
+                    <span className="ml-2 font-medium text-white">{selectedReferralForTimeline.patient_full_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Age/Gender:</span>
+                    <span className="ml-2 font-medium text-white">
+                      {selectedReferralForTimeline.age} yrs, {selectedReferralForTimeline.gender}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400">Chief Complaint:</span>
+                    <span className="ml-2 font-medium text-white">{selectedReferralForTimeline.chief_complaint}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div className="relative">
+                {getTimelineSteps(selectedReferralForTimeline).map((step, index) => {
+                  const IconComponent = step.icon;
+                  const isCompleted = step.completed;
+                  const isLast = index === getTimelineSteps(selectedReferralForTimeline).length - 1;
+
+                  // Get color classes
+                  const getColorClasses = () => {
+                    if (isCompleted) {
+                      switch (step.color) {
+                        case 'yellow': return { bg: 'bg-yellow-500', border: 'border-yellow-200', icon: 'text-white' };
+                        case 'blue': return { bg: 'bg-blue-500', border: 'border-blue-200', icon: 'text-white' };
+                        case 'cyan': return { bg: 'bg-cyan-500', border: 'border-cyan-200', icon: 'text-white' };
+                        case 'green': return { bg: 'bg-green-500', border: 'border-green-200', icon: 'text-white' };
+                        case 'purple': return { bg: 'bg-purple-500', border: 'border-purple-200', icon: 'text-white' };
+                        case 'red': return { bg: 'bg-red-500', border: 'border-red-200', icon: 'text-white' };
+                        case 'orange': return { bg: 'bg-orange-500', border: 'border-orange-200', icon: 'text-white' };
+                        default: return { bg: 'bg-gray-500', border: 'border-gray-200', icon: 'text-white' };
+                      }
+                    }
+                    return { bg: 'bg-gray-700', border: 'border-gray-600', icon: 'text-gray-500' };
+                  };
+
+                  const colors = getColorClasses();
+
+                  return (
+                    <div key={step.status} className="flex gap-4 pb-8 relative">
+                      {/* Vertical Line */}
+                      {!isLast && (
+                        <div 
+                          className={`absolute left-6 top-12 w-0.5 h-full ${
+                            isCompleted ? 'bg-green-500' : 'bg-gray-700'
+                          }`}
+                        />
+                      )}
+                      
+                      {/* Icon Circle */}
+                      <div className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full border-4 ${colors.bg} ${colors.border}`}>
+                        <IconComponent className={`w-6 h-6 ${colors.icon}`} />
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="flex-1 pt-1">
+                        <h4 className={`font-semibold ${isCompleted ? 'text-white' : 'text-gray-500'}`}>
+                          {step.label}
+                        </h4>
+                        <p className={`text-sm ${isCompleted ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {step.description}
+                        </p>
+                        {step.date && isCompleted && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(step.date).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

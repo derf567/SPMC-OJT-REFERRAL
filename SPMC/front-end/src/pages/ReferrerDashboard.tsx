@@ -232,95 +232,111 @@ const ReferrerDashboard = () => {
   };
 
   const getTimelineSteps = (referral: any) => {
+    const isCancelled = referral.status === 'cancelled';
+    const isScheduleOPD = referral.status === 'schedule_opd';
+    
+    // Check if triage confirmed (has triage decision and departments assigned)
+    const triageConfirmed = referral.triage_decision || referral.assigned_department;
+    
+    // Check if main service accepted (endorsement complete)
+    const mainServiceAccepted = referral.status === 'dispositioned' || 
+                                 referral.status === 'in_transit' || 
+                                 referral.status === 'completed' ||
+                                 isScheduleOPD;
+    
+    // Check if disposition finalized (transit template sent)
+    const dispositionFinalized = referral.status === 'dispositioned' || 
+                                  referral.status === 'in_transit' || 
+                                  referral.status === 'completed';
+    
+    // Check if in transit (transit template submitted)
+    const inTransit = referral.status === 'in_transit' || referral.status === 'completed';
+    
+    // Check if completed
+    const isCompleted = referral.status === 'completed' || isScheduleOPD;
+
     const steps = [
       {
         status: 'pending',
         label: 'Request Submitted',
         description: 'Referral request submitted and awaiting review',
         icon: FileText,
-        color: 'yellow',
-        completed: true,
+        color: 'green',
+        completed: true, // Always lit
         date: referral.created_at,
-        user: referral.created_by_user || 'System',
-        action: 'Created referral'
+        user: referral.created_by_user || 'Referrer',
+        action: 'Created referral request'
       },
       {
-        status: 'in_triage',
-        label: 'Under Triage',
-        description: 'Referral is being reviewed by EDCC/Triage staff',
+        status: 'triage_confirmed',
+        label: 'Triage Confirmed',
+        description: 'EDCC/EDMA assigned triage level and departments',
         icon: Clock,
         color: 'blue',
-        completed: ['in_triage', 'waiting_acceptance', 'dispositioned', 'in_transit', 'emergent', 'urgent', 'schedule_opd', 'completed', 'cancelled'].includes(referral.status),
-        date: referral.transferred_at || referral.created_at,
-        user: referral.transferred_by_user || 'EDCC Staff',
-        action: 'Forwarded to Triage'
-      }
-    ];
-
-    // Add Waiting Department Acceptance step
-    steps.push({
-      status: 'waiting_acceptance',
-      label: 'Waiting Department Acceptance',
-      description: 'Departments are reviewing and deciding on the referral',
-      icon: Clock,
-      color: 'cyan',
-      completed: ['waiting_acceptance', 'dispositioned', 'in_transit', 'completed', 'cancelled'].includes(referral.status),
-      date: referral.triaged_at || referral.updated_at,
-      user: referral.triaged_by_user || 'Triage Staff',
-      action: referral.triage_decision ? `Assigned to departments with ${referral.triage_decision.replace('_', ' ').toUpperCase()} priority` : 'Assigned to departments'
-    });
-
-    // Add Dispositioned step
-    steps.push({
-      status: 'dispositioned',
-      label: 'Dispositioned',
-      description: 'Majority of departments accepted - ready for transit',
-      icon: CheckCircle,
-      color: 'green',
-      completed: ['dispositioned', 'in_transit', 'completed', 'cancelled'].includes(referral.status),
-      date: referral.status === 'dispositioned' || referral.status === 'in_transit' || referral.status === 'completed' ? referral.updated_at : null,
-      user: 'Department Doctors',
-      action: 'Departments accepted referral'
-    });
-
-    // Add In Transit step
-    steps.push({
-      status: 'in_transit',
-      label: 'In Transit',
-      description: 'Patient is being transported to the facility',
-      icon: MapPin,
-      color: 'purple',
-      completed: ['in_transit', 'completed', 'cancelled'].includes(referral.status),
-      date: referral.status === 'in_transit' || referral.status === 'completed' ? referral.updated_at : null,
-      user: referral.created_by_user || 'Referrer',
-      action: 'Transit form filled - patient in transport'
-    });
-
-    // Add final status steps
-    steps.push(
-      {
-        status: 'completed',
-        label: 'Completed',
-        description: 'Referral process completed successfully',
-        icon: CheckCircle,
-        color: 'gray',
-        completed: referral.status === 'completed',
-        date: referral.status === 'completed' ? referral.updated_at : null,
-        user: 'EDCC/Triage Staff',
-        action: 'Patient arrived and treated'
+        completed: isCancelled ? false : (triageConfirmed || mainServiceAccepted || dispositionFinalized || inTransit || isCompleted),
+        date: referral.triaged_at || referral.transferred_at,
+        user: referral.triaged_by_user || referral.transferred_by_user || 'EDCC/EDMA',
+        action: referral.triage_decision 
+          ? `Assigned ${referral.triage_decision.replace('_', ' ').toUpperCase()} priority with Main Service` 
+          : 'Assigned to departments'
       },
       {
-        status: 'cancelled',
-        label: 'Cancelled',
-        description: 'Referral has been cancelled',
-        icon: X,
-        color: 'red',
-        completed: referral.status === 'cancelled',
-        date: referral.status === 'cancelled' ? referral.updated_at : null,
-        user: referral.triaged_by_user || referral.transferred_by_user || 'Staff',
-        action: 'Referral cancelled'
+        status: 'endorsement_complete',
+        label: 'Endorsement Complete',
+        description: 'Main Service department accepted the referral',
+        icon: CheckCircle,
+        color: 'cyan',
+        completed: isCancelled ? false : (isScheduleOPD ? false : (mainServiceAccepted || dispositionFinalized || inTransit || isCompleted)),
+        date: referral.status === 'dispositioned' || referral.status === 'in_transit' || referral.status === 'completed' ? referral.updated_at : null,
+        user: 'Main Service Department',
+        action: 'Main Service accepted referral'
+      },
+      {
+        status: 'dispositioned',
+        label: 'Disposition Finalized',
+        description: 'Departments accepted and transit template sent',
+        icon: FileText,
+        color: 'purple',
+        completed: isCancelled ? false : (isScheduleOPD ? false : (dispositionFinalized || inTransit || isCompleted)),
+        date: referral.status === 'dispositioned' || referral.status === 'in_transit' || referral.status === 'completed' ? referral.updated_at : null,
+        user: 'EDCC/EDMA',
+        action: 'Transit template sent to referrer'
+      },
+      {
+        status: 'in_transit',
+        label: 'In Transit',
+        description: 'Transit template submitted - patient in transport',
+        icon: MapPin,
+        color: 'orange',
+        completed: isCancelled ? false : (isScheduleOPD ? false : inTransit),
+        date: referral.status === 'in_transit' || referral.status === 'completed' ? referral.updated_at : null,
+        user: referral.created_by_user || 'Referrer',
+        action: 'Transit form submitted'
+      },
+      {
+        status: 'completed',
+        label: isCancelled ? 'Cancelled' : 'Complete',
+        description: isCancelled 
+          ? 'Referral has been cancelled' 
+          : isScheduleOPD 
+            ? 'Scheduled for Outpatient Department' 
+            : 'Referral process completed successfully',
+        icon: isCancelled ? X : CheckCircle,
+        color: isCancelled ? 'red' : 'green',
+        completed: isCompleted || isCancelled,
+        date: (referral.status === 'completed' || referral.status === 'cancelled' || isScheduleOPD) ? referral.updated_at : null,
+        user: isCancelled 
+          ? (referral.triaged_by_user || referral.transferred_by_user || referral.created_by_user || 'Staff')
+          : isScheduleOPD 
+            ? 'EDCC/EDMA'
+            : 'EDCC/EDMA',
+        action: isCancelled 
+          ? 'Referral cancelled' 
+          : isScheduleOPD 
+            ? 'Marked as Schedule OPD' 
+            : 'Patient arrived and admitted'
       }
-    );
+    ];
 
     return steps;
   };
@@ -1077,143 +1093,91 @@ const ReferrerDashboard = () => {
 
       {/* Timeline Modal */}
       <Dialog open={timelineModalOpen} onOpenChange={setTimelineModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-gray-900 text-white border-gray-800">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Referral Timeline - {selectedReferral?.patient_full_name}
-            </DialogTitle>
-            <DialogDescription>
-              Track the complete journey of this referral from submission to completion
+            <DialogTitle className="text-xl font-bold text-white">Referral Timeline</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Track the progress of referral {selectedReferral?.referral_id}
             </DialogDescription>
           </DialogHeader>
 
           {selectedReferral && (
             <div className="space-y-6">
-              {/* Referral Info */}
-              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
+              {/* Patient Information */}
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="font-semibold text-white mb-3">Patient Information</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">Referral ID:</span>
-                    <span className="ml-2 text-gray-900 dark:text-white">{selectedReferral.referral_id}</span>
+                    <span className="text-gray-400">Name:</span>
+                    <span className="ml-2 font-medium text-white">{selectedReferral.patient_full_name}</span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">Specialty:</span>
-                    <span className="ml-2 text-gray-900 dark:text-white">{selectedReferral.specialty_needed_name}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">Chief Complaint:</span>
-                    <span className="ml-2 text-gray-900 dark:text-white">{selectedReferral.chief_complaint}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">Current Status:</span>
-                    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedReferral.status)}`}>
-                      {getStatusLabel(selectedReferral.status)}
+                    <span className="text-gray-400">Age/Gender:</span>
+                    <span className="ml-2 font-medium text-white">
+                      {selectedReferral.age} yrs, {selectedReferral.gender}
                     </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400">Chief Complaint:</span>
+                    <span className="ml-2 font-medium text-white">{selectedReferral.chief_complaint}</span>
                   </div>
                 </div>
               </div>
 
               {/* Timeline */}
-              <div className="space-y-4">
+              <div className="relative">
                 {getTimelineSteps(selectedReferral).map((step, index) => {
                   const IconComponent = step.icon;
                   const isCompleted = step.completed;
-                  const isCurrent = selectedReferral.status === step.status;
+                  const isLast = index === getTimelineSteps(selectedReferral).length - 1;
 
                   // Get color classes based on step color
                   const getColorClasses = () => {
                     if (isCompleted) {
                       switch (step.color) {
-                        case 'yellow': return 'bg-yellow-500 text-white';
-                        case 'blue': return 'bg-blue-500 text-white';
-                        case 'cyan': return 'bg-cyan-500 text-white';
-                        case 'green': return 'bg-green-500 text-white';
-                        case 'purple': return 'bg-purple-500 text-white';
-                        case 'red': return 'bg-red-500 text-white';
-                        case 'orange': return 'bg-orange-500 text-white';
-                        default: return 'bg-gray-500 text-white';
+                        case 'yellow': return { bg: 'bg-yellow-500', border: 'border-yellow-200', icon: 'text-white' };
+                        case 'blue': return { bg: 'bg-blue-500', border: 'border-blue-200', icon: 'text-white' };
+                        case 'cyan': return { bg: 'bg-cyan-500', border: 'border-cyan-200', icon: 'text-white' };
+                        case 'green': return { bg: 'bg-green-500', border: 'border-green-200', icon: 'text-white' };
+                        case 'purple': return { bg: 'bg-purple-500', border: 'border-purple-200', icon: 'text-white' };
+                        case 'red': return { bg: 'bg-red-500', border: 'border-red-200', icon: 'text-white' };
+                        case 'orange': return { bg: 'bg-orange-500', border: 'border-orange-200', icon: 'text-white' };
+                        default: return { bg: 'bg-gray-500', border: 'border-gray-200', icon: 'text-white' };
                       }
-                    } else if (isCurrent) {
-                      switch (step.color) {
-                        case 'yellow': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-2 border-yellow-500';
-                        case 'blue': return 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-2 border-blue-500';
-                        case 'cyan': return 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border-2 border-cyan-500';
-                        case 'green': return 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-2 border-green-500';
-                        case 'purple': return 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-2 border-purple-500';
-                        case 'red': return 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-2 border-red-500';
-                        case 'orange': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-2 border-orange-500';
-                        default: return 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400 border-2 border-gray-500';
-                      }
-                    } else {
-                      return 'bg-gray-200 dark:bg-gray-700 text-gray-400';
                     }
+                    return { bg: 'bg-gray-700', border: 'border-gray-600', icon: 'text-gray-500' };
                   };
 
-                  const getTitleColorClass = () => {
-                    if (isCompleted) return 'text-gray-900 dark:text-white';
-                    if (isCurrent) {
-                      switch (step.color) {
-                        case 'yellow': return 'text-yellow-600 dark:text-yellow-400';
-                        case 'blue': return 'text-blue-600 dark:text-blue-400';
-                        case 'cyan': return 'text-cyan-600 dark:text-cyan-400';
-                        case 'green': return 'text-green-600 dark:text-green-400';
-                        case 'purple': return 'text-purple-600 dark:text-purple-400';
-                        case 'red': return 'text-red-600 dark:text-red-400';
-                        case 'orange': return 'text-orange-600 dark:text-orange-400';
-                        default: return 'text-gray-600 dark:text-gray-400';
-                      }
-                    }
-                    return 'text-gray-500 dark:text-gray-400';
-                  };
+                  const colors = getColorClasses();
 
                   return (
-                    <div key={step.status} className="flex items-start gap-4">
-                      {/* Timeline line */}
-                      <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getColorClasses()}`}>
-                          {isCompleted ? (
-                            <Check className="w-5 h-5" />
-                          ) : (
-                            <IconComponent className="w-5 h-5" />
-                          )}
-                        </div>
-                        {index < getTimelineSteps(selectedReferral).length - 1 && (
-                          <div className={`w-0.5 h-8 ${
-                            isCompleted ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
-                          }`} />
-                        )}
+                    <div key={step.status} className="flex gap-4 pb-8 relative">
+                      {/* Vertical Line */}
+                      {!isLast && (
+                        <div 
+                          className={`absolute left-6 top-12 w-0.5 h-full ${
+                            isCompleted ? 'bg-green-500' : 'bg-gray-700'
+                          }`}
+                        />
+                      )}
+                      
+                      {/* Icon Circle */}
+                      <div className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full border-4 ${colors.bg} ${colors.border}`}>
+                        <IconComponent className={`w-6 h-6 ${colors.icon}`} />
                       </div>
-
+                      
                       {/* Content */}
-                      <div className="flex-1 pb-8">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className={`font-medium ${getTitleColorClass()}`}>
-                            {step.label}
-                          </h4>
-                          {isCurrent && (
-                            <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded-full">
-                              Current
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      <div className="flex-1 pt-1">
+                        <h4 className={`font-semibold ${isCompleted ? 'text-white' : 'text-gray-500'}`}>
+                          {step.label}
+                        </h4>
+                        <p className={`text-sm ${isCompleted ? 'text-gray-400' : 'text-gray-500'}`}>
                           {step.description}
                         </p>
-                        {step.date && (
-                          <div className="space-y-1">
-                            <p className="text-xs text-gray-500 dark:text-gray-500">
-                              {new Date(step.date).toLocaleString()}
-                            </p>
-                            {step.user && step.action && (
-                              <p className="text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1">
-                                <User className="w-3 h-3" />
-                                <span className="font-medium">{step.user}</span>
-                                <span className="text-gray-400">•</span>
-                                <span>{step.action}</span>
-                              </p>
-                            )}
-                          </div>
+                        {step.date && isCompleted && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(step.date).toLocaleString()}
+                          </p>
                         )}
                       </div>
                     </div>
