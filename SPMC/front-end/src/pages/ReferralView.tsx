@@ -19,7 +19,6 @@ import {
   Phone
 } from "lucide-react";
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 
 export const ReferralView = () => {
   const { id } = useParams();
@@ -92,43 +91,56 @@ export const ReferralView = () => {
     try {
       setDownloading(true);
       
-      // Create new PDF document
-      const doc = new jsPDF();
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
-      let yPos = 20;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
+
+      const checkPageBreak = (spaceNeeded: number) => {
+        if (yPos + spaceNeeded > pageHeight - margin) {
+          doc.addPage();
+          yPos = margin;
+        }
+      };
+
+      const addSection = (title: string) => {
+        checkPageBreak(12);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(37, 99, 235);
+        doc.text(title, margin, yPos);
+        yPos += 5;
+        doc.setDrawColor(200, 200, 200);
+        doc.line(margin, yPos, pageWidth - margin, yPos);
+        yPos += 5;
+      };
 
       // Header
-      doc.setFontSize(18);
+      doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
       doc.text('SPMC Referral System', pageWidth / 2, yPos, { align: 'center' });
-      yPos += 8;
-      
-      doc.setFontSize(14);
-      doc.text('Patient Referral Details', pageWidth / 2, yPos, { align: 'center' });
       yPos += 6;
       
-      doc.setFontSize(10);
+      doc.setFontSize(12);
+      doc.text('Patient Referral Details', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 4;
+      
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.text(`Referral ID: ${referral.referral_id}`, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 5;
+      yPos += 3;
       doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 10;
+      yPos += 8;
 
-      // Patient Information Section
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(37, 99, 235); // Blue color
-      doc.text('Patient Information', 14, yPos);
-      yPos += 2;
-      doc.setDrawColor(200, 200, 200);
-      doc.line(14, yPos, pageWidth - 14, yPos);
-      yPos += 6;
-
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
+      // Patient Information
+      addSection('Patient Information');
+      doc.setFontSize(9);
       doc.setTextColor(0, 0, 0);
-      
-      const patientInfo = [
+
+      const patientData = [
         ['Patient Name:', referral.patient_full_name],
         ['Category:', referral.patient_category?.replace('_', ' ') || 'N/A'],
         ['Birthday:', referral.birthday || 'N/A'],
@@ -138,30 +150,22 @@ export const ReferralView = () => {
         ['Admission Status:', referral.admission_status?.replace('_', ' ') || 'N/A']
       ];
 
-      patientInfo.forEach(([label, value]) => {
+      patientData.forEach(([label, value]) => {
+        checkPageBreak(5);
         doc.setFont('helvetica', 'bold');
-        doc.text(label, 14, yPos);
+        doc.text(label, margin, yPos);
         doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(value, pageWidth - 70);
-        doc.text(lines, 70, yPos);
-        yPos += 6 * lines.length;
+        const lines = doc.splitTextToSize(String(value), contentWidth - 50);
+        doc.text(lines, margin + 50, yPos);
+        yPos += Math.max(4, lines.length * 3.5);
       });
 
-      yPos += 4;
-
-      // Patient Status Section
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(37, 99, 235);
-      doc.text('Patient Status', 14, yPos);
       yPos += 2;
-      doc.line(14, yPos, pageWidth - 14, yPos);
-      yPos += 6;
 
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
-
-      const statusInfo = [
+      // Patient Status
+      addSection('Patient Status');
+      
+      const statusData = [
         ['Chief Complaint:', referral.chief_complaint],
         ['Working Impression:', referral.working_impression],
         ...(referral.pertinent_history ? [['Pertinent History:', referral.pertinent_history]] : []),
@@ -169,35 +173,21 @@ export const ReferralView = () => {
         ...(referral.management_done ? [['Management Done:', referral.management_done]] : [])
       ];
 
-      statusInfo.forEach(([label, value]) => {
-        if (yPos > 270) {
-          doc.addPage();
-          yPos = 20;
-        }
+      statusData.forEach(([label, value]) => {
+        checkPageBreak(5);
         doc.setFont('helvetica', 'bold');
-        doc.text(label, 14, yPos);
+        doc.text(label, margin, yPos);
         doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(value || 'N/A', pageWidth - 70);
-        doc.text(lines, 70, yPos);
-        yPos += 6 * lines.length;
+        const lines = doc.splitTextToSize(String(value) || 'N/A', contentWidth - 50);
+        doc.text(lines, margin + 50, yPos);
+        yPos += Math.max(4, lines.length * 3.5);
       });
 
-      yPos += 4;
+      yPos += 2;
 
-      // Vital Signs Section
+      // Vital Signs
       if (referral.bp || referral.hr || referral.rr || referral.temp || referral.o2_sat) {
-        if (yPos > 240) {
-          doc.addPage();
-          yPos = 20;
-        }
-
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(37, 99, 235);
-        doc.text('Latest Vital Signs', 14, yPos);
-        yPos += 2;
-        doc.line(14, yPos, pageWidth - 14, yPos);
-        yPos += 8;
+        addSection('Latest Vital Signs');
 
         const vitalSigns = [];
         if (referral.bp) vitalSigns.push(['Blood Pressure', referral.bp]);
@@ -209,37 +199,38 @@ export const ReferralView = () => {
         if (referral.o2_support) vitalSigns.push(['O2 Support', referral.o2_support]);
         if (referral.rtpcr_result) vitalSigns.push(['RTPCR Result', referral.rtpcr_result.toUpperCase()]);
 
-        (doc as any).autoTable({
-          startY: yPos,
-          head: [['Vital Sign', 'Value']],
-          body: vitalSigns,
-          theme: 'grid',
-          headStyles: { fillColor: [37, 99, 235], textColor: 255 },
-          margin: { left: 14, right: 14 },
-          styles: { fontSize: 9 }
+        checkPageBreak(vitalSigns.length * 4 + 8);
+
+        // Table header
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setFillColor(37, 99, 235);
+        doc.setTextColor(255, 255, 255);
+        doc.rect(margin, yPos - 2, contentWidth, 4, 'F');
+        doc.text('Vital Sign', margin + 2, yPos + 1);
+        doc.text('Value', margin + contentWidth - 20, yPos + 1);
+        yPos += 5;
+
+        // Table rows
+        doc.setTextColor(0, 0, 0);
+        doc.setFont('helvetica', 'normal');
+        vitalSigns.forEach((row, index) => {
+          if (index % 2 === 0) {
+            doc.setFillColor(245, 245, 245);
+            doc.rect(margin, yPos - 2, contentWidth, 4, 'F');
+          }
+          doc.text(row[0], margin + 2, yPos + 1);
+          doc.text(String(row[1]), margin + contentWidth - 20, yPos + 1);
+          yPos += 4;
         });
 
-        yPos = (doc as any).lastAutoTable.finalY + 8;
+        yPos += 2;
       }
 
-      // Referring Hospital Section
-      if (yPos > 240) {
-        doc.addPage();
-        yPos = 20;
-      }
+      // Referring Hospital
+      addSection('Referring Hospital & Referrer Information');
 
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(37, 99, 235);
-      doc.text('Referring Hospital & Referrer Information', 14, yPos);
-      yPos += 2;
-      doc.line(14, yPos, pageWidth - 14, yPos);
-      yPos += 6;
-
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
-
-      const hospitalInfo = [
+      const hospitalData = [
         ['Facility Name:', referral.referring_hospital_name],
         ...(referral.hospital_doh_level ? [['DOH Level:', referral.hospital_doh_level]] : []),
         ['Referrer Name:', referral.referrer_name],
@@ -252,39 +243,22 @@ export const ReferralView = () => {
           ? [['Watcher Contacts:', referral.patient_watcher_contact_numbers.join(', ')]] : [])
       ];
 
-      hospitalInfo.forEach(([label, value]) => {
-        if (yPos > 270) {
-          doc.addPage();
-          yPos = 20;
-        }
+      hospitalData.forEach(([label, value]) => {
+        checkPageBreak(5);
         doc.setFont('helvetica', 'bold');
-        doc.text(label, 14, yPos);
+        doc.text(label, margin, yPos);
         doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(value || 'N/A', pageWidth - 70);
-        doc.text(lines, 70, yPos);
-        yPos += 6 * lines.length;
+        const lines = doc.splitTextToSize(String(value) || 'N/A', contentWidth - 50);
+        doc.text(lines, margin + 50, yPos);
+        yPos += Math.max(4, lines.length * 3.5);
       });
 
-      yPos += 4;
-
-      // Referral Information Section
-      if (yPos > 240) {
-        doc.addPage();
-        yPos = 20;
-      }
-
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(37, 99, 235);
-      doc.text('Referral Information', 14, yPos);
       yPos += 2;
-      doc.line(14, yPos, pageWidth - 14, yPos);
-      yPos += 6;
 
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
+      // Referral Information
+      addSection('Referral Information');
 
-      const referralInfo = [
+      const referralData = [
         ['Status:', referral.status.replace('_', ' ').toUpperCase()],
         ['Priority:', referral.priority || 'N/A'],
         ['Specialty Needed:', referral.specialty_needed_name || 'N/A'],
@@ -292,17 +266,14 @@ export const ReferralView = () => {
         ['Created:', new Date(referral.created_at).toLocaleString()]
       ];
 
-      referralInfo.forEach(([label, value]) => {
-        if (yPos > 270) {
-          doc.addPage();
-          yPos = 20;
-        }
+      referralData.forEach(([label, value]) => {
+        checkPageBreak(5);
         doc.setFont('helvetica', 'bold');
-        doc.text(label, 14, yPos);
+        doc.text(label, margin, yPos);
         doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(value || 'N/A', pageWidth - 70);
-        doc.text(lines, 70, yPos);
-        yPos += 6 * lines.length;
+        const lines = doc.splitTextToSize(String(value) || 'N/A', contentWidth - 50);
+        doc.text(lines, margin + 50, yPos);
+        yPos += Math.max(4, lines.length * 3.5);
       });
 
       // Save the PDF
