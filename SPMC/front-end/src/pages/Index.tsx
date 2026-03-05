@@ -228,14 +228,18 @@ const Index = () => {
     const isCancelled = referral.status === 'cancelled';
     const isScheduleOPD = referral.status === 'schedule_opd';
     
-    const triageConfirmed = referral.triage_decision || referral.assigned_departments;
-    const mainServiceAccepted = referral.status === 'dispositioned' || 
+    // Check if disposition finalized (triage has made a decision and assigned departments)
+    const dispositionFinalized = (
+      referral.triage_decision || 
+      (referral.assigned_departments && referral.assigned_departments.length > 0) ||
+      referral.status === 'waiting_acceptance' ||
+      referral.status === 'awaiting_triage_verification'
+    );
+    const mainServiceAccepted = referral.status === 'awaiting_triage_verification' ||
+                                 referral.status === 'dispositioned' || 
                                  referral.status === 'in_transit' || 
                                  referral.status === 'completed' ||
                                  isScheduleOPD;
-    const dispositionFinalized = referral.status === 'dispositioned' || 
-                                  referral.status === 'in_transit' || 
-                                  referral.status === 'completed';
     const inTransit = referral.status === 'in_transit' || referral.status === 'completed';
     const isCompleted = referral.status === 'completed' || isScheduleOPD;
 
@@ -250,12 +254,12 @@ const Index = () => {
         date: referral.created_at,
       },
       {
-        status: 'triage_confirmed',
-        label: 'Triage Confirmed',
+        status: 'disposition_finalized',
+        label: 'Disposition Finalized',
         description: 'EDCC/EDMA assigned departments',
         icon: Clock,
         color: 'blue',
-        completed: isCancelled ? false : (triageConfirmed || mainServiceAccepted || dispositionFinalized || inTransit || isCompleted),
+        completed: isCancelled ? false : (dispositionFinalized || mainServiceAccepted || inTransit || isCompleted),
         date: referral.created_at,
       },
       {
@@ -264,16 +268,7 @@ const Index = () => {
         description: 'Main Service accepted',
         icon: CheckCircle,
         color: 'cyan',
-        completed: isCancelled ? false : (isScheduleOPD ? false : (mainServiceAccepted || dispositionFinalized || inTransit || isCompleted)),
-        date: null,
-      },
-      {
-        status: 'dispositioned',
-        label: 'Disposition Finalized',
-        description: 'Transit template sent',
-        icon: FileText,
-        color: 'purple',
-        completed: isCancelled ? false : (isScheduleOPD ? false : (dispositionFinalized || inTransit || isCompleted)),
+        completed: isCancelled ? false : (isScheduleOPD ? false : (mainServiceAccepted || inTransit || isCompleted)),
         date: null,
       },
       {
@@ -672,6 +667,34 @@ const Index = () => {
                         <p className={`text-sm ${isCompleted ? 'text-gray-400' : 'text-gray-500'}`}>
                           {step.description}
                         </p>
+                        {/* Status Badge */}
+                        <div className="mt-2">
+                          {isCompleted ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/30">
+                              <CheckCircle className="w-3 h-3" />
+                              Completed
+                            </span>
+                          ) : index === getTimelineSteps(selectedReferralForTimeline).findIndex(s => !s.completed) ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full border border-yellow-500/30">
+                              <Clock className="w-3 h-3" />
+                              In Progress
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700/50 text-gray-500 text-xs rounded-full border border-gray-600">
+                              <Clock className="w-3 h-3" />
+                              Pending
+                            </span>
+                          )}
+                        </div>
+                        {/* Contextual Description */}
+                        {!isCompleted && index === getTimelineSteps(selectedReferralForTimeline).findIndex(s => !s.completed) && (
+                          <p className="text-xs text-yellow-400/80 mt-1 italic">
+                            {step.status === 'disposition_finalized' && 'Waiting for EDCC/EDMA to assign departments'}
+                            {step.status === 'endorsement_complete' && 'Waiting for Main Service to accept referral'}
+                            {step.status === 'in_transit' && 'Waiting for transit form submission'}
+                            {step.status === 'completed' && 'Waiting for process completion'}
+                          </p>
+                        )}
                         {step.date && isCompleted && (
                           <p className="text-xs text-gray-500 mt-1">
                             {new Date(step.date).toLocaleString()}

@@ -40,7 +40,10 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
     let errorMessage = `HTTP error! status: ${response.status}`;
     try {
       const errorData = await response.json();
-      console.error('API Error Details:', errorData);
+      // Only log errors that aren't expected 404s for referrer profile
+      if (!(response.status === 404 && endpoint.includes('/referrers/my_profile'))) {
+        console.error('API Error Details:', errorData);
+      }
       errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
     } catch (e) {
       // If response is not JSON, use status text

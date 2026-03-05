@@ -257,6 +257,16 @@ class Referral(models.Model):
     
     # Referring Hospital Information
     referring_hospital = models.ForeignKey(ReferringHospital, on_delete=models.CASCADE)
+    
+    # Hospital Address Fields (stored with each referral for historical accuracy)
+    hospital_region = models.CharField(max_length=200, blank=True, null=True, help_text="Hospital region name")
+    hospital_province = models.CharField(max_length=200, blank=True, null=True, help_text="Hospital province name")
+    hospital_city = models.CharField(max_length=200, blank=True, null=True, help_text="Hospital city/municipality name")
+    hospital_barangay = models.CharField(max_length=200, blank=True, null=True, help_text="Hospital barangay name")
+    hospital_street = models.CharField(max_length=500, blank=True, null=True, help_text="Hospital street address")
+    hospital_district = models.CharField(max_length=200, blank=True, null=True, help_text="Hospital district (if applicable)")
+    hospital_doh_level = models.CharField(max_length=50, blank=True, null=True, help_text="DOH hospital level (primary/secondary/tertiary)")
+    
     referrer_name = models.CharField(max_length=200)
     referrer_profession = models.CharField(max_length=100, choices=REFERRER_PROFESSION_CHOICES)
     referrer_profession_other = models.CharField(max_length=100, blank=True, null=True, help_text="Specify if profession is 'Others'")

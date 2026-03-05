@@ -15,9 +15,7 @@ import {
   Calendar,
   Archive,
   BarChart3,
-  Check,
   X,
-  User,
   MapPin,
   PhoneCall,
 } from "lucide-react";
@@ -235,19 +233,22 @@ const ReferrerDashboard = () => {
     const isCancelled = referral.status === 'cancelled';
     const isScheduleOPD = referral.status === 'schedule_opd';
     
-    // Check if triage confirmed (has triage decision and departments assigned)
-    const triageConfirmed = referral.triage_decision || referral.assigned_department;
+    // Check if disposition finalized (triage has made a decision and assigned departments)
+    // This should only be true when triage has actually processed the referral
+    const dispositionFinalized = (
+      referral.triage_decision || 
+      (referral.assigned_departments && referral.assigned_departments.length > 0) ||
+      referral.status === 'waiting_acceptance' ||
+      referral.status === 'awaiting_triage_verification'
+    );
     
     // Check if main service accepted (endorsement complete)
-    const mainServiceAccepted = referral.status === 'dispositioned' || 
+    // This includes when departments have accepted (awaiting_triage_verification) or when dispositioned
+    const mainServiceAccepted = referral.status === 'awaiting_triage_verification' ||
+                                 referral.status === 'dispositioned' || 
                                  referral.status === 'in_transit' || 
                                  referral.status === 'completed' ||
                                  isScheduleOPD;
-    
-    // Check if disposition finalized (transit template sent)
-    const dispositionFinalized = referral.status === 'dispositioned' || 
-                                  referral.status === 'in_transit' || 
-                                  referral.status === 'completed';
     
     // Check if in transit (transit template submitted)
     const inTransit = referral.status === 'in_transit' || referral.status === 'completed';
@@ -268,12 +269,12 @@ const ReferrerDashboard = () => {
         action: 'Created referral request'
       },
       {
-        status: 'triage_confirmed',
-        label: 'Triage Confirmed',
+        status: 'disposition_finalized',
+        label: 'Disposition Finalized',
         description: 'EDCC/EDMA assigned triage level and departments',
         icon: Clock,
         color: 'blue',
-        completed: isCancelled ? false : (triageConfirmed || mainServiceAccepted || dispositionFinalized || inTransit || isCompleted),
+        completed: isCancelled ? false : (dispositionFinalized || mainServiceAccepted || inTransit || isCompleted),
         date: referral.triaged_at || referral.transferred_at,
         user: referral.triaged_by_user || referral.transferred_by_user || 'EDCC/EDMA',
         action: referral.triage_decision 
@@ -286,21 +287,10 @@ const ReferrerDashboard = () => {
         description: 'Main Service department accepted the referral',
         icon: CheckCircle,
         color: 'cyan',
-        completed: isCancelled ? false : (isScheduleOPD ? false : (mainServiceAccepted || dispositionFinalized || inTransit || isCompleted)),
+        completed: isCancelled ? false : (isScheduleOPD ? false : (mainServiceAccepted || inTransit || isCompleted)),
         date: referral.status === 'dispositioned' || referral.status === 'in_transit' || referral.status === 'completed' ? referral.updated_at : null,
         user: 'Main Service Department',
         action: 'Main Service accepted referral'
-      },
-      {
-        status: 'dispositioned',
-        label: 'Disposition Finalized',
-        description: 'Departments accepted and transit template sent',
-        icon: FileText,
-        color: 'purple',
-        completed: isCancelled ? false : (isScheduleOPD ? false : (dispositionFinalized || inTransit || isCompleted)),
-        date: referral.status === 'dispositioned' || referral.status === 'in_transit' || referral.status === 'completed' ? referral.updated_at : null,
-        user: 'EDCC/EDMA',
-        action: 'Transit template sent to referrer'
       },
       {
         status: 'in_transit',
@@ -1174,6 +1164,34 @@ const ReferrerDashboard = () => {
                         <p className={`text-sm ${isCompleted ? 'text-gray-400' : 'text-gray-500'}`}>
                           {step.description}
                         </p>
+                        {/* Status Badge */}
+                        <div className="mt-2">
+                          {isCompleted ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/30">
+                              <CheckCircle className="w-3 h-3" />
+                              Completed
+                            </span>
+                          ) : index === getTimelineSteps(selectedReferral).findIndex(s => !s.completed) ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full border border-yellow-500/30">
+                              <Clock className="w-3 h-3" />
+                              In Progress
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700/50 text-gray-500 text-xs rounded-full border border-gray-600">
+                              <Clock className="w-3 h-3" />
+                              Pending
+                            </span>
+                          )}
+                        </div>
+                        {/* Contextual Description */}
+                        {!isCompleted && index === getTimelineSteps(selectedReferral).findIndex(s => !s.completed) && (
+                          <p className="text-xs text-yellow-400/80 mt-1 italic">
+                            {step.status === 'disposition_finalized' && 'Waiting for EDCC/EDMA to assign departments'}
+                            {step.status === 'endorsement_complete' && 'Waiting for Main Service to accept referral'}
+                            {step.status === 'in_transit' && 'Waiting for transit form submission'}
+                            {step.status === 'completed' && 'Waiting for process completion'}
+                          </p>
+                        )}
                         {step.date && isCompleted && (
                           <p className="text-xs text-gray-500 mt-1">
                             {new Date(step.date).toLocaleString()}
