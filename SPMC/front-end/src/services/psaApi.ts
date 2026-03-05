@@ -31,14 +31,37 @@ export interface Barangay {
 }
 
 /**
- * Fetch all regions
+ * Fetch all regions (filtered to Mindanao regions only)
+ * Mindanao regions: IX, X, XI, XII, XIII, BARMM
  */
 export const fetchRegions = async (): Promise<Region[]> => {
   try {
     const response = await fetch(`${PSA_API_BASE}/regions`);
     if (!response.ok) throw new Error('Failed to fetch regions');
     const data = await response.json();
-    return data;
+    
+    // Filter to only include Mindanao regions
+    // Mindanao: 09 (IX), 10 (X), 11 (XI), 12 (XII), 13 (XIII), 15 (BARMM), 16 (BARMM)
+    // Explicitly exclude NCR (National Capital Region)
+    const mindanaoRegionCodes = ['09', '10', '11', '12', '13', '15', '16'];
+    const mindanaoRegions = data.filter((region: Region) => {
+      const regionPrefix = region.code.substring(0, 2);
+      const isNCR = region.name.toLowerCase().includes('national capital') || 
+                    region.name.toLowerCase().includes('ncr');
+      const isMindanaoCode = mindanaoRegionCodes.includes(regionPrefix);
+      
+      // Include if it's a Mindanao code AND not NCR
+      // OR if it explicitly mentions BARMM/Bangsamoro
+      const isBARMM = region.name.toLowerCase().includes('barmm') || 
+                      region.name.toLowerCase().includes('bangsamoro');
+      
+      return (isMindanaoCode && !isNCR) || isBARMM;
+    });
+    
+    console.log('All regions from API:', data.map((r: Region) => ({ code: r.code, name: r.name })));
+    console.log('Filtered Mindanao regions:', mindanaoRegions.map((r: Region) => ({ code: r.code, name: r.name })));
+    
+    return mindanaoRegions;
   } catch (error) {
     console.error('Error fetching regions:', error);
     return [];
