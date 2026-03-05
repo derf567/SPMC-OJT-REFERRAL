@@ -6,6 +6,7 @@ import { authAPI } from "@/lib/api";
 import { Eye, EyeOff, ArrowLeft, Stethoscope } from "lucide-react";
 
 const DoctorRegister = () => {
+  const [fieldErrors, setFieldErrors] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     // Account Credentials
     username: "",
@@ -72,9 +73,31 @@ const DoctorRegister = () => {
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData(prev => ({ ...prev, [name]: checked }));
+      
+      // Clear error for checkbox
+      if (checked && fieldErrors.has(name)) {
+        setFieldErrors(prev => {
+          const newErrors = new Set(prev);
+          newErrors.delete(name);
+          return newErrors;
+        });
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
+      
+      // Clear error when field has value
+      if (fieldErrors.has(name) && value.trim() !== '') {
+        setFieldErrors(prev => {
+          const newErrors = new Set(prev);
+          newErrors.delete(name);
+          return newErrors;
+        });
+      }
     }
+  };
+
+  const getFieldErrorClass = (fieldName: string) => {
+    return fieldErrors.has(fieldName) ? 'border-red-500 border-2' : '';
   };
 
   const handleSpecialtyToggle = (specialty: string) => {
@@ -84,16 +107,72 @@ const DoctorRegister = () => {
         ? prev.specialties.filter(s => s !== specialty)
         : [...prev.specialties, specialty]
     }));
+    
+    // Clear error when at least one specialty is selected
+    const newSpecialties = formData.specialties.includes(specialty)
+      ? formData.specialties.filter(s => s !== specialty)
+      : [...formData.specialties, specialty];
+    
+    if (newSpecialties.length > 0 && fieldErrors.has('specialties')) {
+      setFieldErrors(prev => {
+        const newErrors = new Set(prev);
+        newErrors.delete('specialties');
+        return newErrors;
+      });
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSpmcIdFile(e.target.files[0]);
+      
+      // Clear error when file is selected
+      if (fieldErrors.has('spmcIdFile')) {
+        setFieldErrors(prev => {
+          const newErrors = new Set(prev);
+          newErrors.delete('spmcIdFile');
+          return newErrors;
+        });
+      }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent default form validation
+    
+    // Validate all required fields
+    const errors = new Set<string>();
+    
+    // Account Credentials
+    if (!formData.username.trim()) errors.add('username');
+    if (!formData.email.trim()) errors.add('email');
+    if (!formData.password.trim()) errors.add('password');
+    if (!formData.confirmPassword.trim()) errors.add('confirmPassword');
+    
+    // Personal Information
+    if (!formData.firstName.trim()) errors.add('firstName');
+    if (!formData.lastName.trim()) errors.add('lastName');
+    
+    // Professional Information
+    if (formData.specialties.length === 0) errors.add('specialties');
+    if (!formData.department) errors.add('department');
+    if (!formData.spmcId.trim()) errors.add('spmcId');
+    if (!spmcIdFile) errors.add('spmcIdFile');
+    
+    // Privacy Agreement
+    if (!formData.agreeToPrivacy) errors.add('agreeToPrivacy');
+    
+    setFieldErrors(errors);
+    
+    if (errors.size > 0) {
+      toast({
+        title: "Required Fields Missing",
+        description: "Please fill in all required fields marked in red.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // Validation
     if (formData.password !== formData.confirmPassword) {
@@ -214,7 +293,7 @@ const DoctorRegister = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Username *
+                  Username <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -222,14 +301,13 @@ const DoctorRegister = () => {
                   value={formData.username}
                   onChange={handleInputChange}
                   placeholder="Choose a username"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('username')}`}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Email Address *
+                  Email Address <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email"
@@ -237,14 +315,13 @@ const DoctorRegister = () => {
                   value={formData.email}
                   onChange={handleInputChange}
                   placeholder="your.email@spmc.gov.ph"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('email')}`}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Password *
+                  Password <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -253,8 +330,7 @@ const DoctorRegister = () => {
                     value={formData.password}
                     onChange={handleInputChange}
                     placeholder="At least 8 characters"
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12"
+                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12 ${getFieldErrorClass('password')}`}
                   />
                   <button
                     type="button"
@@ -268,7 +344,7 @@ const DoctorRegister = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Confirm Password *
+                  Confirm Password <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -277,8 +353,7 @@ const DoctorRegister = () => {
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
                     placeholder="Re-enter your password"
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12"
+                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12 ${getFieldErrorClass('confirmPassword')}`}
                   />
                   <button
                     type="button"
@@ -300,15 +375,14 @@ const DoctorRegister = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    First Name *
+                    First Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('firstName')}`}
                   />
                 </div>
 
@@ -327,15 +401,14 @@ const DoctorRegister = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Last Name *
+                    Last Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('lastName')}`}
                   />
                 </div>
               </div>
@@ -351,7 +424,7 @@ const DoctorRegister = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Specialty/ies * (Select all that apply)
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                <div className={`grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 ${getFieldErrorClass('specialties')}`}>
                   {availableSpecialties.map((specialty) => (
                     <label key={specialty} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 p-2 rounded">
                       <input
@@ -373,14 +446,13 @@ const DoctorRegister = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Department (Where you belong in SPMC) *
+                  Department (Where you belong in SPMC) <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="department"
                   value={formData.department}
                   onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('department')}`}
                 >
                   <option value="">Select your department</option>
                   {departments.map((dept) => (
@@ -393,7 +465,7 @@ const DoctorRegister = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  SPMC ID Number *
+                  SPMC ID Number <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -401,21 +473,19 @@ const DoctorRegister = () => {
                   value={formData.spmcId}
                   onChange={handleInputChange}
                   placeholder="Enter your SPMC ID number"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('spmcId')}`}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Upload Valid SPMC ID *
+                  Upload Valid SPMC ID <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="file"
                   accept="image/*,.pdf"
                   onChange={handleFileChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('spmcIdFile')}`}
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Upload a clear photo or scan of your valid SPMC ID for verification.
@@ -435,8 +505,7 @@ const DoctorRegister = () => {
                 name="agreeToPrivacy"
                 checked={formData.agreeToPrivacy}
                 onChange={handleInputChange}
-                required
-                className="mt-1 w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                className={`mt-1 w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 ${getFieldErrorClass('agreeToPrivacy')}`}
               />
               <label className="text-sm text-gray-700 dark:text-gray-300">
                 I agree to the terms and conditions and privacy policy. I understand that my registration will be reviewed by an administrator before approval.

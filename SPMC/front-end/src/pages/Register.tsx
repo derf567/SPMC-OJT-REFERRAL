@@ -23,6 +23,7 @@ const Register = () => {
   const [barangays, setBarangays] = useState<Barangay[]>([]);
   const [loadingRegions, setLoadingRegions] = useState(true);
   const [loadingBarangays, setLoadingBarangays] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Set<string>>(new Set());
   
   const [formData, setFormData] = useState({
     // Account Credentials
@@ -128,14 +129,87 @@ const Register = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    
+    // Remove field from errors if it now has a value
+    if (fieldErrors.has(name)) {
+      let isValid = false;
+      
+      if (type === 'checkbox') {
+        isValid = checked;
+      } else if (typeof value === 'string') {
+        isValid = value.trim() !== '';
+      } else {
+        isValid = value !== null && value !== undefined && value !== '';
+      }
+      
+      if (isValid) {
+        setFieldErrors(prev => {
+          const newErrors = new Set(prev);
+          newErrors.delete(name);
+          return newErrors;
+        });
+      }
+    }
+  };
+
+  const getFieldErrorClass = (fieldName: string) => {
+    return fieldErrors.has(fieldName) ? 'border-red-500 border-2' : '';
   };
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFiles(e.target.files);
+    // Clear error when files are selected
+    if (e.target.files && e.target.files.length > 0 && fieldErrors.has('documents')) {
+      setFieldErrors(prev => {
+        const newErrors = new Set(prev);
+        newErrors.delete('documents');
+        return newErrors;
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent default form validation
+    
+    // Validate all required fields
+    const errors = new Set<string>();
+    
+    // Account Credentials
+    if (!formData.username.trim()) errors.add('username');
+    if (!formData.email.trim()) errors.add('email');
+    if (!formData.password.trim()) errors.add('password');
+    if (!formData.confirmPassword.trim()) errors.add('confirmPassword');
+    
+    // Hospital Information
+    if (!formData.hospitalName.trim()) errors.add('hospitalName');
+    if (!formData.hospitalDohLevel) errors.add('hospitalDohLevel');
+    
+    // Address Information
+    if (!formData.region) errors.add('region');
+    if (!formData.province) errors.add('province');
+    if (!formData.city) errors.add('city');
+    if (!formData.completeAddress.trim()) errors.add('completeAddress');
+    
+    // Contact Numbers
+    if (formData.contactNumbers.length === 0) errors.add('contactNumbers');
+    
+    // Privacy Agreement
+    if (!formData.agreeToPrivacy) errors.add('agreeToPrivacy');
+    
+    // Files
+    if (!files || files.length === 0) errors.add('documents');
+    
+    setFieldErrors(errors);
+    
+    if (errors.size > 0) {
+      toast({
+        title: "Required Fields Missing",
+        description: "Please fill in all required fields marked in red.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // Privacy agreement validation
     if (!formData.agreeToPrivacy) {
@@ -293,7 +367,7 @@ const Register = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Username *
+                  Username <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -301,13 +375,12 @@ const Register = () => {
                   value={formData.username}
                   onChange={handleInputChange}
                   placeholder="Username for hospital account"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('username')}`}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Email *
+                  Email <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email"
@@ -315,15 +388,14 @@ const Register = () => {
                   value={formData.email}
                   onChange={handleInputChange}
                   placeholder="Hospital email address"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('email')}`}
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Password *
+                    Password <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -332,8 +404,7 @@ const Register = () => {
                       value={formData.password}
                       onChange={handleInputChange}
                       placeholder="Create a password"
-                      required
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className={`w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('password')}`}
                     />
                     <button
                       type="button"
@@ -347,7 +418,7 @@ const Register = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Confirm Password *
+                    Confirm Password <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -356,8 +427,7 @@ const Register = () => {
                       value={formData.confirmPassword}
                       onChange={handleInputChange}
                       placeholder="Confirm your password"
-                      required
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className={`w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('confirmPassword')}`}
                     />
                     <button
                       type="button"
@@ -378,7 +448,7 @@ const Register = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Hospital Name *
+                  Hospital Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -386,21 +456,19 @@ const Register = () => {
                   value={formData.hospitalName}
                   onChange={handleInputChange}
                   placeholder="Complete hospital name"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('hospitalName')}`}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  DOH Level *
+                  DOH Level <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="hospitalDohLevel"
                   value={formData.hospitalDohLevel}
                   onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('hospitalDohLevel')}`}
                 >
                   <option value="">Select DOH Level</option>
                   <option value="primary">Primary</option>
@@ -420,15 +488,14 @@ const Register = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Region *
+                    Region <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="region"
                     value={formData.region}
                     onChange={handleInputChange}
-                    required
                     disabled={loadingRegions}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 ${getFieldErrorClass('region')}`}
                   >
                     <option value="">{loadingRegions ? 'Loading regions...' : 'Select Region'}</option>
                     {regions.map((r) => (
@@ -439,15 +506,14 @@ const Register = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Province *
+                    Province <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="province"
                     value={formData.province}
                     onChange={handleInputChange}
-                    required
                     disabled={!formData.region || provinces.length === 0}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 ${getFieldErrorClass('province')}`}
                   >
                     <option value="">{!formData.region ? 'Select region first' : provinces.length === 0 ? 'Loading provinces...' : 'Select Province'}</option>
                     {provinces.map((p) => (
@@ -458,15 +524,14 @@ const Register = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    City / Municipality *
+                    City / Municipality <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="city"
                     value={formData.city}
                     onChange={handleInputChange}
-                    required
                     disabled={!formData.province || cities.length === 0}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 ${getFieldErrorClass('city')}`}
                   >
                     <option value="">
                       {!formData.province 
@@ -528,15 +593,14 @@ const Register = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Complete Hospital Address (Street, Building, District) *
+                  Complete Hospital Address (Street, Building, District) <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   name="completeAddress"
                   value={formData.completeAddress}
                   onChange={handleInputChange}
                   placeholder="Include street name, building number, district, and any landmarks"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('completeAddress')}`}
                   rows={3}
                 />
               </div>
@@ -550,7 +614,7 @@ const Register = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Add Hospital Contact Numbers *
+                  Add Hospital Contact Numbers <span className="text-red-500">*</span>
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -558,7 +622,7 @@ const Register = () => {
                     value={currentContactNumber}
                     onChange={(e) => setCurrentContactNumber(e.target.value)}
                     placeholder="e.g., 082-123-4567 or 0917-123-4567"
-                    className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className={`flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('contactNumbers')}`}
                   />
                   <Button
                     type="button"
@@ -569,6 +633,14 @@ const Register = () => {
                           contactNumbers: [...prev.contactNumbers, currentContactNumber.trim()]
                         }));
                         setCurrentContactNumber("");
+                        // Clear error when contact number is added
+                        if (fieldErrors.has('contactNumbers')) {
+                          setFieldErrors(prev => {
+                            const newErrors = new Set(prev);
+                            newErrors.delete('contactNumbers');
+                            return newErrors;
+                          });
+                        }
                       }
                     }}
                     className="px-6 bg-blue-600 hover:bg-blue-700 text-white"
@@ -619,14 +691,13 @@ const Register = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Upload Hospital Legal Documents *
+                  Upload Hospital Legal Documents <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="file"
                   multiple
                   onChange={handleFiles}
-                  required
-                  className="w-full text-sm text-gray-700 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/30"
+                  className={`w-full text-sm text-gray-700 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/30 ${getFieldErrorClass('documents')}`}
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Upload hospital registration documents, business permits, or other legal documents for verification.
@@ -641,11 +712,10 @@ const Register = () => {
                   name="agreeToPrivacy"
                   checked={formData.agreeToPrivacy}
                   onChange={handleInputChange}
-                  required
-                  className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:focus:ring-blue-400"
+                  className={`mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:focus:ring-blue-400 ${getFieldErrorClass('agreeToPrivacy')}`}
                 />
                 <label className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                  <strong>Data Privacy Acknowledgment *</strong><br />
+                  <strong>Data Privacy Acknowledgment <span className="text-red-500">*</span></strong><br />
                   I acknowledge that all data obtained during the verification process are protected under Republic Act No. 10173, also known as the Data Privacy Act of 2012. I understand that such data shall be handled with utmost confidentiality and shall be collected, processed, stored, and used strictly in accordance with the provisions of the Act and its implementing rules and regulations.
                 </label>
               </div>

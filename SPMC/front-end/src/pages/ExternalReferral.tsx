@@ -572,10 +572,15 @@ const ExternalReferral = () => {
         if (!formData.admissionStatus) errors.add('admissionStatus');
         if (formData.admissionStatus === 'others' && !formData.admissionStatusOther.trim()) errors.add('admissionStatusOther');
         if (!formData.rtpcrResult) errors.add('rtpcrResult');
+        if (!formData.workingImpression.trim()) errors.add('workingImpression');
+        if (!formData.managementDone.trim()) errors.add('managementDone');
         break;
         
       case 3: // Specialty
         if (!formData.specialtyNeeded) errors.add('specialtyNeeded');
+        // Check if "Others" specialty is selected and validate otherSpecialty field
+        const selectedSpecialty = specialties.find(s => s.id == formData.specialtyNeeded);
+        if (selectedSpecialty?.name === "Others" && !formData.otherSpecialty.trim()) errors.add('otherSpecialty');
         if (!formData.reasonForReferral.trim()) errors.add('reasonForReferral');
         if (formData.reasonForReferral === "Others" && !formData.otherReasonForReferral.trim()) errors.add('otherReasonForReferral');
         break;
@@ -912,12 +917,12 @@ const ExternalReferral = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient's Name *
+                  Patient's Name <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      First Name *
+                      First Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -929,7 +934,7 @@ const ExternalReferral = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Middle Name *
+                      Middle Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -941,7 +946,7 @@ const ExternalReferral = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Last Name *
+                      Last Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -968,7 +973,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient Category *
+                  Patient Category <span className="text-red-500">*</span>
                 </label>
                 <select 
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('patientCategory')}`}
@@ -998,7 +1003,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Birthday *
+                  Birthday <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -1010,7 +1015,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Age * <span className="text-xs text-gray-500 dark:text-gray-400">(Auto-calculated from birthday)</span>
+                  Age <span className="text-red-500">*</span> <span className="text-xs text-gray-500 dark:text-gray-400">(Auto-calculated from birthday)</span>
                 </label>
                 <input
                   type="number"
@@ -1023,7 +1028,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Gender *
+                  Gender <span className="text-red-500">*</span>
                 </label>
                 <select 
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('gender')}`}
@@ -1038,7 +1043,7 @@ const ExternalReferral = () => {
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient Current Complete Address *
+                  Patient Current Complete Address <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('currentAddress')}`}
@@ -1058,7 +1063,7 @@ const ExternalReferral = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Chief Complaint *
+                  Chief Complaint <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('chiefComplaint')}`}
@@ -1071,7 +1076,7 @@ const ExternalReferral = () => {
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Pertinent History *
+                  Pertinent History <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('pertinentHistory')}`}
@@ -1084,7 +1089,7 @@ const ExternalReferral = () => {
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Pertinent Physical Exam or Laboratories *
+                  Pertinent Physical Exam or Laboratories <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('pertinentPhysicalExam')}`}
@@ -1098,7 +1103,7 @@ const ExternalReferral = () => {
 
             {/* Vital Signs */}
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Latest Vital Signs *</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Latest Vital Signs <span className="text-red-500">*</span></h3>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1177,7 +1182,7 @@ const ExternalReferral = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  GCS Score or AVPU *
+                  GCS Score or AVPU <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -1190,7 +1195,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  O2 Support *
+                  O2 Support <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -1203,7 +1208,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  RTPCR Result *
+                  RTPCR Result <span className="text-red-500">*</span>
                 </label>
                 <select 
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('rtpcrResult')}`}
@@ -1219,7 +1224,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Admission Status *
+                  Admission Status <span className="text-red-500">*</span>
                 </label>
                 <select 
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('admissionStatus')}`}
@@ -1246,7 +1251,7 @@ const ExternalReferral = () => {
                 <div></div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Please Specify Admission Status *
+                    Please Specify Admission Status <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -1262,10 +1267,10 @@ const ExternalReferral = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Working Impression
+                  Working Impression <span className="text-red-500">*</span>
                 </label>
                 <textarea
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('workingImpression')}`}
                   rows={3}
                   placeholder="Primary diagnosis or impression..."
                   value={formData.workingImpression}
@@ -1275,10 +1280,10 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Management Done
+                  Management Done <span className="text-red-500">*</span>
                 </label>
                 <textarea
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('managementDone')}`}
                   rows={3}
                   placeholder="Treatments, medications given..."
                   value={formData.managementDone}
@@ -1295,7 +1300,7 @@ const ExternalReferral = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Which Specialty/Service is Needed *
+                  Which Specialty/Service is Needed <span className="text-red-500">*</span>
                 </label>
                 <select 
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('specialtyNeeded')}`}
@@ -1312,11 +1317,11 @@ const ExternalReferral = () => {
               {specialties.find(s => s.id == formData.specialtyNeeded)?.name === "Others" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Please specify the required specialty or service needed
+                    Please specify the required specialty or service needed <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('otherSpecialty')}`}
                     placeholder="Specify other specialty"
                     value={formData.otherSpecialty}
                     onChange={(e) => updateFormData('otherSpecialty', e.target.value)}
@@ -1326,7 +1331,7 @@ const ExternalReferral = () => {
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Reason for Referral *
+                  Reason for Referral <span className="text-red-500">*</span>
                 </label>
                 <select
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('reasonForReferral')}`}
@@ -1352,7 +1357,7 @@ const ExternalReferral = () => {
               {formData.reasonForReferral === "Others" && (
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Please Specify Reason *
+                    Please Specify Reason <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('otherReasonForReferral')}`}
@@ -1434,7 +1439,7 @@ const ExternalReferral = () => {
               {/* Hospital Name */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Complete Name of Referring Facility *
+                  Complete Name of Referring Facility <span className="text-red-500">*</span>
                   {user && user.hospital_name && (
                     <span className="text-xs text-green-600 dark:text-green-400 ml-2">
                       ✓ Auto-filled from your hospital account
@@ -1525,7 +1530,7 @@ const ExternalReferral = () => {
               {/* DOH Level - Auto-filled and read-only for hospital accounts */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  DOH Level *
+                  DOH Level <span className="text-red-500">*</span>
                   {user && user.hospital_doh_level && (
                     <span className="text-xs text-green-600 dark:text-green-400 ml-2">
                       ✓ Auto-filled
@@ -1583,7 +1588,7 @@ const ExternalReferral = () => {
                 {/* Region */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Region *
+                    Region <span className="text-red-500">*</span>
                   </label>
                   {formData.hospitalRegion && user?.hospital_name ? (
                     <input
@@ -1613,7 +1618,7 @@ const ExternalReferral = () => {
                 {/* Province */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Province *
+                    Province <span className="text-red-500">*</span>
                   </label>
                   {formData.hospitalProvince && user?.hospital_name ? (
                     <input
@@ -1651,7 +1656,7 @@ const ExternalReferral = () => {
                 {/* City */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    City / Municipality *
+                    City / Municipality <span className="text-red-500">*</span>
                   </label>
                   {formData.hospitalCity && user?.hospital_name ? (
                     <input
@@ -1708,7 +1713,7 @@ const ExternalReferral = () => {
                 {/* Complete Address (Street, District) */}
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Complete Hospital Address (Street, Building, District) *
+                    Complete Hospital Address (Street, Building, District) <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={formData.hospitalStreet}
@@ -1740,7 +1745,7 @@ const ExternalReferral = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Name of the Referrer *
+                    Name of the Referrer <span className="text-red-500">*</span>
                     {user && user.role === 'referrer' && referrerProfile && (
                       <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
                         (Auto-filled from your profile - editable)
@@ -1758,7 +1763,7 @@ const ExternalReferral = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Referrer Contact Number *
+                    Referrer Contact Number <span className="text-red-500">*</span>
                   </label>
                   <div className="flex gap-2">
                     <input
@@ -1811,7 +1816,7 @@ const ExternalReferral = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Profession of the Referrer *
+                    Profession of the Referrer <span className="text-red-500">*</span>
                     {user && user.role === 'referrer' && referrerProfile && (
                       <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
                         (Auto-filled from your profile - editable)
@@ -1838,7 +1843,7 @@ const ExternalReferral = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Mode of Transportation *
+                    Mode of Transportation <span className="text-red-500">*</span>
                   </label>
                   <select
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('modeOfTransportation')}`}
@@ -1866,7 +1871,7 @@ const ExternalReferral = () => {
                   {formData.referrerProfession === 'others' && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Please Specify Profession *
+                        Please Specify Profession <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -1881,7 +1886,7 @@ const ExternalReferral = () => {
                   {formData.modeOfTransportation === 'others' && (
                     <div className={formData.referrerProfession !== 'others' ? 'md:col-start-2' : ''}>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Please Specify Mode of Transportation *
+                        Please Specify Mode of Transportation <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -1899,7 +1904,7 @@ const ExternalReferral = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Patient/Watcher *
+                    Patient/Watcher <span className="text-red-500">*</span>
                   </label>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                     Name of patient or watcher for emergency communication during referral
@@ -1915,7 +1920,7 @@ const ExternalReferral = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Patient/Watcher Contact Number *
+                    Patient/Watcher Contact Number <span className="text-red-500">*</span>
                   </label>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                     Contact number of patient or watcher for emergency communication during referral
