@@ -42,6 +42,7 @@ interface ReferralFormData {
   gcsScore: string;
   o2Support: string;
   admissionStatus: string;
+  admissionStatusOther: string;
   rtpcrResult: string;
   workingImpression: string;
   managementDone: string;
@@ -102,6 +103,7 @@ const initialFormData: ReferralFormData = {
   gcsScore: "",
   o2Support: "",
   admissionStatus: "",
+  admissionStatusOther: "",
   rtpcrResult: "",
   workingImpression: "",
   managementDone: "",
@@ -152,6 +154,7 @@ const ExternalReferral = () => {
   const { id } = useParams(); // Get referral ID from URL if editing
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<ReferralFormData>(initialFormData);
+  const [fieldErrors, setFieldErrors] = useState<Set<string>>(new Set());
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -303,7 +306,12 @@ const ExternalReferral = () => {
             },
             gcsScore: referralData.gcs_score || '',
             o2Support: referralData.o2_support || '',
-            admissionStatus: referralData.admission_status || '',
+            admissionStatus: ['emergency_room', 'ward', 'intensive_care_unit'].includes(referralData.admission_status) 
+              ? referralData.admission_status 
+              : (referralData.admission_status ? 'others' : ''),
+            admissionStatusOther: ['emergency_room', 'ward', 'intensive_care_unit'].includes(referralData.admission_status) 
+              ? '' 
+              : (referralData.admission_status || ''),
             rtpcrResult: referralData.rtpcr_result || '',
             workingImpression: referralData.working_impression || '',
             managementDone: referralData.management_done || '',
@@ -443,6 +451,30 @@ const ExternalReferral = () => {
       ...prev,
       [field]: value
     }));
+    
+    // Remove field from errors if it now has a value
+    if (fieldErrors.has(field)) {
+      // Check if the field now has a valid value
+      let isValid = false;
+      
+      if (Array.isArray(value)) {
+        isValid = value.length > 0;
+      } else if (typeof value === 'string') {
+        isValid = value.trim() !== '';
+      } else if (typeof value === 'boolean') {
+        isValid = true; // Booleans are always valid
+      } else {
+        isValid = value !== null && value !== undefined && value !== '';
+      }
+      
+      if (isValid) {
+        setFieldErrors(prev => {
+          const newErrors = new Set(prev);
+          newErrors.delete(field);
+          return newErrors;
+        });
+      }
+    }
   };
 
   const updateNestedFormData = (parent: string, field: string, value: any) => {
@@ -453,6 +485,25 @@ const ExternalReferral = () => {
         [field]: value
       }
     }));
+    
+    // Remove nested field from errors if it now has a value
+    if (fieldErrors.has(field)) {
+      let isValid = false;
+      
+      if (typeof value === 'string') {
+        isValid = value.trim() !== '';
+      } else {
+        isValid = value !== null && value !== undefined && value !== '';
+      }
+      
+      if (isValid) {
+        setFieldErrors(prev => {
+          const newErrors = new Set(prev);
+          newErrors.delete(field);
+          return newErrors;
+        });
+      }
+    }
   };
 
   const calculateAge = (birthDate: string): string => {
@@ -479,9 +530,89 @@ const ExternalReferral = () => {
     // Automatically calculate and update age
     const calculatedAge = calculateAge(birthDate);
     updateFormData('age', calculatedAge);
+    
+    // Clear errors for both birthday and age if they have values
+    if (birthDate && calculatedAge) {
+      setFieldErrors(prev => {
+        const newErrors = new Set(prev);
+        newErrors.delete('birthday');
+        newErrors.delete('age');
+        return newErrors;
+      });
+    }
+  };
+
+  const validateCurrentStep = () => {
+    const errors = new Set<string>();
+    
+    switch (currentStep) {
+      case 1: // Patient Information
+        if (!formData.patientCategory) errors.add('patientCategory');
+        if (!formData.patientFirstName.trim()) errors.add('patientFirstName');
+        if (!formData.patientMiddleName.trim()) errors.add('patientMiddleName');
+        if (!formData.patientLastName.trim()) errors.add('patientLastName');
+        if (!formData.currentAddress.trim()) errors.add('currentAddress');
+        if (!formData.birthday) errors.add('birthday');
+        if (!formData.age.trim()) errors.add('age');
+        if (!formData.gender) errors.add('gender');
+        break;
+        
+      case 2: // Patient Status
+        if (!formData.chiefComplaint.trim()) errors.add('chiefComplaint');
+        if (!formData.pertinentHistory.trim()) errors.add('pertinentHistory');
+        if (!formData.pertinentPhysicalExam.trim()) errors.add('pertinentPhysicalExam');
+        if (!formData.latestVitalSigns.bp.trim()) errors.add('bp');
+        if (!formData.latestVitalSigns.hr.trim()) errors.add('hr');
+        if (!formData.latestVitalSigns.rr.trim()) errors.add('rr');
+        if (!formData.latestVitalSigns.temp.trim()) errors.add('temp');
+        if (!formData.latestVitalSigns.o2Sat.trim()) errors.add('o2Sat');
+        if (!formData.latestVitalSigns.timeTaken.trim()) errors.add('timeTaken');
+        if (!formData.gcsScore.trim()) errors.add('gcsScore');
+        if (!formData.o2Support.trim()) errors.add('o2Support');
+        if (!formData.admissionStatus) errors.add('admissionStatus');
+        if (formData.admissionStatus === 'others' && !formData.admissionStatusOther.trim()) errors.add('admissionStatusOther');
+        if (!formData.rtpcrResult) errors.add('rtpcrResult');
+        break;
+        
+      case 3: // Specialty
+        if (!formData.specialtyNeeded) errors.add('specialtyNeeded');
+        if (!formData.reasonForReferral.trim()) errors.add('reasonForReferral');
+        if (formData.reasonForReferral === "Others" && !formData.otherReasonForReferral.trim()) errors.add('otherReasonForReferral');
+        break;
+        
+      case 4: // Referring Hospital
+        const referringFacility = (user && user.hospital_name) ? user.hospital_name : formData.referringFacilityName;
+        if (!referringFacility) errors.add('referringFacilityName');
+        const hospitalDohLevel = (user && user.hospital_doh_level) ? user.hospital_doh_level : formData.hospitalDohLevel;
+        if (!hospitalDohLevel) errors.add('hospitalDohLevel');
+        if (!formData.referrerName.trim()) errors.add('referrerName');
+        if (formData.referrerContactNumbers.length === 0) errors.add('referrerContactNumbers');
+        if (!formData.referrerProfession.trim()) errors.add('referrerProfession');
+        if (formData.referrerProfession === "others" && !formData.referrerProfessionOther.trim()) errors.add('referrerProfessionOther');
+        if (!formData.modeOfTransportation.trim()) errors.add('modeOfTransportation');
+        if (formData.modeOfTransportation === "others" && !formData.modeOfTransportationOther.trim()) errors.add('modeOfTransportationOther');
+        if (!formData.patientWatcherName.trim()) errors.add('patientWatcherName');
+        if (formData.patientWatcherContactNumbers.length === 0) errors.add('patientWatcherContactNumbers');
+        break;
+    }
+    
+    return errors;
   };
 
   const nextStep = () => {
+    // Validate current step before moving forward
+    const errors = validateCurrentStep();
+    setFieldErrors(errors);
+    
+    if (errors.size > 0) {
+      toast({
+        title: "Required Fields Missing",
+        description: "Please fill in all required fields marked in red.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
     }
@@ -491,6 +622,10 @@ const ExternalReferral = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
+  };
+
+  const getFieldErrorClass = (fieldName: string) => {
+    return fieldErrors.has(fieldName) ? 'border-red-500 border-2' : '';
   };
 
   const validateForm = () => {
@@ -522,6 +657,9 @@ const ExternalReferral = () => {
     if (!formData.gcsScore.trim()) errors.push("GCS Score is required");
     if (!formData.o2Support.trim()) errors.push("O2 Support is required");
     if (!formData.admissionStatus) errors.push("Admission Status is required");
+    if (formData.admissionStatus === 'others' && !formData.admissionStatusOther.trim()) {
+      errors.push("Please specify the admission status");
+    }
     if (!formData.rtpcrResult) errors.push("RTPCR Result is required");
 
     // Step 3 - Specialty validation
@@ -608,7 +746,7 @@ const ExternalReferral = () => {
         vital_signs_time: formData.latestVitalSigns.timeTaken || null,
         gcs_score: formData.gcsScore,
         o2_support: formData.o2Support,
-        admission_status: formData.admissionStatus,
+        admission_status: formData.admissionStatus === 'others' ? formData.admissionStatusOther : formData.admissionStatus,
         rtpcr_result: formData.rtpcrResult,
         working_impression: formData.workingImpression,
         management_done: formData.managementDone,
@@ -783,7 +921,7 @@ const ExternalReferral = () => {
                     </label>
                     <input
                       type="text"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('patientFirstName')}`}
                       placeholder="First Name"
                       value={formData.patientFirstName}
                       onChange={(e) => updateFormData('patientFirstName', e.target.value)}
@@ -795,7 +933,7 @@ const ExternalReferral = () => {
                     </label>
                     <input
                       type="text"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('patientMiddleName')}`}
                       placeholder="Middle Name"
                       value={formData.patientMiddleName}
                       onChange={(e) => updateFormData('patientMiddleName', e.target.value)}
@@ -807,7 +945,7 @@ const ExternalReferral = () => {
                     </label>
                     <input
                       type="text"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('patientLastName')}`}
                       placeholder="Last Name"
                       value={formData.patientLastName}
                       onChange={(e) => updateFormData('patientLastName', e.target.value)}
@@ -833,7 +971,7 @@ const ExternalReferral = () => {
                   Patient Category *
                 </label>
                 <select 
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('patientCategory')}`}
                   value={formData.patientCategory}
                   onChange={(e) => updateFormData('patientCategory', e.target.value)}
                 >
@@ -864,7 +1002,7 @@ const ExternalReferral = () => {
                 </label>
                 <input
                   type="date"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('birthday')}`}
                   value={formData.birthday}
                   onChange={(e) => handleBirthdayChange(e.target.value)}
                 />
@@ -876,7 +1014,7 @@ const ExternalReferral = () => {
                 </label>
                 <input
                   type="number"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('age')}`}
                   placeholder="Age in years"
                   value={formData.age}
                   onChange={(e) => updateFormData('age', e.target.value)}
@@ -888,7 +1026,7 @@ const ExternalReferral = () => {
                   Gender *
                 </label>
                 <select 
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('gender')}`}
                   value={formData.gender}
                   onChange={(e) => updateFormData('gender', e.target.value)}
                 >
@@ -903,7 +1041,7 @@ const ExternalReferral = () => {
                   Patient Current Complete Address *
                 </label>
                 <textarea
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('currentAddress')}`}
                   rows={3}
                   placeholder="Complete address including barangay, city, province"
                   value={formData.currentAddress}
@@ -923,7 +1061,7 @@ const ExternalReferral = () => {
                   Chief Complaint *
                 </label>
                 <textarea
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('chiefComplaint')}`}
                   rows={3}
                   placeholder="Describe the main complaint..."
                   value={formData.chiefComplaint}
@@ -936,7 +1074,7 @@ const ExternalReferral = () => {
                   Pertinent History *
                 </label>
                 <textarea
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('pertinentHistory')}`}
                   rows={3}
                   placeholder="Medical history, previous conditions..."
                   value={formData.pertinentHistory}
@@ -949,7 +1087,7 @@ const ExternalReferral = () => {
                   Pertinent Physical Exam or Laboratories *
                 </label>
                 <textarea
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('pertinentPhysicalExam')}`}
                   rows={3}
                   placeholder="Physical examination findings, lab results..."
                   value={formData.pertinentPhysicalExam}
@@ -968,7 +1106,7 @@ const ExternalReferral = () => {
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('bp')}`}
                     placeholder="120/80"
                     value={formData.latestVitalSigns.bp}
                     onChange={(e) => updateNestedFormData('latestVitalSigns', 'bp', e.target.value)}
@@ -980,7 +1118,7 @@ const ExternalReferral = () => {
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('hr')}`}
                     placeholder="80"
                     value={formData.latestVitalSigns.hr}
                     onChange={(e) => updateNestedFormData('latestVitalSigns', 'hr', e.target.value)}
@@ -992,7 +1130,7 @@ const ExternalReferral = () => {
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('rr')}`}
                     placeholder="20"
                     value={formData.latestVitalSigns.rr}
                     onChange={(e) => updateNestedFormData('latestVitalSigns', 'rr', e.target.value)}
@@ -1004,7 +1142,7 @@ const ExternalReferral = () => {
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('temp')}`}
                     placeholder="36.5"
                     value={formData.latestVitalSigns.temp}
                     onChange={(e) => updateNestedFormData('latestVitalSigns', 'temp', e.target.value)}
@@ -1016,7 +1154,7 @@ const ExternalReferral = () => {
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('o2Sat')}`}
                     placeholder="98"
                     value={formData.latestVitalSigns.o2Sat}
                     onChange={(e) => updateNestedFormData('latestVitalSigns', 'o2Sat', e.target.value)}
@@ -1028,7 +1166,7 @@ const ExternalReferral = () => {
                   </label>
                   <input
                     type="time"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('timeTaken')}`}
                     value={formData.latestVitalSigns.timeTaken}
                     onChange={(e) => updateNestedFormData('latestVitalSigns', 'timeTaken', e.target.value)}
                   />
@@ -1036,14 +1174,14 @@ const ExternalReferral = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   GCS Score or AVPU *
                 </label>
                 <input
                   type="text"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('gcsScore')}`}
                   placeholder="15 (E4V5M6) or Alert"
                   value={formData.gcsScore}
                   onChange={(e) => updateFormData('gcsScore', e.target.value)}
@@ -1056,7 +1194,7 @@ const ExternalReferral = () => {
                 </label>
                 <input
                   type="text"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('o2Support')}`}
                   placeholder="Room air, Nasal cannula 2L/min"
                   value={formData.o2Support}
                   onChange={(e) => updateFormData('o2Support', e.target.value)}
@@ -1068,7 +1206,7 @@ const ExternalReferral = () => {
                   RTPCR Result *
                 </label>
                 <select 
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('rtpcrResult')}`}
                   value={formData.rtpcrResult}
                   onChange={(e) => updateFormData('rtpcrResult', e.target.value)}
                 >
@@ -1084,17 +1222,42 @@ const ExternalReferral = () => {
                   Admission Status *
                 </label>
                 <select 
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('admissionStatus')}`}
                   value={formData.admissionStatus}
-                  onChange={(e) => updateFormData('admissionStatus', e.target.value)}
+                  onChange={(e) => {
+                    updateFormData('admissionStatus', e.target.value);
+                    if (e.target.value !== 'others') {
+                      updateFormData('admissionStatusOther', '');
+                    }
+                  }}
                 >
                   <option value="">Select status</option>
                   <option value="emergency_room">Emergency Room</option>
                   <option value="ward">Ward</option>
                   <option value="intensive_care_unit">Intensive Care Unit</option>
+                  <option value="others">Others (Please Specify)</option>
                 </select>
               </div>
             </div>
+
+            {/* Conditional: Specify Admission Status if "others" selected */}
+            {formData.admissionStatus === 'others' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div></div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Please Specify Admission Status *
+                  </label>
+                  <input
+                    type="text"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('admissionStatusOther')}`}
+                    placeholder="Enter admission status"
+                    value={formData.admissionStatusOther}
+                    onChange={(e) => updateFormData('admissionStatusOther', e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -1135,7 +1298,7 @@ const ExternalReferral = () => {
                   Which Specialty/Service is Needed *
                 </label>
                 <select 
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('specialtyNeeded')}`}
                   value={formData.specialtyNeeded}
                   onChange={(e) => updateFormData('specialtyNeeded', e.target.value)}
                 >
@@ -1166,7 +1329,7 @@ const ExternalReferral = () => {
                   Reason for Referral *
                 </label>
                 <select
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('reasonForReferral')}`}
                   value={formData.reasonForReferral}
                   onChange={(e) => {
                     updateFormData('reasonForReferral', e.target.value);
@@ -1192,7 +1355,7 @@ const ExternalReferral = () => {
                     Please Specify Reason *
                   </label>
                   <textarea
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('otherReasonForReferral')}`}
                     rows={3}
                     placeholder="Please specify the reason for referral..."
                     value={formData.otherReasonForReferral}
@@ -1586,7 +1749,7 @@ const ExternalReferral = () => {
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('referrerName')}`}
                     placeholder="Dr. Full Name"
                     value={formData.referrerName}
                     onChange={(e) => updateFormData('referrerName', e.target.value)}
@@ -1603,7 +1766,7 @@ const ExternalReferral = () => {
                       value={currentReferrerContact}
                       onChange={(e) => setCurrentReferrerContact(e.target.value)}
                       placeholder="e.g., 0912-345-6789 or 082-123-4567"
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                      className={`flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('referrerContactNumbers')}`}
                     />
                     <Button
                       type="button"
@@ -1656,7 +1819,7 @@ const ExternalReferral = () => {
                     )}
                   </label>
                   <select
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('referrerProfession')}`}
                     value={formData.referrerProfession}
                     onChange={(e) => {
                       updateFormData('referrerProfession', e.target.value);
@@ -1678,7 +1841,7 @@ const ExternalReferral = () => {
                     Mode of Transportation *
                   </label>
                   <select
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('modeOfTransportation')}`}
                     value={formData.modeOfTransportation}
                     onChange={(e) => {
                       updateFormData('modeOfTransportation', e.target.value);
@@ -1707,7 +1870,7 @@ const ExternalReferral = () => {
                       </label>
                       <input
                         type="text"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                        className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('referrerProfessionOther')}`}
                         placeholder="e.g., Emergency Medicine Physician"
                         value={formData.referrerProfessionOther}
                         onChange={(e) => updateFormData('referrerProfessionOther', e.target.value)}
@@ -1722,7 +1885,7 @@ const ExternalReferral = () => {
                       </label>
                       <input
                         type="text"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                        className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('modeOfTransportationOther')}`}
                         placeholder="e.g., Motorcycle, Tricycle"
                         value={formData.modeOfTransportationOther}
                         onChange={(e) => updateFormData('modeOfTransportationOther', e.target.value)}
@@ -1744,7 +1907,9 @@ const ExternalReferral = () => {
                   <input
                     type="text"
                     placeholder="Full Name"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                    value={formData.patientWatcherName}
+                    onChange={(e) => updateFormData('patientWatcherName', e.target.value)}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('patientWatcherName')}`}
                   />
                 </div>
 
@@ -1761,7 +1926,7 @@ const ExternalReferral = () => {
                       value={currentPatientWatcherContact}
                       onChange={(e) => setCurrentPatientWatcherContact(e.target.value)}
                       placeholder="e.g., 0912-345-6789 or 082-123-4567"
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                      className={`flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('patientWatcherContactNumbers')}`}
                     />
                     <Button
                       type="button"
