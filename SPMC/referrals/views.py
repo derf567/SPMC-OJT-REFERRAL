@@ -66,8 +66,9 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 @method_decorator(csrf_exempt, name='dispatch')
 class ReferralViewSet(viewsets.ModelViewSet):
     queryset = Referral.objects.select_related(
-        'specialty_needed', 'referring_hospital', 'created_by', 'assigned_to'
-    ).prefetch_related('transit_info', 'status_history', 'documents')
+        'specialty_needed', 'referring_hospital', 'created_by', 'assigned_to',
+        'transferred_by', 'triaged_by', 'triage_verified_by'
+    ).prefetch_related('transit_info', 'status_history', 'documents', 'department_acceptances')
     filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
     search_fields = [
         'referral_id', 'patient_full_name', 'hrn', 'chief_complaint',
@@ -504,6 +505,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         # Get departments, triage decision, and remarks from request
         department_codes = request.data.get('departments', [])
+        main_service_code = request.data.get('main_service_code')  # Optional
         remarks = request.data.get('remarks', '')
         triage_decision = request.data.get('triage_decision', '')
         scheduled_date = request.data.get('scheduled_date')
@@ -512,6 +514,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
         if not department_codes or len(department_codes) == 0:
             return Response({
                 'error': 'At least one department must be selected'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate main_service_code if provided
+        if main_service_code and main_service_code not in department_codes:
+            return Response({
+                'error': 'Main service must be one of the selected departments'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         if not triage_decision:
@@ -549,7 +557,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 referral=referral,
                 department_code=dept.code,
                 department_name=dept.name,
-                status='pending'
+                status='pending',
+                is_main_service=(dept.code == main_service_code)
             )
         
         # Update referral
@@ -558,6 +567,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
         referral.triage_remarks = remarks
         referral.triage_decision = triage_decision
         referral.assigned_departments = list(department_codes)
+        referral.main_service_code = main_service_code
         referral.triaged_by = request.user
         referral.triaged_at = timezone.now()
         

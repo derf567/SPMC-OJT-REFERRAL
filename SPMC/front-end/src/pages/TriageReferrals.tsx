@@ -866,6 +866,7 @@ function AssignDepartmentsDialog({
   onSuccess: () => void;
 }) {
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
+  const [mainServiceCode, setMainServiceCode] = useState<string>('');
   const [triageDecision, setTriageDecision] = useState<string>('');
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
@@ -904,7 +905,8 @@ function AssignDepartmentsDialog({
       
       await referralsAPI.assignDepartments(
         referral.id.toString(), 
-        selectedDepts, 
+        selectedDepts,
+        mainServiceCode,
         remarks,
         triageDecision,
         triageDecision === 'schedule_opd' ? scheduledDate : undefined,
@@ -972,11 +974,54 @@ function AssignDepartmentsDialog({
           </div>
           {selectedDepts.length > 0 && (
             <p className="text-xs text-gray-600 mt-2">
-              {selectedDepts.length} department(s) selected. 
-              Majority needed: {Math.floor(selectedDepts.length / 2) + 1}
+              {selectedDepts.length} department(s) selected
             </p>
           )}
         </div>
+
+        {/* Main Service Selection */}
+        {selectedDepts.length > 0 && (
+          <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Main Service <span className="text-gray-500 font-normal ml-2">(optional - primary department)</span>
+              <span className="text-gray-500 font-normal ml-2">(if not selected, all are co-manage)</span>
+            </label>
+            <div className="space-y-2">
+              {departments
+                .filter(dept => selectedDepts.includes(dept.code))
+                .map((dept) => (
+                  <label 
+                    key={dept.code} 
+                    className="flex items-center space-x-3 p-3 border border-purple-200 hover:bg-purple-100 rounded cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="main_service"
+                      value={dept.code}
+                      checked={mainServiceCode === dept.code}
+                      onChange={(e) => setMainServiceCode(e.target.value)}
+                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-gray-900">{dept.name}</span>
+                      <p className="text-xs text-gray-500">Main service - final decision authority</p>
+                    </div>
+                    <span className="text-sm text-gray-500">{dept.contact_number}</span>
+                  </label>
+                ))}
+            </div>
+            {mainServiceCode && (
+              <p className="text-xs text-purple-600 mt-2">
+                ✓ {departments.find(d => d.code === mainServiceCode)?.name} selected as main service
+              </p>
+            )}
+            {!mainServiceCode && selectedDepts.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                No main service selected - all {selectedDepts.length} department(s) will be co-manage
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Triage Decision */}
         <div className="mb-4">
@@ -1200,38 +1245,99 @@ function DetailsDialog({
         {/* Department List */}
         <div className="space-y-3">
           <h3 className="font-medium text-gray-800">Assigned Departments</h3>
-          {currentReferral.department_acceptances.map((acceptance) => (
-            <div key={acceptance.id} className="bg-white border border-gray-200 p-4 rounded-lg">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    {getStatusIcon(acceptance.status)}
-                    <p className="font-medium text-gray-900">{acceptance.department_name}</p>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Contact:</span> {getDepartmentContact(acceptance.department_code)}
-                  </p>
+          {currentReferral.department_acceptances.length === 0 ? (
+            <p className="text-sm text-gray-500">No departments assigned</p>
+          ) : (
+            <>
+              {/* Main Service Departments */}
+              {currentReferral.department_acceptances.some(a => a.is_main_service) && (
+                <div>
+                  <p className="text-xs font-semibold text-purple-700 mb-2">Main Service (Primary)</p>
+                  {currentReferral.department_acceptances
+                    .filter(a => a.is_main_service)
+                    .map((acceptance) => (
+                      <div key={acceptance.id} className="bg-purple-50 border border-purple-300 p-4 rounded-lg mb-2">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {getStatusIcon(acceptance.status)}
+                              <p className="font-medium text-gray-900">{acceptance.department_name}</p>
+                              <span className="px-2 py-0.5 bg-purple-600 text-white text-xs font-semibold rounded">
+                                Main Service
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              <span className="font-medium">Contact:</span> {getDepartmentContact(acceptance.department_code)}
+                            </p>
+                          </div>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            acceptance.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                            acceptance.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {acceptance.status.charAt(0).toUpperCase() + acceptance.status.slice(1)}
+                          </span>
+                        </div>
+                        {acceptance.accepted_by_name && (
+                          <p className="text-xs text-gray-500">
+                            By: {acceptance.accepted_by_name} on {new Date(acceptance.accepted_at!).toLocaleString()}
+                          </p>
+                        )}
+                        {acceptance.notes && (
+                          <p className="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded">
+                            <span className="font-medium">Notes:</span> {acceptance.notes}
+                          </p>
+                        )}
+                      </div>
+                    ))}
                 </div>
-                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                  acceptance.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                  acceptance.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                  'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {acceptance.status.charAt(0).toUpperCase() + acceptance.status.slice(1)}
-                </span>
-              </div>
-              {acceptance.accepted_by_name && (
-                <p className="text-xs text-gray-500">
-                  By: {acceptance.accepted_by_name} on {new Date(acceptance.accepted_at!).toLocaleString()}
-                </p>
               )}
-              {acceptance.notes && (
-                <p className="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded">
-                  <span className="font-medium">Notes:</span> {acceptance.notes}
-                </p>
+              
+              {/* Co-Manage Departments */}
+              {currentReferral.department_acceptances.some(a => !a.is_main_service) && (
+                <div>
+                  <p className="text-xs font-semibold text-blue-700 mb-2">Co-Manage (Supporting)</p>
+                  {currentReferral.department_acceptances
+                    .filter(a => !a.is_main_service)
+                    .map((acceptance) => (
+                      <div key={acceptance.id} className="bg-white border border-gray-200 p-4 rounded-lg mb-2">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {getStatusIcon(acceptance.status)}
+                              <p className="font-medium text-gray-900">{acceptance.department_name}</p>
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-semibold rounded">
+                                Co-Manage
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              <span className="font-medium">Contact:</span> {getDepartmentContact(acceptance.department_code)}
+                            </p>
+                          </div>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            acceptance.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                            acceptance.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {acceptance.status.charAt(0).toUpperCase() + acceptance.status.slice(1)}
+                          </span>
+                        </div>
+                        {acceptance.accepted_by_name && (
+                          <p className="text-xs text-gray-500">
+                            By: {acceptance.accepted_by_name} on {new Date(acceptance.accepted_at!).toLocaleString()}
+                          </p>
+                        )}
+                        {acceptance.notes && (
+                          <p className="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded">
+                            <span className="font-medium">Notes:</span> {acceptance.notes}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                </div>
               )}
-            </div>
-          ))}
+            </>
+          )}
         </div>
 
         <div className="mt-6 flex justify-end gap-2">

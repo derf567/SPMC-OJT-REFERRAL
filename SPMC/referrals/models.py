@@ -317,6 +317,14 @@ class Referral(models.Model):
         help_text="Multiple departments assigned by triage team"
     )
     
+    # Main service (primary department handling the referral)
+    main_service_code = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Main/primary department code - main service decision overrides co-manage"
+    )
+    
     # Outpatient scheduling (for schedule_opd triage decisions)
     scheduled_date = models.DateField(blank=True, null=True, help_text="Scheduled appointment date for OPD")
     scheduled_time = models.TimeField(blank=True, null=True, help_text="Scheduled appointment time for OPD")
@@ -340,28 +348,48 @@ class Referral(models.Model):
         return f"{self.referral_id} - {self.patient_full_name}"
     
     def check_department_acceptance(self):
-        """Check if majority of departments have accepted and update status"""
+        """Check if main service has accepted and update status accordingly
+        
+        Main Service Logic:
+        - If main service accepts: referral is accepted (co-manage decisions don't matter)
+        - If main service rejects: referral is rejected (cannot proceed)
+        - If main service is pending: wait for main service decision
+        """
         acceptances = self.department_acceptances.all()
         total = acceptances.count()
         
         if total == 0:
             return
         
-        accepted = acceptances.filter(status='accepted').count()
-        rejected = acceptances.filter(status='rejected').count()
+        # Get main service acceptance
+        main_service = acceptances.filter(is_main_service=True).first()
         
-        # Majority rule: more than half must accept
-        majority = (total // 2) + 1
+        if not main_service:
+            # Fallback to majority rule if no main service designated
+            accepted = acceptances.filter(status='accepted').count()
+            rejected = acceptances.filter(status='rejected').count()
+            majority = (total // 2) + 1
+            
+            if accepted >= majority:
+                self.status = 'awaiting_triage_verification'
+                self.save()
+            elif rejected >= majority:
+                self.status = 'pending'
+                self.in_triage = False
+                self.save()
+            return
         
-        if accepted >= majority:
-            # Majority accepted - move to awaiting_triage_verification for triage/EDCC to verify
+        # Main service logic
+        if main_service.status == 'accepted':
+            # Main service accepted - referral is accepted regardless of co-manage
             self.status = 'awaiting_triage_verification'
             self.save()
-        elif rejected >= majority:
-            # Majority rejected - move back to pending or handle accordingly
+        elif main_service.status == 'rejected':
+            # Main service rejected - referral is rejected
             self.status = 'pending'
             self.in_triage = False
             self.save()
+        # If main service is pending, keep current status and wait
     
     def get_department_acceptance_summary(self):
         """Get summary of department acceptances"""
@@ -450,6 +478,7 @@ class DepartmentAcceptance(models.Model):
     accepted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True, null=True)
+    is_main_service = models.BooleanField(default=False, help_text="Main/primary service for this referral")
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

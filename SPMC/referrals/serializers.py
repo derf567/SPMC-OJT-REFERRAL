@@ -21,7 +21,12 @@ class DepartmentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class DepartmentAcceptanceSerializer(serializers.ModelSerializer):
-    accepted_by_name = serializers.CharField(source='accepted_by.get_full_name', read_only=True)
+    accepted_by_name = serializers.SerializerMethodField()
+    
+    def get_accepted_by_name(self, obj):
+        if obj.accepted_by:
+            return obj.accepted_by.get_full_name()
+        return None
     
     class Meta:
         model = DepartmentAcceptance
@@ -33,14 +38,20 @@ class TransitInfoSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ReferralStatusHistorySerializer(serializers.ModelSerializer):
-    changed_by_name = serializers.CharField(source='changed_by.get_full_name', read_only=True)
+    changed_by_name = serializers.SerializerMethodField()
+    
+    def get_changed_by_name(self, obj):
+        return obj.changed_by.get_full_name() if obj.changed_by else None
     
     class Meta:
         model = ReferralStatusHistory
         fields = '__all__'
 
 class ReferralDocumentSerializer(serializers.ModelSerializer):
-    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    uploaded_by_name = serializers.SerializerMethodField()
+    
+    def get_uploaded_by_name(self, obj):
+        return obj.uploaded_by.get_full_name() if obj.uploaded_by else None
     
     class Meta:
         model = ReferralDocument
@@ -48,7 +59,10 @@ class ReferralDocumentSerializer(serializers.ModelSerializer):
 
 
 class ReferrerDocumentSerializer(serializers.ModelSerializer):
-    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    uploaded_by_name = serializers.SerializerMethodField()
+    
+    def get_uploaded_by_name(self, obj):
+        return obj.uploaded_by.get_full_name() if obj.uploaded_by else None
 
     class Meta:
         model = ReferrerDocument
@@ -166,15 +180,36 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
 
 class ReferralListSerializer(serializers.ModelSerializer):
     """Serializer for listing referrals (includes all data needed for enhanced table view)"""
-    specialty_needed_name = serializers.CharField(source='specialty_needed.name', read_only=True)
-    referring_hospital_name = serializers.CharField(source='referring_hospital.name', read_only=True)
-    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
-    assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
-    transferred_by_user = serializers.CharField(source='transferred_by.get_full_name', read_only=True)
-    triaged_by_user = serializers.CharField(source='triaged_by.get_full_name', read_only=True)
+    specialty_needed_name = serializers.SerializerMethodField()
+    referring_hospital_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    assigned_to_name = serializers.SerializerMethodField()
+    transferred_by_user = serializers.SerializerMethodField()
+    triaged_by_user = serializers.SerializerMethodField()
+    triage_verified_by_name = serializers.SerializerMethodField()
     department_acceptances = DepartmentAcceptanceSerializer(many=True, read_only=True)
     acceptance_summary = serializers.SerializerMethodField()
-    triage_verified_by_name = serializers.CharField(source='triage_verified_by.get_full_name', read_only=True)
+    
+    def get_specialty_needed_name(self, obj):
+        return obj.specialty_needed.name if obj.specialty_needed else None
+    
+    def get_referring_hospital_name(self, obj):
+        return obj.referring_hospital.name if obj.referring_hospital else None
+    
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+    
+    def get_assigned_to_name(self, obj):
+        return obj.assigned_to.get_full_name() if obj.assigned_to else None
+    
+    def get_transferred_by_user(self, obj):
+        return obj.transferred_by.get_full_name() if obj.transferred_by else None
+    
+    def get_triaged_by_user(self, obj):
+        return obj.triaged_by.get_full_name() if obj.triaged_by else None
+    
+    def get_triage_verified_by_name(self, obj):
+        return obj.triage_verified_by.get_full_name() if obj.triage_verified_by else None
     
     def get_acceptance_summary(self, obj):
         """Get department acceptance summary"""
@@ -213,7 +248,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'triage_decision', 'triage_notes', 'scheduled_date', 'scheduled_time',
             
             # Department assignment
-            'assigned_department', 'assigned_departments',
+            'assigned_department', 'assigned_departments', 'main_service_code',
             
             # Triage workflow
             'in_triage', 'triage_remarks', 'department_acceptances', 'acceptance_summary',
@@ -227,20 +262,44 @@ class ReferralListSerializer(serializers.ModelSerializer):
 
 class ReferralDetailSerializer(serializers.ModelSerializer):
     """Serializer for detailed referral view"""
-    specialty_needed_name = serializers.CharField(source='specialty_needed.name', read_only=True)
-    referring_hospital_name = serializers.CharField(source='referring_hospital.name', read_only=True)
-    referring_hospital_location = serializers.CharField(source='referring_hospital.location', read_only=True)
-    referring_hospital_is_inside_davao = serializers.BooleanField(source='referring_hospital.is_inside_davao_city', read_only=True)
-    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
-    assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
-    transferred_by_user = serializers.CharField(source='transferred_by.get_full_name', read_only=True)
-    triaged_by_user = serializers.CharField(source='triaged_by.get_full_name', read_only=True)
+    specialty_needed_name = serializers.SerializerMethodField()
+    referring_hospital_name = serializers.SerializerMethodField()
+    referring_hospital_location = serializers.SerializerMethodField()
+    referring_hospital_is_inside_davao = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    assigned_to_name = serializers.SerializerMethodField()
+    transferred_by_user = serializers.SerializerMethodField()
+    triaged_by_user = serializers.SerializerMethodField()
     
     transit_info = TransitInfoSerializer(read_only=True)
     status_history = ReferralStatusHistorySerializer(many=True, read_only=True)
     documents = ReferralDocumentSerializer(many=True, read_only=True)
     department_acceptances = DepartmentAcceptanceSerializer(many=True, read_only=True)
     acceptance_summary = serializers.SerializerMethodField()
+    
+    def get_specialty_needed_name(self, obj):
+        return obj.specialty_needed.name if obj.specialty_needed else None
+    
+    def get_referring_hospital_name(self, obj):
+        return obj.referring_hospital.name if obj.referring_hospital else None
+    
+    def get_referring_hospital_location(self, obj):
+        return obj.referring_hospital.location if obj.referring_hospital else None
+    
+    def get_referring_hospital_is_inside_davao(self, obj):
+        return obj.referring_hospital.is_inside_davao_city if obj.referring_hospital else None
+    
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+    
+    def get_assigned_to_name(self, obj):
+        return obj.assigned_to.get_full_name() if obj.assigned_to else None
+    
+    def get_transferred_by_user(self, obj):
+        return obj.transferred_by.get_full_name() if obj.transferred_by else None
+    
+    def get_triaged_by_user(self, obj):
+        return obj.triaged_by.get_full_name() if obj.triaged_by else None
     
     def get_acceptance_summary(self, obj):
         """Get department acceptance summary"""

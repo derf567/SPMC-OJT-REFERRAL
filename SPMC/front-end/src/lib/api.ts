@@ -318,9 +318,10 @@ export const referralsAPI = {
   },
 
   // NEW: Assign departments to referral in triage
-  assignDepartments: async (id: string, departments: string[], remarks?: string, triageDecision?: string, scheduledDate?: string, scheduledTime?: string) => {
+  assignDepartments: async (id: string, departments: string[], mainServiceCode: string, remarks?: string, triageDecision?: string, scheduledDate?: string, scheduledTime?: string) => {
     const requestBody: any = {
       departments,
+      main_service_code: mainServiceCode,
       remarks: remarks || '',
     };
     
