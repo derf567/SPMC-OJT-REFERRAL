@@ -43,10 +43,8 @@ export const NotificationContainer = ({ notifications, onRemove, onNotificationC
         // Play sound for new notifications that haven't had sound played yet
         shouldShow.forEach(notification => {
           if (!playedSounds.has(notification.id)) {
-            // Play appropriate sound based on notification type
-            if (notification.type === 'new_referral' || notification.type === 'referral_transferred') {
-              notificationSound.playNotification();
-            } else if (notification.type === 'account_approval') {
+            // Only play loud alarm for new referral submissions
+            if (notification.type === 'new_referral') {
               notificationSound.playNotification();
             }
             // Mark this notification as having played sound

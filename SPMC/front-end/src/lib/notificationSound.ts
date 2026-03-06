@@ -11,6 +11,8 @@ export const NOTIFICATION_SOUNDS = {
   chime: '/notification-sounds/chime.mp3',
   ding: '/notification-sounds/ding.mp3',
   beep: '/notification-sounds/beep.mp3',
+  loud_alarm: '/notification-sounds/loud-alarm.wav',
+  emergency: '/notification-sounds/emergency.mp3',
   // Fallback to generated sound if no file exists
   generated: 'generated'
 } as const;
@@ -22,17 +24,16 @@ class NotificationSound {
   private enabled: boolean = true;
   private selectedSound: NotificationSoundType = 'default';
   private audioCache: Map<string, HTMLAudioElement> = new Map();
+  private currentlyPlayingAudio: HTMLAudioElement | null = null;
 
   constructor() {
     // Check if user has sound preference saved
     const savedPreference = localStorage.getItem('notificationSoundEnabled');
     this.enabled = savedPreference !== 'false'; // Default to true
     
-    // Load selected sound preference
-    const savedSound = localStorage.getItem('notificationSoundType') as NotificationSoundType;
-    if (savedSound && NOTIFICATION_SOUNDS[savedSound]) {
-      this.selectedSound = savedSound;
-    }
+    // Force loud_alarm as the only sound option
+    this.selectedSound = 'loud_alarm';
+    localStorage.setItem('notificationSoundType', 'loud_alarm');
   }
 
   /**
@@ -50,6 +51,9 @@ class NotificationSound {
    */
   private async playAudioFile(url: string, volume: number = 0.5) {
     try {
+      // Stop any currently playing audio first
+      this.stopCurrentAudio();
+      
       // Check if audio is cached
       let audio = this.audioCache.get(url);
       
@@ -69,18 +73,41 @@ class NotificationSound {
       audio.currentTime = 0;
       audio.volume = volume;
       
+      // Store reference to currently playing audio
+      this.currentlyPlayingAudio = audio;
+      
+      // Clear reference when audio ends
+      audio.onended = () => {
+        if (this.currentlyPlayingAudio === audio) {
+          this.currentlyPlayingAudio = null;
+        }
+      };
+      
       // Play the audio with error handling
       try {
         await audio.play();
       } catch (playError) {
         console.warn('Audio playback failed, using generated sound instead:', playError);
+        this.currentlyPlayingAudio = null;
         // Fallback to generated sound if file fails to load
         this.playGeneratedNotification();
       }
     } catch (error) {
       console.error('Error preparing audio file:', error);
+      this.currentlyPlayingAudio = null;
       // Fallback to generated sound if file fails to load
       this.playGeneratedNotification();
+    }
+  }
+
+  /**
+   * Stop any currently playing audio
+   */
+  stopCurrentAudio() {
+    if (this.currentlyPlayingAudio) {
+      this.currentlyPlayingAudio.pause();
+      this.currentlyPlayingAudio.currentTime = 0;
+      this.currentlyPlayingAudio = null;
     }
   }
 
@@ -117,7 +144,9 @@ class NotificationSound {
     if (soundUrl === 'generated' || this.selectedSound === 'generated') {
       this.playGeneratedNotification();
     } else {
-      this.playAudioFile(soundUrl, 0.5);
+      // Use higher volume for loud alarm and emergency sounds
+      const volume = (this.selectedSound === 'loud_alarm' || this.selectedSound === 'emergency') ? 0.9 : 0.5;
+      this.playAudioFile(soundUrl, volume);
     }
   }
 
@@ -270,10 +299,11 @@ class NotificationSound {
   }
 
   /**
-   * Disable notification sounds
+   * Disable notification sounds and stop any currently playing audio
    */
   disable() {
     this.enabled = false;
+    this.stopCurrentAudio(); // Stop audio when disabling
     localStorage.setItem('notificationSoundEnabled', 'false');
   }
 

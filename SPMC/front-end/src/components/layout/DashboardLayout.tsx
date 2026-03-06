@@ -343,12 +343,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const testNotification = () => {
     const testNotif: NotificationData = {
       id: `test_${Date.now()}`,
-      type: user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals 
-        ? 'new_referral' 
-        : user?.permissions?.can_triage_referrals 
-        ? 'referral_transferred' 
-        : 'account_approval',
-      message: 'This is a test notification to verify the system is working correctly.',
+      type: 'new_referral', // Always use new_referral to test the loud alarm
+      message: 'This is a test notification to verify the loud alarm is working correctly.',
       referralId: 'TEST-001',
       timestamp: new Date().toISOString(),
     };
