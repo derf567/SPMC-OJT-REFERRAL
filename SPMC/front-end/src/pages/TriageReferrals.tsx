@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { referralsAPI, departmentsAPI } from '@/lib/api';
 import { toast } from 'sonner';
-import { Loader2, ClipboardList, CheckCircle, Clock, XCircle, FileText, MapPin, X } from 'lucide-react';
+import { Loader2, ClipboardList, CheckCircle, Clock, XCircle, FileText, MapPin, X, Edit, Eye, UserPlus, CornerUpRight, CheckSquare, MoreVertical } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -72,6 +72,9 @@ export default function TriageReferrals() {
   // Timeline modal state
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedReferralForTimeline, setSelectedReferralForTimeline] = useState<TriageReferral | null>(null);
+  
+  // Dropdown menu state
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   
   // Use ref to track if modal is open to prevent flickering during re-renders
   const isModalOpenRef = useRef(false);
@@ -207,15 +210,16 @@ export default function TriageReferrals() {
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { bg: string; text: string; label: string }> = {
-      in_triage: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Pending Assignment' },
-      waiting_acceptance: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Waiting Acceptance' },
-      awaiting_triage_verification: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Awaiting Verification' },
-      dispositioned: { bg: 'bg-green-100', text: 'text-green-800', label: 'Dispositioned' },
-      in_transit: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'In Transit' },
+      in_triage: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-800 dark:text-blue-300', label: 'Pending Assignment' },
+      waiting_acceptance: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-800 dark:text-amber-300', label: 'Waiting Acceptance' },
+      awaiting_triage_verification: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-800 dark:text-purple-300', label: 'Awaiting Verification' },
+      dispositioned: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-800 dark:text-green-300', label: 'Dispositioned' },
+      in_transit: { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-800 dark:text-indigo-300', label: 'In Transit' },
+      completed: { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-800 dark:text-gray-300', label: 'Completed' },
     };
-    const badge = badges[status] || { bg: 'bg-gray-100', text: 'text-gray-800', label: status };
+    const badge = badges[status] || { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-800 dark:text-gray-300', label: status };
     return (
-      <span className={`px-2 py-1 rounded text-xs font-medium ${badge.bg} ${badge.text}`}>
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.text}`}>
         {badge.label}
       </span>
     );
@@ -331,26 +335,26 @@ export default function TriageReferrals() {
       <div className="container mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <ClipboardList className="w-8 h-8 text-purple-600" />
-          <h1 className="text-2xl font-bold text-gray-800">Triage Referrals</h1>
+          <ClipboardList className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Triage Referrals</h1>
         </div>
         <button
           onClick={fetchTriageReferrals}
-          className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors shadow-sm font-medium"
         >
           Refresh
         </button>
       </div>
 
       {/* Filters */}
-      <div className="mb-6 bg-white p-4 rounded-lg shadow">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+      <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Filter by Status
         </label>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
           <option value="">All Statuses</option>
           <option value="in_triage">Pending Assignment</option>
@@ -362,66 +366,66 @@ export default function TriageReferrals() {
 
       {/* Referrals Table */}
       {referrals.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <ClipboardList className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg">No referrals in triage</p>
-          <p className="text-gray-400 text-sm mt-2">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center border border-gray-200 dark:border-gray-700">
+          <ClipboardList className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-500 dark:text-gray-400 text-lg">No referrals in triage</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
             Transfer referrals from Active Referrals to see them here
           </p>
         </div>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Referral ID
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Patient Info
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Chief Complaint
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Acceptance Progress
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {referrals.map((referral) => (
-                  <tr key={referral.id} className="hover:bg-gray-50">
+                  <tr key={referral.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {referral.referral_id}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(referral.created_at).toLocaleDateString()}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {referral.patient_full_name}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         {referral.age} yrs, {referral.gender}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         {referral.referring_hospital_name}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900 max-w-xs truncate">
+                      <div className="text-sm text-gray-900 dark:text-white max-w-xs truncate">
                         {referral.chief_complaint}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         {referral.specialty_needed_name}
                       </div>
                     </td>
@@ -433,12 +437,12 @@ export default function TriageReferrals() {
                         <div className="flex items-center gap-2">
                           <div className="flex-1">
                             <div className="flex items-center gap-1 text-sm">
-                              <span className="font-medium">
+                              <span className="font-medium text-gray-900 dark:text-white">
                                 {referral.acceptance_summary.accepted}/{referral.acceptance_summary.total}
                               </span>
-                              <span className="text-gray-500">accepted</span>
+                              <span className="text-gray-500 dark:text-gray-400">accepted</span>
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
                               Need {referral.acceptance_summary.majority_needed} for approval
                             </div>
                           </div>
@@ -447,101 +451,142 @@ export default function TriageReferrals() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400">Not assigned</span>
+                        <span className="text-sm text-gray-400 dark:text-gray-500">Not assigned</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex gap-2">
-                        {/* Edit button - available for all referrals */}
-                        <button
-                          onClick={() => {
-                            window.location.href = `/referral/edit/${referral.id}`;
-                          }}
-                          className="px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors"
-                        >
-                          Edit
-                        </button>
-                        
+                      <div className="flex flex-wrap gap-2">
                         {referral.status === 'in_triage' && (
                           <button
                             onClick={() => handleAssignDepartments(referral)}
-                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-md transition-colors border border-purple-200 dark:border-purple-800"
                           >
+                            <UserPlus className="w-3.5 h-3.5" />
                             Assign Departments
                           </button>
                         )}
+                        
                         {referral.status === 'waiting_acceptance' && (
                           <>
                             <button
                               onClick={() => handleViewDetails(referral)}
-                              className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md transition-colors border border-gray-200 dark:border-gray-600"
                             >
+                              <Eye className="w-3.5 h-3.5" />
                               View Status
                             </button>
                             <button
                               disabled={referral.acceptance_summary.rejected < referral.acceptance_summary.majority_needed}
                               onClick={() => referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed && handleAssignDepartments(referral)}
-                              className={`px-3 py-1 rounded transition-colors ${
+                              className={`inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors border relative group ${
                                 referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed
-                                  ? 'bg-orange-500 text-white hover:bg-orange-600 cursor-pointer'
-                                  : 'bg-orange-300 text-orange-100 cursor-not-allowed opacity-60'
+                                  ? 'text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 border-orange-200 dark:border-orange-800 cursor-pointer'
+                                  : 'text-orange-400 dark:text-orange-700 bg-orange-50/50 dark:bg-orange-900/10 border-orange-200/50 dark:border-orange-800/30 cursor-not-allowed opacity-60'
                               }`}
-                              title={referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed ? 'Redirect to assign new departments' : 'Waiting for department responses'}
+                              title={referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed ? 'Reassign to new departments' : 'Waiting for department responses'}
                             >
-                              Redirect
+                              <CornerUpRight className="w-4 h-4" />
+                              {/* Hover Tooltip */}
+                              <span className="absolute bottom-full mb-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 dark:bg-gray-700 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                Reassign
+                              </span>
                             </button>
                           </>
                         )}
+                        
                         {referral.status === 'awaiting_triage_verification' && (
                           <>
                             <button
                               onClick={() => handleViewDetails(referral)}
-                              className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md transition-colors border border-gray-200 dark:border-gray-600"
                             >
+                              <Eye className="w-3.5 h-3.5" />
                               View Status
                             </button>
                             <button
                               onClick={() => handleApproveForTransit(referral)}
-                              className="px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-md transition-colors border border-green-200 dark:border-green-800"
                             >
-                              Approve for Transit
+                              <CheckSquare className="w-3.5 h-3.5" />
+                              Approve Transit
                             </button>
                           </>
                         )}
+                        
                         {referral.status === 'dispositioned' && (
                           <button
                             onClick={() => handleViewDetails(referral)}
-                            className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-md transition-colors border border-green-200 dark:border-green-800"
                           >
+                            <Eye className="w-3.5 h-3.5" />
                             View Details
                           </button>
                         )}
+                        
                         {referral.status === 'in_transit' && (
                           <>
                             <button
                               onClick={() => handleMarkComplete(referral)}
-                              className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors flex items-center gap-1"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-md transition-colors border border-green-200 dark:border-green-800"
                             >
-                              <CheckCircle className="w-4 h-4" />
+                              <CheckCircle className="w-3.5 h-3.5" />
                               Complete
                             </button>
                             <button
                               onClick={() => handleMarkCancelled(referral)}
-                              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors flex items-center gap-1"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md transition-colors border border-red-200 dark:border-red-800"
                             >
-                              <XCircle className="w-4 h-4" />
+                              <XCircle className="w-3.5 h-3.5" />
                               Cancel
                             </button>
                           </>
                         )}
-                        {/* Timeline Button - Icon only to save space */}
+                        
+                        {/* Timeline Button - Icon Only (moved to end) */}
                         <button
                           onClick={() => openTimelineModal(referral)}
-                          className="p-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                          className="inline-flex items-center justify-center w-8 h-8 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-md transition-colors border border-blue-200 dark:border-blue-800"
                           title="View timeline"
                         >
                           <Clock className="w-4 h-4" />
                         </button>
+                        
+                        {/* Burger Menu with Edit (moved to end) - Hidden for completed referrals */}
+                        {referral.status !== 'completed' && (
+                          <div className="relative">
+                            <button
+                              onClick={() => setOpenDropdownId(openDropdownId === referral.id ? null : referral.id)}
+                              className="inline-flex items-center justify-center w-8 h-8 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md transition-colors border border-gray-200 dark:border-gray-600"
+                              title="More actions"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                            
+                            {openDropdownId === referral.id && (
+                              <>
+                                {/* Backdrop to close dropdown */}
+                                <div 
+                                  className="fixed inset-0 z-10" 
+                                  onClick={() => setOpenDropdownId(null)}
+                                />
+                                
+                                {/* Dropdown Menu */}
+                                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 py-1">
+                                  <button
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      window.location.href = `/referral/edit/${referral.id}`;
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors"
+                                  >
+                                    <Edit className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                                    <span>Edit Referral</span>
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -571,7 +616,7 @@ export default function TriageReferrals() {
           referral={selectedReferral}
           departments={departments}
           onClose={closeModal}
-          onRedirect={() => {
+          onReassign={() => {
             closeModal();
             handleAssignDepartments(selectedReferral);
           }}
@@ -1145,12 +1190,12 @@ function DetailsDialog({
   referral,
   departments,
   onClose,
-  onRedirect
+  onReassign
 }: {
   referral: TriageReferral;
   departments: Department[];
   onClose: () => void;
-  onRedirect?: () => void;
+  onReassign?: () => void;
 }) {
   const [currentReferral, setCurrentReferral] = useState(referral);
   
@@ -1184,8 +1229,8 @@ function DetailsDialog({
     }
   };
 
-  const handleRedirect = () => {
-    onRedirect?.();
+  const handleReassign = () => {
+    onReassign?.();
   };
 
   return (
@@ -1343,15 +1388,15 @@ function DetailsDialog({
         <div className="mt-6 flex justify-end gap-2">
           <button
             disabled={currentReferral.acceptance_summary.rejected < currentReferral.acceptance_summary.majority_needed}
-            onClick={handleRedirect}
+            onClick={handleReassign}
             className={`px-4 py-2 rounded-lg transition-colors ${
               currentReferral.acceptance_summary.rejected >= currentReferral.acceptance_summary.majority_needed
                 ? 'bg-orange-500 text-white hover:bg-orange-600 cursor-pointer'
                 : 'bg-orange-300 text-orange-100 cursor-not-allowed opacity-60'
             }`}
-            title={currentReferral.acceptance_summary.rejected >= currentReferral.acceptance_summary.majority_needed ? 'Redirect to assign new departments' : 'Waiting for department responses'}
+            title={currentReferral.acceptance_summary.rejected >= currentReferral.acceptance_summary.majority_needed ? 'Reassign to new departments' : 'Waiting for department responses'}
           >
-            Redirect to Assign Departments
+            Reassign to New Departments
           </button>
           <button
             onClick={onClose}
