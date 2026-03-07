@@ -26,7 +26,8 @@ import {
   Download,
   FileText,
   Image,
-  ChevronDown
+  ChevronDown,
+  Info
 } from "lucide-react";
 
 interface ReportsData {
