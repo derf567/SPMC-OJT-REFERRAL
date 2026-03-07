@@ -22,6 +22,7 @@ interface DepartmentAcceptance {
   accepted_by_name?: string;
   accepted_at?: string;
   notes?: string;
+  is_main_service?: boolean;
 }
 
 interface AcceptanceSummary {
