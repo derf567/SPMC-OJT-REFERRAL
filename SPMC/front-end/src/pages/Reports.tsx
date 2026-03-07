@@ -950,6 +950,204 @@ const Reports = () => {
           </div>
         </div>
 
+        {/* New Report Categories Section */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 border border-blue-200 dark:border-gray-600 p-6 rounded-lg">
+          <div className="flex items-center gap-2 mb-6">
+            <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Detailed Report Categories</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Coordinated Overall */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Coordinated Overall</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Southern Mindanao</p>
+                  </div>
+                </div>
+                <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
+                  Coming Soon
+                </Badge>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                Top referring hospitals in overall Southern Mindanao region
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-green-600 dark:text-green-400">---</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Hospitals</span>
+              </div>
+            </div>
+
+            {/* Coordinated Inside Davao */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Coordinated Inside Davao</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Davao City</p>
+                  </div>
+                </div>
+                <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800">
+                  Coming Soon
+                </Badge>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                Top referring hospitals within Davao City
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">---</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Hospitals</span>
+              </div>
+            </div>
+
+            {/* Coordinated Outside Davao */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Coordinated Outside Davao</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Outside Davao City</p>
+                  </div>
+                </div>
+                <Badge className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800">
+                  Coming Soon
+                </Badge>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                Top referring hospitals outside Davao City
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">---</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Hospitals</span>
+              </div>
+            </div>
+
+            {/* Uncoordinated Overall */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Overall</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Southern Mindanao</p>
+                  </div>
+                </div>
+                <Badge className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800">
+                  Coming Soon
+                </Badge>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                Uncoordinated referrals in overall Southern Mindanao
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-red-600 dark:text-red-400">---</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Referrals</span>
+              </div>
+            </div>
+
+            {/* Uncoordinated Inside Davao */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Inside Davao</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Davao City</p>
+                  </div>
+                </div>
+                <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800">
+                  Coming Soon
+                </Badge>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                Top uncoordinated hospitals in Davao City
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">---</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Hospitals</span>
+              </div>
+            </div>
+
+            {/* Uncoordinated Outside Davao */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Outside Davao</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Outside Davao City</p>
+                  </div>
+                </div>
+                <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800">
+                  Coming Soon
+                </Badge>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                Top uncoordinated hospitals outside Davao City
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">---</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Hospitals</span>
+              </div>
+            </div>
+
+            {/* Delay Department */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                    <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Delay Department</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Processing Delays</p>
+                  </div>
+                </div>
+                <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800">
+                  Coming Soon
+                </Badge>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                Top delayed departments by processing time
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">---</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Departments</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold text-blue-900 dark:text-blue-300 text-sm mb-1">Report Categories Information</h4>
+                <p className="text-xs text-blue-700 dark:text-blue-400">
+                  These report categories are currently in development and will be connected to the backend system soon. 
+                  Each category will provide detailed analytics with interactive graphs and downloadable reports.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Coordinated and Uncoordinated Referrals - Graphs and Tables */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Coordinated Referrals */}
