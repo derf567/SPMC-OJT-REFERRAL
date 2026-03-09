@@ -971,34 +971,34 @@ function AssignDepartmentsDialog({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4 text-gray-800">Assign Departments</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700 shadow-xl">
+        <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">Assign Departments</h2>
         
-        <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-gray-700 mb-1">
+        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
             <span className="font-medium">Referral:</span> {referral.referral_id}
           </p>
-          <p className="text-sm text-gray-700 mb-1">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
             <span className="font-medium">Patient:</span> {referral.patient_full_name}
           </p>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-gray-700 dark:text-gray-300">
             <span className="font-medium">Chief Complaint:</span> {referral.chief_complaint}
           </p>
         </div>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Select Departments <span className="text-red-500">*</span>
-            <span className="text-gray-500 font-normal ml-2">(can select multiple)</span>
+            <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">(can select multiple)</span>
           </label>
-          <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3">
+          <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700">
             {!departments || departments.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No departments available</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No departments available</p>
             ) : (
               departments.map((dept) => (
                 <label 
                   key={dept.code} 
-                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer"
                 >
                   <input
                     type="checkbox"
@@ -1010,16 +1010,16 @@ function AssignDepartmentsDialog({
                         setSelectedDepts(selectedDepts.filter(d => d !== dept.code));
                       }
                     }}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500 dark:bg-gray-600"
                   />
-                  <span className="flex-1 text-sm font-medium text-gray-900">{dept.name}</span>
-                  <span className="text-sm text-gray-500">{dept.contact_number}</span>
+                  <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{dept.name}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{dept.contact_number}</span>
                 </label>
               ))
             )}
           </div>
           {selectedDepts.length > 0 && (
-            <p className="text-xs text-gray-600 mt-2">
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
               {selectedDepts.length} department(s) selected
             </p>
           )}
@@ -1027,10 +1027,10 @@ function AssignDepartmentsDialog({
 
         {/* Main Service Selection */}
         {selectedDepts.length > 0 && (
-          <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Main Service <span className="text-gray-500 font-normal ml-2">(optional - primary department)</span>
-              <span className="text-gray-500 font-normal ml-2">(if not selected, all are co-manage)</span>
+          <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Select Main Service <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">(optional - primary department)</span>
+              <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">(if not selected, all are co-manage)</span>
             </label>
             <div className="space-y-2">
               {departments
@@ -1038,7 +1038,7 @@ function AssignDepartmentsDialog({
                 .map((dept) => (
                   <label 
                     key={dept.code} 
-                    className="flex items-center space-x-3 p-3 border border-purple-200 hover:bg-purple-100 rounded cursor-pointer"
+                    className="flex items-center space-x-3 p-3 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-800/30 rounded cursor-pointer bg-white dark:bg-gray-800"
                   >
                     <input
                       type="radio"
@@ -1046,23 +1046,23 @@ function AssignDepartmentsDialog({
                       value={dept.code}
                       checked={mainServiceCode === dept.code}
                       onChange={(e) => setMainServiceCode(e.target.value)}
-                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
                     />
                     <div className="flex-1">
-                      <span className="text-sm font-medium text-gray-900">{dept.name}</span>
-                      <p className="text-xs text-gray-500">Main service - final decision authority</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">{dept.name}</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Main service - final decision authority</p>
                     </div>
-                    <span className="text-sm text-gray-500">{dept.contact_number}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{dept.contact_number}</span>
                   </label>
                 ))}
             </div>
             {mainServiceCode && (
-              <p className="text-xs text-purple-600 mt-2">
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
                 ✓ {departments.find(d => d.code === mainServiceCode)?.name} selected as main service
               </p>
             )}
             {!mainServiceCode && selectedDepts.length > 0 && (
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                 No main service selected - all {selectedDepts.length} department(s) will be co-manage
               </p>
             )}
@@ -1071,7 +1071,7 @@ function AssignDepartmentsDialog({
 
         {/* Triage Decision */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Triage Decision <span className="text-red-500">*</span>
           </label>
           <div className="grid grid-cols-3 gap-3">
@@ -1080,13 +1080,13 @@ function AssignDepartmentsDialog({
               onClick={() => setTriageDecision('emergent')}
               className={`p-3 border-2 rounded-lg text-center transition-all ${
                 triageDecision === 'emergent'
-                  ? 'border-red-500 bg-red-50 text-red-700'
-                  : 'border-gray-200 hover:border-red-300 text-gray-700'
+                  ? 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-red-300 dark:hover:border-red-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700'
               }`}
             >
               <div className="text-2xl mb-1">🚨</div>
               <div className="font-medium text-sm">Emergent</div>
-              <div className="text-xs text-gray-500">Immediate care</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Immediate care</div>
             </button>
             
             <button
@@ -1094,8 +1094,8 @@ function AssignDepartmentsDialog({
               onClick={() => setTriageDecision('urgent')}
               className={`p-3 border-2 rounded-lg text-center transition-all ${
                 triageDecision === 'urgent'
-                  ? 'border-orange-500 bg-orange-50 text-orange-700'
-                  : 'border-gray-200 hover:border-orange-300 text-gray-700'
+                  ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700'
               }`}
             >
               <div className="text-2xl mb-1">⚡</div>
