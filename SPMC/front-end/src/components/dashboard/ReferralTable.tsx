@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Truck, AlertTriangle, Check, Calendar, AlertCircle, Edit, XCircle } from "lucide-react";
-import { referralsAPI } from "@/lib/api";
+import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Truck, AlertTriangle, Check, Calendar, AlertCircle, Edit, XCircle, UserPlus, Loader2 } from "lucide-react";
+import { referralsAPI, departmentsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -515,17 +515,6 @@ const ReferralDetailModal = ({
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          {user?.permissions?.can_transfer_referrals && (
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => {
-                handleTransferToTriage(referral.id || referral.referral_id);
-                onClose();
-              }}
-            >
-              Transfer to EDMAR/EDHO Triage
-            </Button>
-          )}
           {user?.permissions?.can_triage_referrals && referral.status === 'waiting' && (
             <Button 
               className="bg-green-600 hover:bg-green-700 text-white"
@@ -569,6 +558,8 @@ export const ReferralTable = () => {
   const [selectedReferralForCancel, setSelectedReferralForCancel] = useState<ReferralData | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [showAssignDepartmentsDialog, setShowAssignDepartmentsDialog] = useState(false);
+  const [selectedReferralForAssign, setSelectedReferralForAssign] = useState<ReferralData | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -1561,17 +1552,6 @@ export const ReferralTable = () => {
                             <Edit className="w-4 h-4" />
                           </Button>
                         )}
-                        {user?.permissions?.can_transfer_referrals && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-blue-500 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/20"
-                            onClick={() => handleTransferToTriage(referral.id || referral.referral_id)}
-                            title="Transfer to EDMAR/EDHO Triage"
-                          >
-                            <Truck className="w-4 h-4" />
-                          </Button>
-                        )}
                         {user?.permissions?.can_triage_referrals && referral.status === 'waiting' && (
                           <Button 
                             variant="ghost" 
@@ -1595,6 +1575,22 @@ export const ReferralTable = () => {
                             title="Confirm Arrival"
                           >
                             <Check className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {/* Assign Departments button for EDCC/EDMA users */}
+                        {user?.permissions?.can_transfer_referrals && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/20 flex items-center gap-1.5"
+                            onClick={() => {
+                              setSelectedReferralForAssign(referral);
+                              setShowAssignDepartmentsDialog(true);
+                            }}
+                            title="Call & Endorse - Assign Departments"
+                          >
+                            <UserPlus className="w-4 h-4" />
+                            <span className="text-xs font-medium">Call & Endorse</span>
                           </Button>
                         )}
                         {/* Cancel button - available for all users if referral is not already cancelled/completed */}
@@ -2228,6 +2224,324 @@ export const ReferralTable = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Assign Departments Dialog */}
+      {showAssignDepartmentsDialog && selectedReferralForAssign && (
+        <AssignDepartmentsDialogForReferralTable
+          referral={selectedReferralForAssign}
+          departments={[]}
+          onClose={() => {
+            setShowAssignDepartmentsDialog(false);
+            setSelectedReferralForAssign(null);
+          }}
+          onSuccess={() => {
+            setShowAssignDepartmentsDialog(false);
+            setSelectedReferralForAssign(null);
+            // Refresh the referrals list
+            const fetchReferrals = async () => {
+              try {
+                const response = await referralsAPI.getAll();
+                const allReferrals = response.results || response;
+                const activeStatuses = ['pending', 'waiting', 'in_transit', 'urgent', 'emergent', 'schedule_opd'];
+                setReferrals(allReferrals.filter((ref: any) => activeStatuses.includes(ref.status)));
+              } catch (error) {
+                console.error('Error fetching referrals:', error);
+              }
+            };
+            fetchReferrals();
+          }}
+        />
+      )}
     </>
   );
 };
+
+// Assign Departments Dialog Component for ReferralTable
+function AssignDepartmentsDialogForReferralTable({ 
+  referral, 
+  departments, 
+  onClose, 
+  onSuccess 
+}: {
+  referral: ReferralData;
+  departments: any[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
+  const [mainServiceCode, setMainServiceCode] = useState<string>('');
+  const [triageDecision, setTriageDecision] = useState<string>('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [depts, setDepts] = useState<any[]>([]);
+
+  // Fetch departments on mount
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const response = await departmentsAPI.getAll();
+        const deptData = Array.isArray(response) ? response : (response.results || []);
+        setDepts(deptData);
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      }
+    };
+    fetchDepts();
+  }, []);
+
+  const handleSubmit = async () => {
+    if (selectedDepts.length === 0) {
+      toast.error('Please select at least one department');
+      return;
+    }
+
+    if (!triageDecision) {
+      toast.error('Please select a triage decision (Emergent/Urgent/Schedule OPD)');
+      return;
+    }
+
+    // Validate scheduled date/time for OPD
+    if (triageDecision === 'schedule_opd') {
+      if (!scheduledDate || !scheduledTime) {
+        toast.error('Please select appointment date and time for OPD scheduling');
+        return;
+      }
+
+      const selectedDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+      const now = new Date();
+      if (selectedDateTime <= now) {
+        toast.error('Cannot schedule appointments in the past. Please select a future date and time.');
+        return;
+      }
+    }
+
+    try {
+      setSubmitting(true);
+      
+      await referralsAPI.assignDepartments(
+        referral.id?.toString() || referral.referral_id, 
+        selectedDepts,
+        mainServiceCode,
+        remarks,
+        triageDecision,
+        triageDecision === 'schedule_opd' ? scheduledDate : undefined,
+        triageDecision === 'schedule_opd' ? scheduledTime : undefined
+      );
+      
+      toast.success('Departments assigned successfully with triage decision!');
+      onSuccess();
+    } catch (error: any) {
+      console.error('Error assigning departments:', error);
+      toast.error(error.message || 'Failed to assign departments');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700 shadow-xl">
+        <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">Assign Departments</h2>
+        
+        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
+            <span className="font-medium">Referral:</span> {referral.referral_id}
+          </p>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
+            <span className="font-medium">Patient:</span> {referral.patient_full_name}
+          </p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            <span className="font-medium">Chief Complaint:</span> {referral.chief_complaint}
+          </p>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Select Departments <span className="text-red-500">*</span>
+            <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">(can select multiple)</span>
+          </label>
+          <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700">
+            {!depts || depts.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No departments available</p>
+            ) : (
+              depts.map((dept) => (
+                <label 
+                  key={dept.code} 
+                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedDepts.includes(dept.code)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedDepts([...selectedDepts, dept.code]);
+                      } else {
+                        setSelectedDepts(selectedDepts.filter(d => d !== dept.code));
+                      }
+                    }}
+                    className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500 dark:bg-gray-600"
+                  />
+                  <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{dept.name}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{dept.contact_number}</span>
+                </label>
+              ))
+            )}
+          </div>
+          {selectedDepts.length > 0 && (
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+              {selectedDepts.length} department(s) selected
+            </p>
+          )}
+        </div>
+
+        {/* Main Service Selection */}
+        {selectedDepts.length > 0 && (
+          <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Select Main Service <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">(optional - primary department)</span>
+            </label>
+            <div className="space-y-2">
+              {depts
+                .filter(dept => selectedDepts.includes(dept.code))
+                .map((dept) => (
+                  <label 
+                    key={dept.code} 
+                    className="flex items-center space-x-3 p-3 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-800/30 rounded cursor-pointer bg-white dark:bg-gray-800"
+                  >
+                    <input
+                      type="radio"
+                      name="main_service"
+                      value={dept.code}
+                      checked={mainServiceCode === dept.code}
+                      onChange={(e) => setMainServiceCode(e.target.value)}
+                      className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">{dept.name}</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Main service - final decision authority</p>
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{dept.contact_number}</span>
+                  </label>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Triage Decision */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Triage Decision <span className="text-red-500">*</span>
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            <button
+              type="button"
+              onClick={() => setTriageDecision('emergent')}
+              className={`p-3 border-2 rounded-lg text-center transition-all ${
+                triageDecision === 'emergent'
+                  ? 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-red-300 dark:hover:border-red-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700'
+              }`}
+            >
+              <div className="text-2xl mb-1">🚨</div>
+              <div className="font-medium text-sm">Emergent</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Immediate care</div>
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setTriageDecision('urgent')}
+              className={`p-3 border-2 rounded-lg text-center transition-all ${
+                triageDecision === 'urgent'
+                  ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700'
+              }`}
+            >
+              <div className="text-2xl mb-1">⚡</div>
+              <div className="font-medium text-sm">Urgent</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Priority case</div>
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setTriageDecision('schedule_opd')}
+              className={`p-3 border-2 rounded-lg text-center transition-all ${
+                triageDecision === 'schedule_opd'
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700'
+              }`}
+            >
+              <div className="text-2xl mb-1">📅</div>
+              <div className="font-medium text-sm">Schedule OPD</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Outpatient</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Scheduled Date/Time for OPD */}
+        {triageDecision === 'schedule_opd' && (
+          <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+            <h4 className="font-medium text-gray-800 dark:text-white mb-3">Schedule Appointment</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Time <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Remarks
+          </label>
+          <textarea
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            rows={3}
+            placeholder="Add any remarks or special instructions..."
+          />
+        </div>
+
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            disabled={submitting}
+          >
+            {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+            {submitting ? 'Assigning...' : 'Assign Departments'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

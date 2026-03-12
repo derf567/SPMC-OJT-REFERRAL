@@ -5,6 +5,7 @@ import { Loader2, ClipboardList, CheckCircle, Clock, XCircle, FileText, MapPin, 
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Department {
   id: number;
@@ -79,6 +80,9 @@ export default function TriageReferrals() {
   
   // Use ref to track if modal is open to prevent flickering during re-renders
   const isModalOpenRef = useRef(false);
+  
+  // Get current user
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchTriageReferrals();
@@ -457,16 +461,6 @@ export default function TriageReferrals() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex flex-wrap gap-2">
-                        {referral.status === 'in_triage' && (
-                          <button
-                            onClick={() => handleAssignDepartments(referral)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-md transition-colors border border-purple-200 dark:border-purple-800"
-                          >
-                            <UserPlus className="w-3.5 h-3.5" />
-                            Assign Departments
-                          </button>
-                        )}
-                        
                         {referral.status === 'waiting_acceptance' && (
                           <>
                             <button
@@ -476,22 +470,35 @@ export default function TriageReferrals() {
                               <Eye className="w-3.5 h-3.5" />
                               View Status
                             </button>
-                            <button
-                              disabled={referral.acceptance_summary.rejected < referral.acceptance_summary.majority_needed}
-                              onClick={() => referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed && handleAssignDepartments(referral)}
-                              className={`inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors border relative group ${
-                                referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed
-                                  ? 'text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 border-orange-200 dark:border-orange-800 cursor-pointer'
-                                  : 'text-orange-400 dark:text-orange-700 bg-orange-50/50 dark:bg-orange-900/10 border-orange-200/50 dark:border-orange-800/30 cursor-not-allowed opacity-60'
-                              }`}
-                              title={referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed ? 'Reassign to new departments' : 'Waiting for department responses'}
-                            >
-                              <CornerUpRight className="w-4 h-4" />
-                              {/* Hover Tooltip */}
-                              <span className="absolute bottom-full mb-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 dark:bg-gray-700 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                Reassign
-                              </span>
-                            </button>
+                            {/* Show Assign Departments button for EDCC/EDMA users */}
+                            {user && (user.role === 'edcc' || user.role === 'edma') && (
+                              <button
+                                onClick={() => handleAssignDepartments(referral)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-md transition-colors border border-purple-200 dark:border-purple-800"
+                              >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                Assign Departments
+                              </button>
+                            )}
+                            {/* Show Reassign button only if departments were rejected */}
+                            {referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed && (
+                              <button
+                                disabled={referral.acceptance_summary.rejected < referral.acceptance_summary.majority_needed}
+                                onClick={() => referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed && handleAssignDepartments(referral)}
+                                className={`inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors border relative group ${
+                                  referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed
+                                    ? 'text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 border-orange-200 dark:border-orange-800 cursor-pointer'
+                                    : 'text-orange-400 dark:text-orange-700 bg-orange-50/50 dark:bg-orange-900/10 border-orange-200/50 dark:border-orange-800/30 cursor-not-allowed opacity-60'
+                                }`}
+                                title={referral.acceptance_summary.rejected >= referral.acceptance_summary.majority_needed ? 'Reassign to new departments' : 'Waiting for department responses'}
+                              >
+                                <CornerUpRight className="w-4 h-4" />
+                                {/* Hover Tooltip */}
+                                <span className="absolute bottom-full mb-2 px-2 py-1 text-xs font-medium text-white bg-gray-900 dark:bg-gray-700 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                  Reassign
+                                </span>
+                              </button>
+                            )}
                           </>
                         )}
                         

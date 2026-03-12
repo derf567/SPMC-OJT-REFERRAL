@@ -134,7 +134,9 @@ export const ReferralEdit = () => {
           specialty_needed: data.specialty_needed || '',
           reason_for_referral: data.reason_for_referral || '',
           
-          // Hospital Info
+          // Referring Hospital Info
+          referring_hospital: data.referring_hospital || '',
+          referring_hospital_name: data.referring_hospital_name || '',
           referrer_name: data.referrer_name || '',
           referrer_profession: data.referrer_profession || '',
           referrer_cellphone: data.referrer_cellphone || '',
