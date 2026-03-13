@@ -1,9 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { referralsAPI } from "@/lib/api";
 import { toast } from "sonner";
 import { Truck, Loader2 } from "lucide-react";
+
+interface TransitInfo {
+  watcher_name: string;
+  watcher_age: number;
+  relation_to_patient: string;
+  contact_number: string;
+  escort_nurse?: string;
+  driver?: string;
+  referring_md?: string;
+  latest_vs?: string;
+  gcs?: string;
+  time_ambulance_left?: string;
+  remarks?: string;
+}
 
 interface TransitFormDialogProps {
   open: boolean;
@@ -11,6 +25,8 @@ interface TransitFormDialogProps {
   referralId: string;
   patientName: string;
   onSuccess: () => void;
+  existingData?: TransitInfo | null;
+  isEditMode?: boolean;
 }
 
 export function TransitFormDialog({ 
@@ -18,7 +34,9 @@ export function TransitFormDialog({
   onOpenChange, 
   referralId, 
   patientName,
-  onSuccess 
+  onSuccess,
+  existingData = null,
+  isEditMode = false
 }: TransitFormDialogProps) {
   // Patient & Watcher Information
   const [watcherName, setWatcherName] = useState('');
@@ -38,6 +56,36 @@ export function TransitFormDialog({
   const [remarks, setRemarks] = useState('');
   
   const [submitting, setSubmitting] = useState(false);
+
+  // Pre-fill form when editing
+  useEffect(() => {
+    if (existingData && isEditMode) {
+      setWatcherName(existingData.watcher_name || '');
+      setWatcherAge(existingData.watcher_age?.toString() || '');
+      setRelationToPatient(existingData.relation_to_patient || '');
+      setContactNumber(existingData.contact_number || '');
+      setEscortNurse(existingData.escort_nurse || '');
+      setDriver(existingData.driver || '');
+      setReferringMD(existingData.referring_md || '');
+      setTimeAmbulanceLeft(existingData.time_ambulance_left || '');
+      setLatestVS(existingData.latest_vs || '');
+      setGCS(existingData.gcs || '');
+      setRemarks(existingData.remarks || '');
+    } else if (!open) {
+      // Reset form when dialog closes and not in edit mode
+      setWatcherName('');
+      setWatcherAge('');
+      setRelationToPatient('');
+      setContactNumber('');
+      setEscortNurse('');
+      setDriver('');
+      setReferringMD('');
+      setTimeAmbulanceLeft('');
+      setLatestVS('');
+      setGCS('');
+      setRemarks('');
+    }
+  }, [existingData, isEditMode, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,21 +113,9 @@ export function TransitFormDialog({
         remarks: remarks,
       });
 
-      toast.success('Transit information saved successfully!');
+      toast.success(isEditMode ? 'Transit information updated successfully!' : 'Transit information saved successfully!');
       onSuccess();
-      
-      // Reset form
-      setWatcherName('');
-      setWatcherAge('');
-      setRelationToPatient('');
-      setContactNumber('');
-      setEscortNurse('');
-      setDriver('');
-      setReferringMD('');
-      setTimeAmbulanceLeft('');
-      setLatestVS('');
-      setGCS('');
-      setRemarks('');
+      onOpenChange(false);
     } catch (error: any) {
       console.error('Error submitting transit info:', error);
       toast.error(error.message || 'Failed to save transit information');
@@ -94,10 +130,10 @@ export function TransitFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Truck className="w-6 h-6 text-blue-600" />
-            Fill In-Transit Form
+            {isEditMode ? 'Edit Transit Form' : 'Fill In-Transit Form'}
           </DialogTitle>
           <DialogDescription>
-            Please provide transit information for patient: <span className="font-semibold">{patientName}</span>
+            {isEditMode ? 'Update' : 'Please provide'} transit information for patient: <span className="font-semibold">{patientName}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -308,7 +344,7 @@ export function TransitFormDialog({
               ) : (
                 <>
                   <Truck className="w-4 h-4 mr-2" />
-                  Submit Transit Form
+                  {isEditMode ? 'Update Transit Form' : 'Submit Transit Form'}
                 </>
               )}
             </Button>

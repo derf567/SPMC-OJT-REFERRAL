@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { referralsAPI } from "@/lib/api";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Search, Eye, Clock, FileText, CheckCircle, MapPin, X } from "lucide-react";
+import { Loader2, RefreshCw, Search, Eye, Clock, FileText, CheckCircle, MapPin, X, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TransitFormDialog } from "@/components/ui/TransitFormDialog";
 
 interface TransitInfo {
   watcher_name: string;
@@ -69,6 +70,10 @@ const PatientArrivalPage = () => {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Transit form edit state
+  const [editTransitOpen, setEditTransitOpen] = useState(false);
+  const [editTransitReferral, setEditTransitReferral] = useState<Referral | null>(null);
 
   const normalizeResponse = (response: any): Referral[] => {
     if (Array.isArray(response)) return response;
@@ -285,6 +290,23 @@ const PatientArrivalPage = () => {
     }
   };
 
+  const openEditTransit = async (referral: Referral) => {
+    try {
+      const data = await referralsAPI.getById(referral.id.toString());
+      setEditTransitReferral(data);
+      setEditTransitOpen(true);
+    } catch (error: any) {
+      console.error("Error loading referral:", error);
+      toast.error(error.message || "Failed to load referral details");
+    }
+  };
+
+  const handleTransitFormSuccess = () => {
+    setEditTransitOpen(false);
+    setEditTransitReferral(null);
+    fetchQueue(true);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -365,6 +387,17 @@ const PatientArrivalPage = () => {
                             aria-label="View details"
                           >
                             <Eye className="h-4 w-4" />
+                          </Button>
+
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-blue-400 hover:bg-blue-700/40 hover:text-blue-100"
+                            onClick={() => openEditTransit(referral)}
+                            title="Edit transit form"
+                            aria-label="Edit transit form"
+                          >
+                            <Edit className="h-4 w-4" />
                           </Button>
 
                           <Button
@@ -599,6 +632,19 @@ const PatientArrivalPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Transit Form Edit Dialog */}
+      {editTransitReferral && (
+        <TransitFormDialog
+          open={editTransitOpen}
+          onOpenChange={setEditTransitOpen}
+          referralId={editTransitReferral.id.toString()}
+          patientName={editTransitReferral.patient_full_name}
+          onSuccess={handleTransitFormSuccess}
+          existingData={editTransitReferral.transit_info || null}
+          isEditMode={true}
+        />
+      )}
     </DashboardLayout>
   );
 };
