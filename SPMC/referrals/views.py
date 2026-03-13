@@ -1266,33 +1266,90 @@ class ReferralViewSet(viewsets.ModelViewSet):
         data = []
         
         if time_filter == 'week':
-            # Get last 12 weeks for the specified year
-            start_of_year = datetime(year, 1, 1)
-            end_of_year = datetime(year, 12, 31)
+            month = request.query_params.get('month')
             
-            # Get current date or end of specified year if in the past
-            current_date = min(timezone.now().date(), end_of_year.date())
+            if month:
+                # Filter weeks within a specific month
+                try:
+                    month = int(month)
+                    if 1 <= month <= 12:
+                        # Get all weeks within the specified month and year
+                        month_start = datetime(year, month, 1).date()
+                        # Get last day of month
+                        if month == 12:
+                            month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                        else:
+                            month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                        
+                        # Find all weeks that overlap with this month
+                        current_date = month_start
+                        week_number = 1
+                        
+                        while current_date <= month_end:
+                            # Find the start of the week (Monday)
+                            week_start = current_date - timedelta(days=current_date.weekday())
+                            week_end = week_start + timedelta(days=6)
+                            
+                            # Only include weeks that have at least one day in the target month
+                            if week_end >= month_start and week_start <= month_end:
+                                # Clip the week to the month boundaries for counting
+                                count_start = max(week_start, month_start)
+                                count_end = min(week_end, month_end)
+                                
+                                count = Referral.objects.filter(
+                                    created_at__date__gte=count_start,
+                                    created_at__date__lte=count_end
+                                ).count()
+                                
+                                data.append({
+                                    'period': f'Week {week_number}',
+                                    'full_period': f'{week_start.strftime("%m/%d")} - {week_end.strftime("%m/%d")}',
+                                    'count': count,
+                                    'start_date': week_start.isoformat(),
+                                    'end_date': week_end.isoformat()
+                                })
+                                week_number += 1
+                            
+                            # Move to next week
+                            current_date = week_end + timedelta(days=1)
+                            
+                            # Safety check to prevent infinite loop
+                            if current_date > month_end + timedelta(days=7):
+                                break
+                    else:
+                        # Invalid month, fall back to last 12 weeks
+                        month = None
+                except (ValueError, TypeError):
+                    month = None
             
-            for i in range(11, -1, -1):  # Last 12 weeks
-                week_start = current_date - timedelta(days=current_date.weekday() + (i * 7))
-                week_end = week_start + timedelta(days=6)
+            if not month:
+                # Original logic: Get last 12 weeks for the specified year
+                start_of_year = datetime(year, 1, 1)
+                end_of_year = datetime(year, 12, 31)
                 
-                # Ensure we don't go beyond the year boundaries
-                week_start = max(week_start, start_of_year.date())
-                week_end = min(week_end, end_of_year.date())
+                # Get current date or end of specified year if in the past
+                current_date = min(timezone.now().date(), end_of_year.date())
                 
-                count = Referral.objects.filter(
-                    created_at__date__gte=week_start,
-                    created_at__date__lte=week_end
-                ).count()
-                
-                data.append({
-                    'period': f'Week {12 - i}',
-                    'full_period': f'{week_start.strftime("%m/%d")} - {week_end.strftime("%m/%d")}',
-                    'count': count,
-                    'start_date': week_start.isoformat(),
-                    'end_date': week_end.isoformat()
-                })
+                for i in range(11, -1, -1):  # Last 12 weeks
+                    week_start = current_date - timedelta(days=current_date.weekday() + (i * 7))
+                    week_end = week_start + timedelta(days=6)
+                    
+                    # Ensure we don't go beyond the year boundaries
+                    week_start = max(week_start, start_of_year.date())
+                    week_end = min(week_end, end_of_year.date())
+                    
+                    count = Referral.objects.filter(
+                        created_at__date__gte=week_start,
+                        created_at__date__lte=week_end
+                    ).count()
+                    
+                    data.append({
+                        'period': f'Week {12 - i}',
+                        'full_period': f'{week_start.strftime("%m/%d")} - {week_end.strftime("%m/%d")}',
+                        'count': count,
+                        'start_date': week_start.isoformat(),
+                        'end_date': week_end.isoformat()
+                    })
         
         elif time_filter == 'month':
             # Get 12 months for the specified year
@@ -1422,11 +1479,23 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 else:
                     month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
                 queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
-        elif time_filter == 'week' and week > 0:
-            year_start = datetime(year, 1, 1).date()
-            week_start = year_start + timedelta(weeks=week-1)
-            week_end = week_start + timedelta(days=6)
-            queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+        elif time_filter == 'week':
+            if month > 0:
+                # Filter weeks within a specific month
+                month_start = datetime(year, month, 1).date()
+                # Get last day of month
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+            elif week > 0:
+                # Original week logic
+                year_start = datetime(year, 1, 1).date()
+                week_start = year_start + timedelta(weeks=week-1)
+                week_end = week_start + timedelta(days=6)
+                queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
         
         # Get hospital counts
         hospital_data = queryset.values('referring_hospital__name').annotate(
@@ -1533,11 +1602,23 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 else:
                     month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
                 queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
-        elif time_filter == 'week' and week > 0:
-            year_start = datetime(year, 1, 1).date()
-            week_start = year_start + timedelta(weeks=week-1)
-            week_end = week_start + timedelta(days=6)
-            queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+        elif time_filter == 'week':
+            if month > 0:
+                # Filter weeks within a specific month
+                month_start = datetime(year, month, 1).date()
+                # Get last day of month
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+            elif week > 0:
+                # Original week logic
+                year_start = datetime(year, 1, 1).date()
+                week_start = year_start + timedelta(weeks=week-1)
+                week_end = week_start + timedelta(days=6)
+                queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
         
         # Get specialty counts
         specialty_data = queryset.values('specialty_needed__name').annotate(
