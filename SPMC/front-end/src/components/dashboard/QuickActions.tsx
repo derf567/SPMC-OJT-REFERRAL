@@ -1,6 +1,5 @@
-import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Plus, FileText, Users, Activity } from "lucide-react";
+import { Plus, FileText, Users } from "lucide-react";
 
 const quickActions = [
   {

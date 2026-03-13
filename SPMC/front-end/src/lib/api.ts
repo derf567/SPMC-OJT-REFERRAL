@@ -413,8 +413,11 @@ export const referralsAPI = {
 
   // NEW: Get triage referrals
   getTriageReferrals: async (status?: string) => {
-    const params = status ? { status } : {};
-    const queryString = Object.keys(params).length > 0 ? '?' + new URLSearchParams(params).toString() : '';
+    const queryParams = new URLSearchParams();
+    if (status) {
+      queryParams.append('status', status);
+    }
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
     return apiRequest(`/referrals/triage_referrals/${queryString}`);
   },
 

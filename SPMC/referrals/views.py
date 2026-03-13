@@ -1635,12 +1635,24 @@ class ReferralViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
         
         # Get referral data
+        def extract_cancellation_reason(referral):
+            cancelled_history = referral.status_history.filter(new_status='cancelled').first()
+            if not cancelled_history or not cancelled_history.notes:
+                return 'No reason provided'
+
+            notes = cancelled_history.notes.strip()
+            if 'Reason:' in notes:
+                return notes.split('Reason:', 1)[1].strip() or 'No reason provided'
+            if 'Cancelled by referrer:' in notes:
+                return notes.split('Cancelled by referrer:', 1)[1].strip() or 'No reason provided'
+            return notes
+
         result = []
         for ref in queryset.order_by('-updated_at')[:100]:
             result.append({
                 'referral_id': ref.referral_id,
                 'patient_name': ref.patient_full_name,
-                'reason': ref.cancellation_reason or 'No reason provided',
+                'reason': extract_cancellation_reason(ref),
                 'specialty': ref.specialty_needed.name if ref.specialty_needed else 'N/A',
                 'date_cancelled': ref.updated_at.strftime('%Y-%m-%d')
             })

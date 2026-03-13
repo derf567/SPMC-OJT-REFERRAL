@@ -1,6 +1,5 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { Search, Bell, Settings, HelpCircle, Mail, TrendingUp, Activity, CheckCircle, Truck } from "lucide-react";
+import { useState } from "react";
+import { Search, Bell, Settings, Activity, CheckCircle, Truck } from "lucide-react";
 
 const Dashboard = () => {
   const [selectedTab, setSelectedTab] = useState("requests");

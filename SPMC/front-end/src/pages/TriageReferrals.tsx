@@ -1,23 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { referralsAPI } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Search, Eye, Send, XCircle, Clock, FileText, CheckCircle, MapPin, X, Bell } from "lucide-react";
+import { Loader2, RefreshCw, Search, Eye, Clock, FileText, CheckCircle, MapPin, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-type SectionKey = "endorsements" | "transit";
-type EndorsementStatusFilter =
-  | "all"
-  | "waiting_acceptance"
-  | "awaiting_triage_verification"
-  | "dispositioned";
-type TransitStatusFilter =
-  | "all"
-  | "awaiting_transit_template_submission"
-  | "delayed"
-  | "in_transit";
 
 interface TransitInfo {
   watcher_name: string;
@@ -33,10 +21,6 @@ interface DepartmentAcceptance {
   id: number;
   department_name: string;
   status: "pending" | "accepted" | "rejected";
-  accepted_by_name?: string;
-  accepted_at?: string;
-  notes?: string;
-  is_main_service?: boolean;
 }
 
 interface Referral {
@@ -53,10 +37,6 @@ interface Referral {
   updated_at?: string;
   triage_decision?: string;
   assigned_departments?: string[];
-  delay_notified_at?: string;
-  delay_reason?: string;
-  triage_verified_by_name?: string;
-  triage_verified_at?: string;
   triage_verification_notes?: string;
   transit_info?: TransitInfo;
   department_acceptances?: DepartmentAcceptance[];
@@ -72,57 +52,23 @@ interface TimelineStep {
   date?: string | null;
 }
 
-const ENDORSEMENT_STATUSES = new Set([
-  "waiting_acceptance",
-  "awaiting_triage_verification",
-  "dispositioned",
-]);
-
-const TRANSIT_STATUSES = new Set([
-  "dispositioned",
-  "in_transit",
-]);
-
-const TriageReferrals = () => {
-  const { user } = useAuth();
+const PatientArrivalPage = () => {
+  const navigate = useNavigate();
 
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeSection, setActiveSection] = useState<SectionKey>("endorsements");
   const [search, setSearch] = useState("");
-  const [endorsementStatusFilter, setEndorsementStatusFilter] = useState<EndorsementStatusFilter>("all");
-  const [transitStatusFilter, setTransitStatusFilter] = useState<TransitStatusFilter>("all");
 
   const [selectedReferral, setSelectedReferral] = useState<Referral | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [timelineReferral, setTimelineReferral] = useState<Referral | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(false);
 
-  const [sendTemplateTarget, setSendTemplateTarget] = useState<Referral | null>(null);
-  const [sendTemplateOpen, setSendTemplateOpen] = useState(false);
-  const [verificationNotes, setVerificationNotes] = useState("");
-
   const [cancelTarget, setCancelTarget] = useState<Referral | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
-  const [notifyTarget, setNotifyTarget] = useState<Referral | null>(null);
-  const [notifyOpen, setNotifyOpen] = useState(false);
-  const [notifyRemarks, setNotifyRemarks] = useState("");
-  const [cancelReferralTarget, setCancelReferralTarget] = useState<Referral | null>(null);
-  const [cancelReferralOpen, setCancelReferralOpen] = useState(false);
-  const [cancelReferralReason, setCancelReferralReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  const canSendTransitTemplate = Boolean(
-    user?.permissions?.can_triage_referrals || user?.permissions?.can_transfer_referrals,
-  );
-
-  const canCancelInTransit = Boolean(
-    user?.permissions?.can_triage_referrals || user?.permissions?.can_transfer_referrals,
-  );
-  const canNotifyReendorsement = canSendTransitTemplate;
-  const canCancelReferral = canSendTransitTemplate;
 
   const normalizeResponse = (response: any): Referral[] => {
     if (Array.isArray(response)) return response;
@@ -138,12 +84,14 @@ const TriageReferrals = () => {
       } else {
         setLoading(true);
       }
+
       const response = await referralsAPI.getAll();
       const rows = normalizeResponse(response);
-      setReferrals(rows);
+      const inTransitRows = rows.filter((r) => r.status === "in_transit");
+      setReferrals(inTransitRows);
     } catch (error: any) {
-      console.error("Error fetching endorsement/transit queue:", error);
-      toast.error(error.message || "Failed to load endorsement/transit queue");
+      console.error("Error fetching patient arrival queue:", error);
+      toast.error(error.message || "Failed to load patient arrival queue");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -156,48 +104,16 @@ const TriageReferrals = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const endorsements = useMemo(() => {
-    return referrals.filter((r) => ENDORSEMENT_STATUSES.has(r.status));
-  }, [referrals]);
-
-  const transit = useMemo(() => {
-    return referrals.filter((r) => TRANSIT_STATUSES.has(r.status));
-  }, [referrals]);
-
-  const getDisplayStatus = (referral: Referral, section: SectionKey) => {
-    if (section === "transit") {
-      if (referral.status === "in_transit") return "in_transit";
-      if (referral.status === "dispositioned" && referral.delay_notified_at) return "delayed";
-      if (referral.status === "dispositioned") return "awaiting_transit_template_submission";
-    }
-    return referral.status;
-  };
-
   const currentRows = useMemo(() => {
-    const source = activeSection === "endorsements" ? endorsements : transit;
-    const byStatus = source.filter((r) => {
-      if (activeSection === "endorsements") {
-        return endorsementStatusFilter === "all" || r.status === endorsementStatusFilter;
-      }
-      const displayStatus = getDisplayStatus(r, "transit");
-      return transitStatusFilter === "all" || displayStatus === transitStatusFilter;
-    });
-
     const q = search.trim().toLowerCase();
-    if (!q) return byStatus;
-    return byStatus.filter((r) =>
+    if (!q) return referrals;
+
+    return referrals.filter((r) =>
       r.referral_id.toLowerCase().includes(q) ||
       r.patient_full_name.toLowerCase().includes(q) ||
       (r.referring_hospital_name || "").toLowerCase().includes(q),
     );
-  }, [
-    activeSection,
-    endorsements,
-    transit,
-    search,
-    endorsementStatusFilter,
-    transitStatusFilter,
-  ]);
+  }, [referrals, search]);
 
   const formatDate = (date?: string) => {
     if (!date) return "N/A";
@@ -206,20 +122,16 @@ const TriageReferrals = () => {
 
   const statusBadge = (status: string) => {
     const map: Record<string, string> = {
-      waiting_acceptance: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-      awaiting_triage_verification: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-      dispositioned: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
       in_transit: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
-      delayed: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-      awaiting_transit_template_submission: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+      completed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+      cancelled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+      uncoordinated: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
     };
     const label: Record<string, string> = {
-      waiting_acceptance: "Assigned / Waiting Acceptance",
-      awaiting_triage_verification: "Ready to send Transit Template",
-      dispositioned: "Disposition Finalized",
       in_transit: "In Transit",
-      delayed: "Delayed",
-      awaiting_transit_template_submission: "Awaiting transit template submission",
+      completed: "Completed",
+      cancelled: "Cancelled",
+      uncoordinated: "Cancelled",
     };
 
     return (
@@ -252,23 +164,16 @@ const TriageReferrals = () => {
   };
 
   const getTimelineSteps = (referral: Referral): TimelineStep[] => {
-    const isCancelled = referral.status === "cancelled";
+    const isCancelled = referral.status === "cancelled" || referral.status === "uncoordinated";
+    const isScheduleOPD = referral.status === "schedule_opd" || referral.triage_decision === "schedule_opd";
     const dispositionFinalized =
       Boolean(referral.triage_decision) ||
       (referral.assigned_departments && referral.assigned_departments.length > 0) ||
-      referral.status === "waiting_acceptance" ||
-      referral.status === "awaiting_triage_verification" ||
-      referral.status === "dispositioned" ||
-      referral.status === "in_transit";
-
-    const endorsementComplete =
-      referral.status === "awaiting_triage_verification" ||
-      referral.status === "dispositioned" ||
       referral.status === "in_transit" ||
       referral.status === "completed";
 
     const inTransit = referral.status === "in_transit" || referral.status === "completed";
-    const isCompleted = referral.status === "completed";
+    const isCompleted = referral.status === "completed" || isScheduleOPD;
 
     return [
       {
@@ -295,22 +200,26 @@ const TriageReferrals = () => {
         description: "Main Service accepted referral",
         icon: CheckCircle,
         color: "cyan",
-        completed: isCancelled ? false : endorsementComplete,
-        date: endorsementComplete ? referral.updated_at : null,
+        completed: isCancelled ? false : (isScheduleOPD ? false : dispositionFinalized),
+        date: dispositionFinalized ? referral.updated_at : null,
       },
       {
         status: "in_transit",
         label: "In Transit",
-        description: "Transit template submitted and patient in transport",
+        description: "Patient is en route to SPMC",
         icon: MapPin,
         color: "orange",
-        completed: isCancelled ? false : inTransit,
+        completed: isCancelled ? false : (isScheduleOPD ? false : inTransit),
         date: inTransit ? referral.updated_at : null,
       },
       {
         status: "completed",
-        label: isCancelled ? "Cancelled" : "Complete",
-        description: isCancelled ? "Referral has been cancelled" : "Referral process completed",
+        label: isCancelled ? "Cancelled" : "Arrival Confirmed",
+        description: isCancelled
+          ? "Referral has been cancelled"
+          : isScheduleOPD
+            ? "Scheduled for Outpatient Department"
+            : "Patient has arrived and referral completed",
         icon: isCancelled ? X : CheckCircle,
         color: isCancelled ? "red" : "green",
         completed: isCompleted || isCancelled,
@@ -339,19 +248,15 @@ const TriageReferrals = () => {
     return colorMap[step.color];
   };
 
-  const handleSendTransitTemplate = async () => {
-    if (!sendTemplateTarget) return;
+  const handleMarkComplete = async (referral: Referral) => {
     try {
       setSubmitting(true);
-      await referralsAPI.approveForTransit(sendTemplateTarget.id.toString(), verificationNotes);
-      toast.success("Transit template sent to referrer");
-      setSendTemplateOpen(false);
-      setSendTemplateTarget(null);
-      setVerificationNotes("");
-      fetchQueue(true);
+      await referralsAPI.markInTransitCompleted(referral.id.toString(), "Patient arrived at SPMC.");
+      toast.success("Patient arrival marked as complete");
+      navigate("/patients");
     } catch (error: any) {
-      console.error("Error sending transit template:", error);
-      toast.error(error.message || "Failed to send transit template");
+      console.error("Error marking referral complete:", error);
+      toast.error(error.message || "Failed to complete referral");
     } finally {
       setSubmitting(false);
     }
@@ -360,66 +265,20 @@ const TriageReferrals = () => {
   const handleCancelInTransit = async () => {
     if (!cancelTarget) return;
     if (!cancellationReason.trim()) {
-      toast.error("Cancellation reason is required");
+      toast.error("Cancellation remarks are required");
       return;
     }
 
     try {
       setSubmitting(true);
-      await referralsAPI.markInTransitCancelled(cancelTarget.id.toString(), cancellationReason);
-      toast.success("In-transit referral cancelled");
+      await referralsAPI.markInTransitCancelled(cancelTarget.id.toString(), cancellationReason.trim());
+      toast.success("Referral marked as cancelled");
       setCancelOpen(false);
       setCancelTarget(null);
       setCancellationReason("");
-      fetchQueue(true);
+      navigate("/patients");
     } catch (error: any) {
       console.error("Error cancelling in-transit referral:", error);
-      toast.error(error.message || "Failed to cancel in-transit referral");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleNotifyReendorsement = async () => {
-    if (!notifyTarget) return;
-
-    const notes = notifyRemarks.trim()
-      ? `Reendorsement notified. Remarks: ${notifyRemarks.trim()}`
-      : "Reendorsement notified.";
-
-    try {
-      setSubmitting(true);
-      await referralsAPI.updateStatus(notifyTarget.id.toString(), notifyTarget.status, notes);
-      toast.success("Reendorsement has been notified");
-      setNotifyOpen(false);
-      setNotifyTarget(null);
-      setNotifyRemarks("");
-      fetchQueue(true);
-    } catch (error: any) {
-      console.error("Error notifying reendorsement:", error);
-      toast.error(error.message || "Failed to notify reendorsement");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCancelReferral = async () => {
-    if (!cancelReferralTarget) return;
-    if (!cancelReferralReason.trim()) {
-      toast.error("Cancellation reason is required");
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      await referralsAPI.cancelReferral(cancelReferralTarget.id.toString(), cancelReferralReason);
-      toast.success("Referral cancelled successfully");
-      setCancelReferralOpen(false);
-      setCancelReferralTarget(null);
-      setCancelReferralReason("");
-      fetchQueue(true);
-    } catch (error: any) {
-      console.error("Error cancelling referral:", error);
       toast.error(error.message || "Failed to cancel referral");
     } finally {
       setSubmitting(false);
@@ -431,9 +290,9 @@ const TriageReferrals = () => {
       <div className="space-y-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Endorsement and Transit</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Patient Arrival</h1>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              Two sections: Endorsements for assigned/triage-called referrals, and Transit for referrals with transit template workflow.
+              Manage patients currently in transit. Complete when arrived, or cancel with remarks if not arrived.
             </p>
           </div>
           <Button variant="outline" onClick={() => fetchQueue(true)} disabled={loading || refreshing}>
@@ -443,87 +302,14 @@ const TriageReferrals = () => {
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setActiveSection("endorsements")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeSection === "endorsements"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                }`}
-              >
-                Endorsements ({endorsements.length})
-              </button>
-              <button
-                onClick={() => setActiveSection("transit")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeSection === "transit"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                }`}
-              >
-                Transit ({transit.length})
-              </button>
-            </div>
-
-            <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
-              <div className="flex flex-wrap gap-2">
-                {activeSection === "endorsements" ? (
-                  <>
-                    {[
-                      { value: "all", label: "All statuses" },
-                      { value: "waiting_acceptance", label: "Assigned / Waiting Acceptance" },
-                      { value: "awaiting_triage_verification", label: "Ready to send Transit Template" },
-                      { value: "dispositioned", label: "Disposition Finalized" },
-                    ].map((item) => (
-                      <button
-                        key={item.value}
-                        onClick={() => setEndorsementStatusFilter(item.value as EndorsementStatusFilter)}
-                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                          endorsementStatusFilter === item.value
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    {[
-                      { value: "all", label: "All statuses" },
-                      { value: "awaiting_transit_template_submission", label: "Awaiting template submission" },
-                      { value: "delayed", label: "Delayed" },
-                      { value: "in_transit", label: "In Transit" },
-                    ].map((item) => (
-                      <button
-                        key={item.value}
-                        onClick={() => setTransitStatusFilter(item.value as TransitStatusFilter)}
-                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                          transitStatusFilter === item.value
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
-
-              <div className="relative w-full md:w-72">
-                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                  placeholder="Search referral, patient, hospital"
-                />
-              </div>
-            </div>
+          <div className="relative w-full md:w-80">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              placeholder="Search referral, patient, hospital"
+            />
           </div>
         </div>
 
@@ -534,7 +320,7 @@ const TriageReferrals = () => {
             </div>
           ) : currentRows.length === 0 ? (
             <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
-              No referrals found for this section.
+              No in-transit referrals found.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -550,17 +336,26 @@ const TriageReferrals = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {currentRows.map((referral) => {
-                    const displayStatus = getDisplayStatus(referral, activeSection);
-                    return (
+                  {currentRows.map((referral) => (
                     <tr key={referral.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{referral.referral_id}</td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{referral.patient_full_name}</td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{referral.referring_hospital_name || "N/A"}</td>
-                      <td className="px-4 py-3">{statusBadge(displayStatus)}</td>
+                      <td className="px-4 py-3">{statusBadge(referral.status)}</td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatDate(referral.updated_at)}</td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-slate-300 hover:bg-slate-700/40 hover:text-slate-100"
+                            onClick={() => openTimeline(referral)}
+                            title="Timeline"
+                            aria-label="Timeline"
+                          >
+                            <Clock className="h-4 w-4" />
+                          </Button>
+
                           <Button
                             size="icon"
                             variant="ghost"
@@ -571,88 +366,31 @@ const TriageReferrals = () => {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {activeSection === "endorsements" && referral.status === "awaiting_triage_verification" && canSendTransitTemplate && (
-                            <Button
-                              size="sm"
-                              className="bg-orange-600 hover:bg-orange-700"
-                              onClick={() => {
-                                setSendTemplateTarget(referral);
-                                setSendTemplateOpen(true);
-                              }}
-                            >
-                              <Send className="mr-1 h-4 w-4" />
-                              Send Template
-                            </Button>
-                          )}
-
-                          {activeSection === "endorsements" && referral.status === "dispositioned" && (
-                            <span className="inline-flex items-center rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
-                              Template Sent
-                            </span>
-                          )}
-
-                          {activeSection === "transit" && referral.status === "in_transit" && canCancelInTransit && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-red-400 hover:bg-red-900/20 hover:text-red-300"
-                              onClick={() => {
-                                setCancelTarget(referral);
-                                setCancelOpen(true);
-                              }}
-                              title="Cancel in-transit"
-                              aria-label="Cancel in-transit"
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          )}
-
-                          {activeSection === "transit" && displayStatus === "delayed" && canNotifyReendorsement && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-amber-400 hover:bg-amber-900/20 hover:text-amber-300"
-                              onClick={() => {
-                                setNotifyTarget(referral);
-                                setNotifyOpen(true);
-                              }}
-                              title="Notify reendorsement"
-                              aria-label="Notify reendorsement"
-                            >
-                              <Bell className="h-4 w-4" />
-                            </Button>
-                          )}
 
                           <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-violet-400 hover:bg-violet-900/20 hover:text-violet-300"
-                            onClick={() => openTimeline(referral)}
-                            title="View timeline"
-                            aria-label="View timeline"
+                            size="sm"
+                            className="bg-green-600 text-white hover:bg-green-700"
+                            disabled={submitting}
+                            onClick={() => handleMarkComplete(referral)}
                           >
-                            <Clock className="h-4 w-4" />
+                            COMPLETE
                           </Button>
 
-                          {canCancelReferral && referral.status !== "cancelled" && referral.status !== "completed" && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-red-400 hover:bg-red-900/20 hover:text-red-300"
-                              onClick={() => {
-                                setCancelReferralTarget(referral);
-                                setCancelReferralOpen(true);
-                              }}
-                              title="Cancel referral"
-                              aria-label="Cancel referral"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <Button
+                            size="sm"
+                            className="bg-red-600 text-white hover:bg-red-700"
+                            disabled={submitting}
+                            onClick={() => {
+                              setCancelTarget(referral);
+                              setCancelOpen(true);
+                            }}
+                          >
+                            CANCELLED
+                          </Button>
                         </div>
                       </td>
                     </tr>
-                  )})}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -674,7 +412,7 @@ const TriageReferrals = () => {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <p className="text-gray-500 dark:text-gray-400">Status</p>
-                  <div className="mt-1">{statusBadge(getDisplayStatus(selectedReferral, activeSection))}</div>
+                  <div className="mt-1">{statusBadge(selectedReferral.status)}</div>
                 </div>
                 <div>
                   <p className="text-gray-500 dark:text-gray-400">Updated</p>
@@ -824,85 +562,13 @@ const TriageReferrals = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={cancelReferralOpen} onOpenChange={setCancelReferralOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Cancel Referral</DialogTitle>
-            <DialogDescription>
-              This cancels the referral and will remove it from active endorsement/transit workflow.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{cancelReferralTarget?.patient_full_name}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{cancelReferralTarget?.referral_id}</p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Cancellation reason <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={cancelReferralReason}
-                onChange={(e) => setCancelReferralReason(e.target.value)}
-                rows={4}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                placeholder="Reason for cancellation"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setCancelReferralOpen(false)} disabled={submitting}>
-                Keep Referral
-              </Button>
-              <Button variant="destructive" onClick={handleCancelReferral} disabled={submitting}>
-                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Cancel Referral
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={sendTemplateOpen} onOpenChange={setSendTemplateOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Send Transit Template</DialogTitle>
-            <DialogDescription>
-              This will finalize disposition and notify the referrer to complete the transit template.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{sendTemplateTarget?.patient_full_name}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{sendTemplateTarget?.referral_id}</p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Verification notes (optional)</label>
-              <textarea
-                value={verificationNotes}
-                onChange={(e) => setVerificationNotes(e.target.value)}
-                rows={4}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-orange-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                placeholder="Add notes before sending"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setSendTemplateOpen(false)} disabled={submitting}>
-                Cancel
-              </Button>
-              <Button onClick={handleSendTransitTemplate} disabled={submitting} className="bg-orange-600 hover:bg-orange-700">
-                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Send Transit Template
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Cancel In-Transit Referral</DialogTitle>
-            <DialogDescription>EDCC/EDMA can cancel referrals currently in transit status.</DialogDescription>
+            <DialogTitle>Cancel Arrival</DialogTitle>
+            <DialogDescription>
+              Please provide remarks for why this in-transit referral is being marked as cancelled.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
@@ -911,61 +577,23 @@ const TriageReferrals = () => {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Cancellation reason <span className="text-red-500">*</span>
+                Cancellation remarks <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={cancellationReason}
                 onChange={(e) => setCancellationReason(e.target.value)}
                 rows={4}
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                placeholder="State why this referral must be cancelled"
+                placeholder="Patient did not arrive, ambulance issue, or other remarks"
               />
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={submitting}>
-                Keep Referral
+                Back
               </Button>
-              <Button variant="destructive" onClick={handleCancelInTransit} disabled={submitting}>
+              <Button className="bg-red-600 text-white hover:bg-red-700" onClick={handleCancelInTransit} disabled={submitting}>
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Confirm Cancel
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={notifyOpen} onOpenChange={setNotifyOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Notify Reendorsement</DialogTitle>
-            <DialogDescription>
-              This delayed referral will be flagged for reendorsement follow-up.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{notifyTarget?.patient_full_name}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{notifyTarget?.referral_id}</p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Remarks (for delay/reendorsement)
-              </label>
-              <textarea
-                value={notifyRemarks}
-                onChange={(e) => setNotifyRemarks(e.target.value)}
-                rows={4}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                placeholder="Add remarks before notifying reendorsement"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setNotifyOpen(false)} disabled={submitting}>
-                Cancel
-              </Button>
-              <Button onClick={handleNotifyReendorsement} disabled={submitting} className="bg-red-600 hover:bg-red-700">
-                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Notify Reendorsement
+                Confirm Cancelled
               </Button>
             </div>
           </div>
@@ -975,4 +603,4 @@ const TriageReferrals = () => {
   );
 };
 
-export default TriageReferrals;
+export default PatientArrivalPage;
