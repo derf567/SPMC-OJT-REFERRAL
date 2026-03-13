@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './button';
-import { Volume2, VolumeX, Play } from 'lucide-react';
-import { notificationSound, NotificationSoundType } from '@/lib/notificationSound';
+import { Volume2, VolumeX } from 'lucide-react';
+import { notificationSound } from '@/lib/notificationSound';
 
 export const SoundSelector = () => {
   const [isEnabled, setIsEnabled] = useState(notificationSound.isEnabled());

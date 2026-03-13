@@ -44,6 +44,7 @@ const getStatusColor = (status: string) => {
   switch (status) {
     case "completed":
       return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
+    case "cancelled":
     case "uncoordinated":
       return "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30";
     case "in_transit":
@@ -107,9 +108,9 @@ const Patients = () => {
         const response = await referralsAPI.getAll();
         const allReferrals = response.results || response;
         
-        // Filter to only show completed or uncoordinated referrals
+        // Show archived referrals using current and legacy cancellation statuses
         const archivedReferrals = allReferrals.filter((r: any) => 
-          r.status === 'completed' || r.status === 'uncoordinated'
+          r.status === 'completed' || r.status === 'cancelled' || r.status === 'uncoordinated'
         );
         
         setReferrals(archivedReferrals);
@@ -117,7 +118,7 @@ const Patients = () => {
         // Calculate stats
         const totalArchived = archivedReferrals.length;
         const completed = archivedReferrals.filter((r: any) => r.status === 'completed').length;
-        const uncoordinated = archivedReferrals.filter((r: any) => r.status === 'uncoordinated').length;
+        const uncoordinated = archivedReferrals.filter((r: any) => r.status === 'cancelled' || r.status === 'uncoordinated').length;
         
         setStats({
           total_archived: totalArchived,
@@ -175,7 +176,7 @@ const Patients = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Archived Referrals</h1>
           <p className="text-gray-500 dark:text-gray-400">
-            View completed and uncoordinated referrals
+            View completed and cancelled referrals
           </p>
         </div>
         
@@ -240,7 +241,7 @@ const Patients = () => {
                 <p className="text-gray-500 dark:text-gray-400">
                   {searchTerm 
                     ? 'Try adjusting your search terms' 
-                    : 'Archived referrals will appear here when referrals are completed or uncoordinated'
+                    : 'Archived referrals will appear here when referrals are completed or cancelled'
                   }
                 </p>
               </div>
@@ -291,7 +292,7 @@ const Patients = () => {
                           <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
                             {getStatusDisplay(referral.status)}
                           </span>
-                          {referral.status === 'uncoordinated' && referral.cancellation_reason && (
+                          {(referral.status === 'cancelled' || referral.status === 'uncoordinated') && referral.cancellation_reason && (
                             <span className="text-xs text-gray-500 dark:text-gray-400 italic">
                               Reason: {referral.cancellation_reason}
                             </span>

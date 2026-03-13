@@ -3,10 +3,10 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { referralsAPI } from "@/lib/api";
+import { referralsAPI, departmentsAPI } from "@/lib/api";
 import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { NotificationContainer } from "@/components/ui/NotificationContainer";
-import { startNotificationPolling, stopNotificationPolling, checkReferrerAccountStatus, NotificationData } from "@/lib/notificationService";
+import { checkReferrerAccountStatus, NotificationData } from "@/lib/notificationService";
 import {
   Home,
   FileText,
@@ -25,30 +25,6 @@ import {
 interface ReferrerDashboardLayoutProps {
   children: ReactNode;
 }
-
-const notifications = [
-  {
-    id: 1,
-    title: "Referral Accepted",
-    message: "Your referral for Maria Santos has been accepted by SPMC",
-    time: "2 mins ago",
-    type: "success"
-  },
-  {
-    id: 2,
-    title: "Referral Update",
-    message: "Patient Juan Dela Cruz has been scheduled for OPD",
-    time: "1 hour ago",
-    type: "info"
-  },
-  {
-    id: 3,
-    title: "Referral Completed",
-    message: "Treatment completed for patient Anna Garcia",
-    time: "3 hours ago",
-    type: "success"
-  }
-];
 
 export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutProps) => {
   const location = useLocation();
@@ -107,7 +83,50 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
     const fetchMyReferralsCount = async () => {
       try {
         const response = await referralsAPI.getMyReferrals();
+        let departmentsResponse: any[] = [];
+        try {
+          const deptResult = await departmentsAPI.getAll();
+          departmentsResponse = deptResult.results || deptResult || [];
+        } catch (departmentError) {
+          console.warn("Could not load department contacts for OPD message:", departmentError);
+        }
         const referrals = response.results || response;
+        const departments = departmentsResponse;
+
+        const departmentMap = new Map<string, { name: string; contact_number?: string }>();
+        if (Array.isArray(departments)) {
+          departments.forEach((dept: any) => {
+            if (dept?.code) {
+              departmentMap.set(dept.code, {
+                name: dept.name || dept.code,
+                contact_number: dept.contact_number,
+              });
+            }
+          });
+        }
+
+        const getOpdContactMessage = (ref: any) => {
+          const departmentCodes = Array.isArray(ref.assigned_departments) ? ref.assigned_departments : [];
+          const mainServiceCode = ref.main_service_code as string | undefined;
+
+          const preferredCodes = [
+            ...(mainServiceCode ? [mainServiceCode] : []),
+            ...departmentCodes,
+          ].filter((code, index, arr) => Boolean(code) && arr.indexOf(code) === index);
+
+          const contacts = preferredCodes
+            .map((code) => departmentMap.get(code))
+            .filter((dept): dept is { name: string; contact_number?: string } => Boolean(dept?.contact_number))
+            .slice(0, 2);
+
+          if (contacts.length === 0) {
+            return "Please contact SPMC OPD for scheduling instructions.";
+          }
+
+          return contacts
+            .map((dept, index) => `${index === 0 ? "Contact" : "or"} ${dept.name}: ${dept.contact_number}`)
+            .join(" ");
+        };
         
         // Count active referrals (not completed or cancelled)
         const activeReferrals = Array.isArray(referrals) 
@@ -123,30 +142,32 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
               let title = 'Referral Update';
               let message = '';
 
+              const patientName = ref.patient_name || ref.patient_full_name || 'patient';
+
               if (ref.status === 'pending') {
                 notifType = 'info';
                 title = 'Referral Submitted';
-                message = `Your referral for ${ref.patient_name} is pending review`;
+                message = `Your referral for ${patientName} is pending review`;
               } else if (ref.status === 'waiting') {
                 notifType = 'info';
                 title = 'Referral Accepted';
-                message = `${ref.patient_name} has been accepted by SPMC`;
+                message = `${patientName} has been accepted by SPMC`;
               } else if (ref.triage_decision === 'emergent' && ref.status === 'in_transit') {
                 notifType = 'critical';
                 title = 'EMERGENT - Transfer Immediately';
-                message = `${ref.patient_name} requires immediate emergency care`;
+                message = `${patientName} requires immediate emergency care`;
               } else if (ref.status === 'urgent') {
                 notifType = 'warning';
                 title = 'Urgent Triage Call';
-                message = `${ref.patient_name} - Please respond to determine transport timing`;
+                message = `${patientName} - Please respond to determine transport timing`;
               } else if (ref.status === 'completed') {
                 notifType = 'success';
                 title = 'Referral Completed';
-                message = `Treatment completed for ${ref.patient_name}`;
-              } else if (ref.status === 'schedule_opd') {
+                message = `Treatment completed for ${patientName}`;
+              } else if (ref.status === 'schedule_opd' || ref.triage_decision === 'schedule_opd') {
                 notifType = 'info';
                 title = 'OPD Scheduled';
-                message = `${ref.patient_name} scheduled for outpatient`;
+                message = `${patientName} scheduled for outpatient. ${getOpdContactMessage(ref)}`;
               }
 
               const timeAgo = getTimeAgo(ref.updated_at || ref.created_at);

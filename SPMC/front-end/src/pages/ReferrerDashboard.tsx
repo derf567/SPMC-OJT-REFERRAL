@@ -231,7 +231,7 @@ const ReferrerDashboard = () => {
 
   const getTimelineSteps = (referral: any) => {
     const isCancelled = referral.status === 'cancelled';
-    const isScheduleOPD = referral.status === 'schedule_opd';
+    const isScheduleOPD = referral.status === 'schedule_opd' || referral.triage_decision === 'schedule_opd';
     
     // Check if disposition finalized (triage has made a decision and assigned departments)
     // This should only be true when triage has actually processed the referral
@@ -247,8 +247,7 @@ const ReferrerDashboard = () => {
     const mainServiceAccepted = referral.status === 'awaiting_triage_verification' ||
                                  referral.status === 'dispositioned' || 
                                  referral.status === 'in_transit' || 
-                                 referral.status === 'completed' ||
-                                 isScheduleOPD;
+                                 referral.status === 'completed';
     
     // Check if in transit (transit template submitted)
     const inTransit = referral.status === 'in_transit' || referral.status === 'completed';
@@ -274,7 +273,9 @@ const ReferrerDashboard = () => {
         description: 'EDCC/EDMA assigned triage level and departments',
         icon: Clock,
         color: 'blue',
-        completed: isCancelled ? false : (dispositionFinalized || mainServiceAccepted || inTransit || isCompleted),
+        completed: isCancelled
+          ? false
+          : (isScheduleOPD ? dispositionFinalized : (dispositionFinalized || mainServiceAccepted || inTransit || isCompleted)),
         date: referral.triaged_at || referral.transferred_at,
         user: referral.triaged_by_user || referral.transferred_by_user || 'EDCC/EDMA',
         action: referral.triage_decision 
@@ -323,7 +324,7 @@ const ReferrerDashboard = () => {
         action: isCancelled 
           ? 'Referral cancelled' 
           : isScheduleOPD 
-            ? 'Marked as Schedule OPD' 
+            ? 'Marked as Schedule OPD and routed to Outpatient Department' 
             : 'Patient arrived and admitted'
       }
     ];

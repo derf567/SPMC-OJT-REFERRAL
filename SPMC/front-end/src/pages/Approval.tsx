@@ -8,14 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   UserCheck, 
-  UserX, 
   Clock, 
   CheckCircle, 
   XCircle,
   Eye,
   FileText,
   Mail,
-  Phone,
   MapPin,
   Building2,
   Stethoscope

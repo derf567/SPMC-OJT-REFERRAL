@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { AdminDashboardLayout } from "@/components/layout/AdminDashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Eye, CheckCircle, XCircle, Clock, User, FileText } from "lucide-react";
+import { AlertTriangle, Eye, CheckCircle, XCircle, Clock, User } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Dialog,
@@ -140,7 +140,7 @@ const ReferralReports = () => {
 
       if (!response.ok) throw new Error('Failed to resolve report');
 
-      const data = await response.json();
+      await response.json();
 
       toast({
         title: "Success",

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Truck, AlertTriangle, Check, Calendar, AlertCircle, Edit, XCircle, UserPlus, Loader2 } from "lucide-react";
+import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Check, AlertCircle, Edit, XCircle, UserPlus, Loader2 } from "lucide-react";
 import { referralsAPI, departmentsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
@@ -35,6 +35,7 @@ interface ReferralData {
   triage_decision?: string;
   triage_notes?: string;
   assigned_department?: string;
+  assigned_departments?: string[];
   // User tracking fields
   created_by_user?: string;
   transferred_by_user?: string;
@@ -70,6 +71,7 @@ interface ReferralData {
   hospital_doh_level?: string;
   hospital_location?: string;
   hospital_contact_numbers?: string[];
+  contact_numbers?: string[];
   vital_signs_time?: string;
 }
 
@@ -167,17 +169,13 @@ const getRtpcrColor = (result: string) => {
 const ReferralDetailModal = ({ 
   referral, 
   onClose, 
-  handleTransferToTriage, 
   user,
-  setShowTriageModal,
-  setShowChangeDepartmentModal 
+  setShowTriageModal
 }: { 
   referral: ReferralData; 
   onClose: () => void;
-  handleTransferToTriage: (id: string) => void;
   user: any;
   setShowTriageModal: (show: boolean) => void;
-  setShowChangeDepartmentModal: (show: boolean) => void;
 }) => {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -561,101 +559,34 @@ export const ReferralTable = () => {
   const [selectedReferralForAssign, setSelectedReferralForAssign] = useState<ReferralData | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Referral Requests page is exclusively for unassigned/new requests.
+  const getReferralRequestsQueue = (allReferrals: any[]) =>
+    allReferrals.filter((ref: any) => ref.status === "pending");
 
-  // Fetch referrals from API
-  useEffect(() => {
-    const fetchReferrals = async () => {
-      try {
-        setLoading(true);
-        const response = await referralsAPI.getAll();
-        const allReferrals = response.results || response;
-        
-        // Filter to show only active referrals (pending, waiting, in_transit, urgent, emergent, schedule_opd)
-        const activeStatuses = ['pending', 'waiting', 'in_transit', 'urgent', 'emergent', 'schedule_opd'];
-        let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
-        
-        // Further filter based on user role for specific workflows
-        if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
-          // EDCC Personnel: Only show pending referrals (not yet transferred)
-          filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
-        } else if (user?.permissions?.can_triage_referrals) {
-          // Triage Users: Show ALL active referrals including pending (to transfer to triage tab)
-          // pending, waiting, urgent, emergent, schedule_opd, in_transit
-          filteredByRole = filteredByRole.filter((ref: any) => 
-            ['pending', 'waiting', 'urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
-          );
-        } else if (user?.permissions?.is_his_department) {
-          // HIS Department: Only show referrals that need arrival confirmation
-          filteredByRole = filteredByRole.filter((ref: any) => 
-            ['urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
-          );
-        }
-        // Other users see all active referrals
-        
-        setReferrals(filteredByRole);
-        console.log('Filtered referrals for role:', filteredByRole);
-        console.log('Sample referral data:', filteredByRole[0]);
-        setError(null);
-      } catch (err: any) {
-        setError(err.message || 'Failed to fetch referrals');
-        console.error('Error fetching referrals:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchReferrals();
-  }, [user]);
-
-  // Handle transfer to triage (EDCC Personnel action) - Transfer directly without department selection
-  const handleTransferToTriage = async (referralId: string) => {
-    const referral = referrals.find(r => (r.id || r.referral_id) === referralId);
-    if (!referral) return;
-
+  const fetchReferrals = async () => {
     try {
-      // Transfer directly without department selection
-      // Department will be assigned in the Triage tab
-      const response = await referralsAPI.transferToTriageTab(
-        referral.id || referral.referral_id
-      );
+      setLoading(true);
+      const response = await referralsAPI.getAll();
+      const allReferrals = response.results || response;
       
-      // Refresh the referrals list with role-based filtering
-      const refreshResponse = await referralsAPI.getAll();
-      const allReferrals = refreshResponse.results || refreshResponse;
-      
-      // Filter to show only active referrals (pending, waiting, in_transit, urgent, emergent, schedule_opd)
-      const activeStatuses = ['pending', 'waiting', 'in_transit', 'urgent', 'emergent', 'schedule_opd'];
-      let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
-      
-      if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
-        // EDCC Personnel: Only show pending referrals
-        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
-      } else if (user?.permissions?.can_triage_referrals) {
-        // Triage Users: Show waiting and triaged referrals (not yet completed)
-        filteredByRole = filteredByRole.filter((ref: any) => 
-          ['waiting', 'urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
-        );
-      }
-      
-      setReferrals(filteredByRole);
-      
-      // Success notification
-      toast({
-        title: "Transfer Successful! 🚀",
-        description: response.message || "The referral has been successfully transferred to EDMAR/EDHO Triage. You can now assign departments in the Triage tab.",
-        className: "bg-green-50 border-green-200 text-green-800",
-      });
+      const queue = getReferralRequestsQueue(allReferrals);
+      setReferrals(queue);
+      console.log('Referral Requests queue:', queue);
+      console.log('Sample referral data:', queue[0]);
+      setError(null);
     } catch (err: any) {
-      console.error('Error transferring referral:', err);
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to transfer referral';
-      toast({
-        variant: "destructive",
-        title: "Transfer Failed ❌",
-        description: `Failed to transfer referral: ${errorMessage}`,
-      });
+      setError(err.message || 'Failed to fetch referrals');
+      console.error('Error fetching referrals:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Fetch referrals from API
+  useEffect(() => {
+    fetchReferrals();
+  }, [user]);
   // Handle department change (Triage user action)
   const handleDepartmentChange = async () => {
     if (!selectedReferralForDepartmentChange || !newDepartment) {
@@ -677,19 +608,7 @@ export const ReferralTable = () => {
       const refreshResponse = await referralsAPI.getAll();
       const allReferrals = refreshResponse.results || refreshResponse;
       
-      // First filter by active statuses (pending, waiting, in_transit)
-      const activeStatuses = ['pending', 'waiting', 'in_transit'];
-      let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
-      
-      // Then apply role-based filtering on top of active filter
-      if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
-        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
-      } else if (user?.permissions?.can_triage_referrals) {
-        // Triage Users: Only show waiting referrals (not yet accepted)
-        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'waiting');
-      }
-      
-      setReferrals(filteredByRole);
+      setReferrals(getReferralRequestsQueue(allReferrals));
       
       // Close modal and reset state
       setShowChangeDepartmentModal(false);
@@ -722,24 +641,7 @@ export const ReferralTable = () => {
       const refreshResponse = await referralsAPI.getAll();
       const allReferrals = refreshResponse.results || refreshResponse;
       
-      // Filter to show only active referrals
-      const activeStatuses = ['pending', 'waiting', 'in_transit', 'urgent', 'emergent', 'schedule_opd'];
-      let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
-      
-      // Apply role-based filtering
-      if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
-        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
-      } else if (user?.permissions?.can_triage_referrals) {
-        filteredByRole = filteredByRole.filter((ref: any) => 
-          ['waiting', 'urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
-        );
-      } else if (user?.permissions?.is_his_department) {
-        filteredByRole = filteredByRole.filter((ref: any) => 
-          ['urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
-        );
-      }
-      
-      setReferrals(filteredByRole);
+      setReferrals(getReferralRequestsQueue(allReferrals));
       
       // Success notification
       toast({
@@ -850,19 +752,7 @@ export const ReferralTable = () => {
       const refreshResponse = await referralsAPI.getAll();
       const allReferrals = refreshResponse.results || refreshResponse;
       
-      // First filter by active statuses (pending, waiting, in_transit)
-      const activeStatuses = ['pending', 'waiting', 'in_transit'];
-      let filteredByRole = allReferrals.filter((ref: any) => activeStatuses.includes(ref.status));
-      
-      // Then apply role-based filtering on top of active filter
-      if (user?.permissions?.can_transfer_referrals && !user?.permissions?.can_triage_referrals) {
-        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'pending');
-      } else if (user?.permissions?.can_triage_referrals) {
-        // Triage Users: Only show waiting referrals (not yet accepted)
-        filteredByRole = filteredByRole.filter((ref: any) => ref.status === 'waiting');
-      }
-      
-      setReferrals(filteredByRole);
+      setReferrals(getReferralRequestsQueue(allReferrals));
       setShowTriageModal(false);
       setSelectedReferral(null);
       setTriageDecision("");
@@ -892,7 +782,7 @@ export const ReferralTable = () => {
           month: 'long',
           day: 'numeric'
         });
-        successMessage = `The referral has been scheduled for OPD appointment on ${appointmentDate} at ${scheduledTime}. Assigned to ${deptName}. Patient will be notified of the appointment details.`;
+        successMessage = `The referral has been scheduled for OPD appointment on ${appointmentDate} at ${scheduledTime}. Assigned to ${deptNames}. Patient will be notified of the appointment details.`;
       }
       
       toast({
@@ -919,7 +809,7 @@ export const ReferralTable = () => {
 
   const getTimelineSteps = (referral: ReferralData) => {
     const isCancelled = referral.status === 'cancelled';
-    const isScheduleOPD = referral.status === 'schedule_opd';
+    const isScheduleOPD = referral.status === 'schedule_opd' || referral.triage_decision === 'schedule_opd';
     
     // Check if disposition finalized (triage has made a decision and assigned departments)
     // This should only be true when triage has actually processed the referral
@@ -935,8 +825,7 @@ export const ReferralTable = () => {
     const mainServiceAccepted = referral.status === 'awaiting_triage_verification' ||
                                  referral.status === 'dispositioned' || 
                                  referral.status === 'in_transit' || 
-                                 referral.status === 'completed' ||
-                                 isScheduleOPD;
+                                 referral.status === 'completed';
     
     // Check if in transit (transit template submitted)
     const inTransit = referral.status === 'in_transit' || referral.status === 'completed';
@@ -962,7 +851,9 @@ export const ReferralTable = () => {
         description: 'EDCC/EDMA assigned triage level and departments',
         icon: Clock,
         color: 'blue',
-        completed: isCancelled ? false : (dispositionFinalized || mainServiceAccepted || inTransit || isCompleted),
+        completed: isCancelled
+          ? false
+          : (isScheduleOPD ? dispositionFinalized : (dispositionFinalized || mainServiceAccepted || inTransit || isCompleted)),
         date: referral.triaged_at || referral.transferred_at,
         user: referral.triaged_by_user || referral.transferred_by_user || 'EDCC/EDMA',
         action: referral.triage_decision 
@@ -1011,7 +902,7 @@ export const ReferralTable = () => {
         action: isCancelled 
           ? 'Referral cancelled' 
           : isScheduleOPD 
-            ? 'Marked as Schedule OPD' 
+            ? 'Marked as Schedule OPD and routed to Outpatient Department' 
             : 'Patient arrived and admitted'
       }
     ];
@@ -1329,7 +1220,7 @@ export const ReferralTable = () => {
                           <Badge variant="outline" className="text-xs">
                             {referral.specialty_needed_name}
                           </Badge>
-                          {referral.is_urgent && (
+                          {referral.is_urgent && referral.status !== 'pending' && (
                             <Badge className="bg-red-100 text-red-800 text-xs">
                               URGENT
                             </Badge>
@@ -1551,16 +1442,8 @@ export const ReferralTable = () => {
         <ReferralDetailModal 
           referral={selectedReferral} 
           onClose={() => setSelectedReferral(null)}
-          handleTransferToTriage={handleTransferToTriage}
           user={user}
           setShowTriageModal={setShowTriageModal}
-          setShowChangeDepartmentModal={(show: boolean) => {
-            if (show) {
-              setSelectedReferralForDepartmentChange(selectedReferral);
-              setNewDepartment(selectedReferral.assigned_department || "");
-            }
-            setShowChangeDepartmentModal(show);
-          }}
         />
       )}
 
@@ -2155,7 +2038,6 @@ export const ReferralTable = () => {
       {showAssignDepartmentsDialog && selectedReferralForAssign && (
         <AssignDepartmentsDialogForReferralTable
           referral={selectedReferralForAssign}
-          departments={[]}
           onClose={() => {
             setShowAssignDepartmentsDialog(false);
             setSelectedReferralForAssign(null);
@@ -2168,8 +2050,7 @@ export const ReferralTable = () => {
               try {
                 const response = await referralsAPI.getAll();
                 const allReferrals = response.results || response;
-                const activeStatuses = ['pending', 'waiting', 'in_transit', 'urgent', 'emergent', 'schedule_opd'];
-                setReferrals(allReferrals.filter((ref: any) => activeStatuses.includes(ref.status)));
+                setReferrals(getReferralRequestsQueue(allReferrals));
               } catch (error) {
                 console.error('Error fetching referrals:', error);
               }
@@ -2185,12 +2066,10 @@ export const ReferralTable = () => {
 // Assign Departments Dialog Component for ReferralTable
 function AssignDepartmentsDialogForReferralTable({ 
   referral, 
-  departments, 
   onClose, 
   onSuccess 
 }: {
   referral: ReferralData;
-  departments: any[];
   onClose: () => void;
   onSuccess: () => void;
 }) {
@@ -2496,3 +2375,4 @@ function AssignDepartmentsDialogForReferralTable({
     </div>
   );
 }
+
