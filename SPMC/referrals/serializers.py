@@ -236,7 +236,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
             
             # Specialty and referrer info
             'specialty_needed_name', 'referring_hospital_name', 'referrer_name', 
-            'referrer_profession', 'referrer_profession_other', 'referrer_cellphone', 'contact_numbers', 'mode_of_transportation',
+            'referrer_profession', 'referrer_profession_other', 'referrer_cellphone', 'referrer_contact_numbers', 'contact_numbers', 'mode_of_transportation',
             
             # System fields
             'created_by_name', 'assigned_to_name', 'consent_secured',
@@ -344,6 +344,9 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
         if hospital_contact_numbers:
             validated_data['contact_numbers'] = hospital_contact_numbers
         
+        # Ensure referrer_contact_numbers is set (if provided in the request)
+        # The field should already be in validated_data if sent from frontend
+        
         # If hospital_name is provided instead of referring_hospital ID, create/get the hospital
         if hospital_name and 'referring_hospital' not in validated_data:
             hospital, created = ReferringHospital.objects.get_or_create(
@@ -362,6 +365,8 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
         print(f"  hospital_street: {validated_data.get('hospital_street')}")
         print(f"  hospital_district: {validated_data.get('hospital_district')}")
         print(f"  hospital_doh_level: {validated_data.get('hospital_doh_level')}")
+        print(f"  referrer_contact_numbers: {validated_data.get('referrer_contact_numbers')}")
+        print(f"  contact_numbers (patient/watcher): {validated_data.get('contact_numbers')}")
         print("Transit info data:", transit_info_data)
         
         # Set the created_by from the request user if authenticated, otherwise use a default
@@ -387,6 +392,8 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
         print(f"Referral created with ID: {referral.id}")
         print(f"  Saved hospital_barangay: {referral.hospital_barangay}")
         print(f"  Saved hospital_street: {referral.hospital_street}")
+        print(f"  Saved referrer_contact_numbers: {referral.referrer_contact_numbers}")
+        print(f"  Saved contact_numbers: {referral.contact_numbers}")
         
         # Create transit info if provided
         if transit_info_data:

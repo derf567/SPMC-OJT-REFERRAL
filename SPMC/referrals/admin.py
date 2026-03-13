@@ -97,7 +97,23 @@ class ReferralAdmin(admin.ModelAdmin):
         'referral_id', 'patient_full_name', 'hrn', 'chief_complaint',
         'referrer_name', 'referrer_cellphone'
     ]
-    readonly_fields = ['referral_id', 'created_at', 'updated_at']
+    readonly_fields = ['referral_id', 'created_at', 'updated_at', 'display_referrer_contacts', 'display_patient_watcher_contacts']
+    
+    def display_referrer_contacts(self, obj):
+        """Display all referrer contact numbers"""
+        if hasattr(obj, 'referrer_contact_numbers') and obj.referrer_contact_numbers:
+            return ', '.join(obj.referrer_contact_numbers)
+        elif obj.referrer_cellphone:
+            return obj.referrer_cellphone
+        return 'No contact numbers'
+    display_referrer_contacts.short_description = 'Referrer Contact Numbers (All)'
+    
+    def display_patient_watcher_contacts(self, obj):
+        """Display all patient/watcher contact numbers"""
+        if obj.contact_numbers:
+            return ', '.join(obj.contact_numbers)
+        return 'No contact numbers'
+    display_patient_watcher_contacts.short_description = 'Patient/Watcher Contact Numbers (All)'
     
     fieldsets = (
         ('Basic Information', {
@@ -125,7 +141,12 @@ class ReferralAdmin(admin.ModelAdmin):
         ('Referring Hospital', {
             'fields': (
                 'referring_hospital', 'referrer_name', 'referrer_profession', 'referrer_profession_other',
-                'referrer_cellphone', 'mode_of_transportation'
+                'referrer_cellphone', 'display_referrer_contacts', 'mode_of_transportation'
+            )
+        }),
+        ('Patient/Watcher Contact Information', {
+            'fields': (
+                'contact_numbers', 'display_patient_watcher_contacts'
             )
         }),
         ('Consent & Assignment', {

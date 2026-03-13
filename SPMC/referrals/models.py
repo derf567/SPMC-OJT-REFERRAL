@@ -271,6 +271,7 @@ class Referral(models.Model):
     referrer_profession = models.CharField(max_length=100, choices=REFERRER_PROFESSION_CHOICES)
     referrer_profession_other = models.CharField(max_length=100, blank=True, null=True, help_text="Specify if profession is 'Others'")
     referrer_cellphone = models.CharField(max_length=20)
+    referrer_contact_numbers = models.JSONField(default=list, blank=True, help_text="Referrer contact numbers (multiple)")
     contact_numbers = models.JSONField(default=list, blank=True, help_text="Patient/Watcher contact numbers")
     mode_of_transportation = models.CharField(max_length=100)
     

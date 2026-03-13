@@ -1583,9 +1583,21 @@ export const ReferralTable = () => {
                             variant="ghost" 
                             size="sm" 
                             className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/20 flex items-center gap-1.5"
-                            onClick={() => {
-                              setSelectedReferralForAssign(referral);
-                              setShowAssignDepartmentsDialog(true);
+                            onClick={async () => {
+                              // First, transfer to triage if not already in triage
+                              try {
+                                await referralsAPI.transferToTriageTab(referral.id || referral.referral_id);
+                                // Then open the assign departments dialog
+                                setSelectedReferralForAssign(referral);
+                                setShowAssignDepartmentsDialog(true);
+                              } catch (error: any) {
+                                console.error('Error transferring to triage:', error);
+                                toast({
+                                  title: "Transfer Error",
+                                  description: error.message || 'Failed to transfer referral to triage',
+                                  variant: "destructive",
+                                });
+                              }
                             }}
                             title="Call & Endorse - Assign Departments"
                           >
@@ -2268,6 +2280,7 @@ function AssignDepartmentsDialogForReferralTable({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { toast } = useToast();
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const [mainServiceCode, setMainServiceCode] = useState<string>('');
   const [triageDecision, setTriageDecision] = useState<string>('');
@@ -2293,26 +2306,42 @@ function AssignDepartmentsDialogForReferralTable({
 
   const handleSubmit = async () => {
     if (selectedDepts.length === 0) {
-      toast.error('Please select at least one department');
+      toast({
+        title: "Validation Error",
+        description: 'Please select at least one department',
+        variant: "destructive",
+      });
       return;
     }
 
     if (!triageDecision) {
-      toast.error('Please select a triage decision (Emergent/Urgent/Schedule OPD)');
+      toast({
+        title: "Validation Error",
+        description: 'Please select a triage decision (Emergent/Urgent/Schedule OPD)',
+        variant: "destructive",
+      });
       return;
     }
 
     // Validate scheduled date/time for OPD
     if (triageDecision === 'schedule_opd') {
       if (!scheduledDate || !scheduledTime) {
-        toast.error('Please select appointment date and time for OPD scheduling');
+        toast({
+          title: "Validation Error",
+          description: 'Please select appointment date and time for OPD scheduling',
+          variant: "destructive",
+        });
         return;
       }
 
       const selectedDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
       const now = new Date();
       if (selectedDateTime <= now) {
-        toast.error('Cannot schedule appointments in the past. Please select a future date and time.');
+        toast({
+          title: "Validation Error",
+          description: 'Cannot schedule appointments in the past. Please select a future date and time.',
+          variant: "destructive",
+        });
         return;
       }
     }
@@ -2330,11 +2359,19 @@ function AssignDepartmentsDialogForReferralTable({
         triageDecision === 'schedule_opd' ? scheduledTime : undefined
       );
       
-      toast.success('Departments assigned successfully with triage decision!');
+      toast({
+        title: "Success",
+        description: 'Departments assigned successfully with triage decision!',
+        className: "bg-green-50 border-green-200 text-green-800",
+      });
       onSuccess();
     } catch (error: any) {
       console.error('Error assigning departments:', error);
-      toast.error(error.message || 'Failed to assign departments');
+      toast({
+        title: "Assignment Error",
+        description: error.message || 'Failed to assign departments',
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
