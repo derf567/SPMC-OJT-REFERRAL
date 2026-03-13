@@ -17,6 +17,7 @@ import ReferrerDashboard from "./pages/ReferrerDashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
 import ActiveReferrals from "./pages/ActiveReferrals";
 import TriageReferrals from "./pages/TriageReferrals";
+import EndorsementAndTransit from "./pages/EndorsementAndTransit";
 import Outpatient from "./pages/Outpatient";
 import Patients from "./pages/Patients";
 import Reports from "./pages/Reports";
@@ -129,6 +130,11 @@ const App = () => (
             <Route path="/triage" element={
               <ProtectedRoute>
                 <TriageReferrals />
+              </ProtectedRoute>
+            } />
+            <Route path="/endorsement-transit" element={
+              <ProtectedRoute>
+                <EndorsementAndTransit />
               </ProtectedRoute>
             } />
             <Route path="/outpatient" element={
