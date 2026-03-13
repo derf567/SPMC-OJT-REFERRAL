@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { referralsAPI } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
@@ -16,8 +15,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { 
-  Calendar, 
-  BarChart3, 
   PieChart, 
   TrendingUp,
   Building2,
@@ -64,7 +61,7 @@ interface ReportsData {
   }>;
 }
 
-type TimeFilter = 'week' | 'month' | 'year';
+type TimeFilter = 'week' | 'month';
 
 const Reports = () => {
   const { user } = useAuth();
@@ -74,26 +71,31 @@ const Reports = () => {
   // Global filter that controls all sections
   const [globalFilter, setGlobalFilter] = useState<TimeFilter>('month');
   const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
-  const [globalMonth, setGlobalMonth] = useState(0); // 0 = All, 1-12 = specific month
-  const [globalWeek, setGlobalWeek] = useState(0); // 0 = All, 1-52 = specific week
-  const [weekFilterMonth, setWeekFilterMonth] = useState(0); // Month filter for week view (0 = All)
+  const [globalMonth, setGlobalMonth] = useState(new Date().getMonth() + 1); // Default to current month for week filter
   
   const [referralsByTime, setReferralsByTime] = useState<any[]>([]);
   const [departmentData, setDepartmentData] = useState<any[]>([]);
   const [loadingTimeData, setLoadingTimeData] = useState(false);
-  const [loadingDepartmentData, setLoadingDepartmentData] = useState(false);
   
   // Data states
   const [hospitalsData, setHospitalsData] = useState<any[]>([]);
   const [loadingHospitals, setLoadingHospitals] = useState(false);
   
-  const [specialtiesData, setSpecialtiesData] = useState<any[]>([]);
-  const [loadingSpecialties, setLoadingSpecialties] = useState(false);
+  // Specialty data states
+  const [specialtyData, setSpecialtyData] = useState<any[]>([]);
+  const [loadingSpecialtyData, setLoadingSpecialtyData] = useState(false);
   
-  // Coordinated/Uncoordinated data
-  const [coordinatedData, setCoordinatedData] = useState<any[]>([]);
-  const [uncoordinatedData, setUncoordinatedData] = useState<any[]>([]);
-  const [loadingCoordinated, setLoadingCoordinated] = useState(false);
+  // Regional data states
+  const [regionalData, setRegionalData] = useState({
+    coordinatedOverall: 0,
+    uncoordinatedOverall: 0,
+    coordinatedInsideDavao: 0,
+    uncoordinatedInsideDavao: 0,
+    coordinatedOutsideDavao: 0,
+    uncoordinatedOutsideDavao: 0,
+    delayDepartmentCount: 0
+  });
+  const [loadingRegionalData, setLoadingRegionalData] = useState(false);
   
   const { toast } = useToast();
 
@@ -104,38 +106,52 @@ const Reports = () => {
   const fetchAllFilteredData = async () => {
     try {
       setLoadingTimeData(true);
-      setLoadingDepartmentData(true);
       setLoadingHospitals(true);
-      setLoadingSpecialties(true);
-      setLoadingCoordinated(true);
+      setLoadingSpecialtyData(true);
+      setLoadingRegionalData(true);
+
+      // Determine the correct parameters based on filter type
+      let apiMonth: number | undefined = 0;
+      let apiWeek: number | undefined = 0;
+      let apiYear = globalYear;
+      
+      if (globalFilter === 'week') {
+        // Week filter: show weeks within the selected month
+        // Use current year and the selected month, don't pass week parameter
+        apiYear = new Date().getFullYear(); // Always use current year for week filter
+        apiMonth = globalMonth; // Pass the specific month to filter weeks within it
+        apiWeek = undefined; // Don't pass week parameter to get all weeks in the month
+      } else if (globalFilter === 'month') {
+        // Month filter: show months within the selected year
+        apiYear = globalYear;
+        apiMonth = 0; // 0 means show all months in the year
+        apiWeek = 0;
+      }
 
       const [
         referralsByTimeData,
         departmentsData,
         hospitalsData,
-        specialtiesData,
-        coordinatedData,
-        uncoordinatedData
+        specialtiesData
       ] = await Promise.all([
         referralsAPI.getReferralsByTimePeriod(
           globalFilter, 
-          globalYear, 
-          globalFilter === 'week' ? weekFilterMonth : globalMonth, 
-          globalWeek
+          apiYear, 
+          apiMonth, 
+          apiWeek
         ),
-        referralsAPI.getTopDepartments(globalFilter, globalYear, globalMonth, globalWeek),
-        referralsAPI.getTopHospitals(globalFilter, globalYear, globalMonth, globalWeek),
-        referralsAPI.getTopSpecialties(globalFilter, globalYear, globalMonth, globalWeek),
-        referralsAPI.getCoordinatedReferrals(globalFilter, globalYear, globalMonth, globalWeek),
-        referralsAPI.getUncoordinatedReferrals(globalFilter, globalYear, globalMonth, globalWeek)
+        referralsAPI.getTopDepartments(globalFilter, apiYear, apiMonth, apiWeek),
+        referralsAPI.getTopHospitals(globalFilter, apiYear, apiMonth, apiWeek),
+        referralsAPI.getTopSpecialties(globalFilter, apiYear, apiMonth, apiWeek)
       ]);
 
       setReferralsByTime(referralsByTimeData);
       setDepartmentData(departmentsData);
       setHospitalsData(hospitalsData);
-      setSpecialtiesData(specialtiesData);
-      setCoordinatedData(coordinatedData);
-      setUncoordinatedData(uncoordinatedData);
+      setSpecialtyData(specialtiesData);
+      
+      // Fetch regional data
+      await fetchRegionalData();
     } catch (error: any) {
       console.error('Error fetching filtered data:', error);
       const errorMessage = error?.message || "Failed to load filtered data. Please try again.";
@@ -150,10 +166,107 @@ const Reports = () => {
       });
     } finally {
       setLoadingTimeData(false);
-      setLoadingDepartmentData(false);
       setLoadingHospitals(false);
-      setLoadingSpecialties(false);
-      setLoadingCoordinated(false);
+      setLoadingSpecialtyData(false);
+      setLoadingRegionalData(false);
+    }
+  };
+
+  // Fetch regional data
+  const fetchRegionalData = async () => {
+    try {
+      // Determine the correct parameters based on filter type
+      let apiMonth: number | undefined = 0;
+      let apiWeek: number | undefined = 0;
+      let apiYear = globalYear;
+      
+      if (globalFilter === 'week') {
+        // Week filter: show weeks within the selected month
+        apiYear = new Date().getFullYear(); // Always use current year for week filter
+        apiMonth = globalMonth; // Pass the specific month to filter weeks within it
+        apiWeek = undefined; // Don't pass week parameter to get all weeks in the month
+      } else if (globalFilter === 'month') {
+        // Month filter: show months within the selected year
+        apiYear = globalYear;
+        apiMonth = 0; // 0 means show all months in the year
+        apiWeek = 0;
+      }
+
+      // For now, we'll use the existing coordinated/uncoordinated API calls
+      // and calculate regional data based on hospital locations
+      const [coordinatedData, uncoordinatedData] = await Promise.all([
+        referralsAPI.getCoordinatedReferrals(globalFilter, apiYear, apiMonth, apiWeek),
+        referralsAPI.getUncoordinatedReferrals(globalFilter, apiYear, apiMonth, apiWeek)
+      ]);
+
+      // Define Davao region hospitals/cities (this should ideally come from backend)
+      const davaoRegionKeywords = [
+        'davao', 'tagum', 'panabo', 'samal', 'digos', 'mati', 'malita',
+        'davao city', 'davao del sur', 'davao del norte', 'davao oriental',
+        'davao de oro', 'compostela valley'
+      ];
+
+      // Filter coordinated referrals by region
+      const coordinatedInsideDavao = coordinatedData.filter((ref: any) => {
+        const hospitalName = (ref.hospital_name || '').toLowerCase();
+        const city = (ref.city || '').toLowerCase();
+        return davaoRegionKeywords.some(keyword => 
+          hospitalName.includes(keyword) || city.includes(keyword)
+        );
+      });
+
+      const coordinatedOutsideDavao = coordinatedData.filter((ref: any) => {
+        const hospitalName = (ref.hospital_name || '').toLowerCase();
+        const city = (ref.city || '').toLowerCase();
+        return !davaoRegionKeywords.some(keyword => 
+          hospitalName.includes(keyword) || city.includes(keyword)
+        );
+      });
+
+      // Filter uncoordinated referrals by region
+      const uncoordinatedInsideDavao = uncoordinatedData.filter((ref: any) => {
+        const hospitalName = (ref.hospital_name || '').toLowerCase();
+        const city = (ref.city || '').toLowerCase();
+        return davaoRegionKeywords.some(keyword => 
+          hospitalName.includes(keyword) || city.includes(keyword)
+        );
+      });
+
+      const uncoordinatedOutsideDavao = uncoordinatedData.filter((ref: any) => {
+        const hospitalName = (ref.hospital_name || '').toLowerCase();
+        const city = (ref.city || '').toLowerCase();
+        return !davaoRegionKeywords.some(keyword => 
+          hospitalName.includes(keyword) || city.includes(keyword)
+        );
+      });
+
+      // Calculate delay department count (referrals with processing time > 24 hours)
+      const delayDepartmentCount = coordinatedData.filter((ref: any) => {
+        const processingTime = ref.processing_time_hours || 0;
+        return processingTime > 24;
+      }).length;
+
+      setRegionalData({
+        coordinatedOverall: coordinatedData.length,
+        uncoordinatedOverall: uncoordinatedData.length,
+        coordinatedInsideDavao: coordinatedInsideDavao.length,
+        uncoordinatedInsideDavao: uncoordinatedInsideDavao.length,
+        coordinatedOutsideDavao: coordinatedOutsideDavao.length,
+        uncoordinatedOutsideDavao: uncoordinatedOutsideDavao.length,
+        delayDepartmentCount: delayDepartmentCount
+      });
+    } catch (error) {
+      console.error('Error fetching regional data:', error);
+      // Set default values on error
+      setRegionalData({
+        coordinatedOverall: 0,
+        uncoordinatedOverall: 0,
+        coordinatedInsideDavao: 0,
+        uncoordinatedInsideDavao: 0,
+        coordinatedOutsideDavao: 0,
+        uncoordinatedOutsideDavao: 0,
+        delayDepartmentCount: 0
+      });
     }
   };
 
@@ -178,10 +291,10 @@ const Reports = () => {
     fetchReportsData();
   }, [toast]);
 
-  // Fetch all filtered data when global filter or year changes
+  // Fetch all filtered data when global filter or parameters change
   useEffect(() => {
     fetchAllFilteredData();
-  }, [globalFilter, globalYear, globalMonth, globalWeek, weekFilterMonth]);
+  }, [globalFilter, globalYear, globalMonth]);
 
   // Download report function
   const handleDownloadReport = async (includeGraphs: boolean) => {
@@ -239,7 +352,7 @@ const Reports = () => {
       pdf.setTextColor(100, 100, 100);
       pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 4;
-      pdf.text(`Filter: ${globalFilter.toUpperCase()} | Year: ${globalYear}${globalMonth ? ` | Month: ${globalMonth}` : ''}${globalWeek ? ` | Week: ${globalWeek}` : ''}`, pageWidth / 2, yPosition, { align: 'center' });
+      pdf.text(`Filter: ${globalFilter.toUpperCase()}${globalFilter === 'month' ? ` | Year: ${globalYear}` : ''}${globalFilter === 'week' ? ` | Month: ${new Date(2024, globalMonth - 1).toLocaleString('default', { month: 'long' })}` : ''}`, pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 4;
       pdf.text(`Report Type: ${includeGraphs ? 'With Graphs' : 'Without Graphs'}`, pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 10;
@@ -376,87 +489,6 @@ const Reports = () => {
 
       yPosition = (pdf as any).lastAutoTable.finalY + 10;
 
-      // Top Specialties
-      checkNewPage(40);
-      pdf.setFontSize(14);
-      pdf.text('Top Specialties', 15, yPosition);
-      yPosition += 8;
-
-      const specData = specialtiesData.map((spec, idx) => [String(idx + 1), String(spec.name), String(spec.count)]);
-      autoTable(pdf, {
-        startY: yPosition,
-        head: [['#', 'Specialty', 'Count']],
-        body: specData.length > 0 ? specData : [['', 'No data available', '']],
-        theme: 'striped',
-        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
-        margin: { left: 15, right: 15 },
-      });
-
-      yPosition = (pdf as any).lastAutoTable.finalY + 10;
-
-      // Coordinated Referrals
-      checkNewPage(40);
-      pdf.setFontSize(14);
-      pdf.text('Coordinated Referrals', 15, yPosition);
-      yPosition += 8;
-
-      const coordData = coordinatedData.slice(0, 50).map(item => [
-        String(item.patient_name),
-        String(item.specialty),
-        String(item.department),
-        String(item.date_received)
-      ]);
-      autoTable(pdf, {
-        startY: yPosition,
-        head: [['Patient Name', 'Specialty', 'Department', 'Date Received']],
-        body: coordData.length > 0 ? coordData : [['No data available', '', '', '']],
-        theme: 'striped',
-        headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255] },
-        margin: { left: 15, right: 15 },
-        styles: { fontSize: 8 },
-      });
-
-      if (coordinatedData.length > 50) {
-        yPosition = (pdf as any).lastAutoTable.finalY + 5;
-        pdf.setFontSize(9);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(`... and ${coordinatedData.length - 50} more records`, 15, yPosition);
-      }
-
-      yPosition = (pdf as any).lastAutoTable.finalY + 10;
-
-      // Uncoordinated Referrals
-      checkNewPage(40);
-      pdf.setFontSize(14);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text('Uncoordinated Referrals', 15, yPosition);
-      yPosition += 8;
-
-      const uncoordData = uncoordinatedData.slice(0, 50).map(item => [
-        String(item.patient_name),
-        String(item.reason).substring(0, 40) + (String(item.reason).length > 40 ? '...' : ''),
-        String(item.specialty),
-        String(item.date_cancelled)
-      ]);
-      autoTable(pdf, {
-        startY: yPosition,
-        head: [['Patient Name', 'Reason', 'Specialty', 'Date Cancelled']],
-        body: uncoordData.length > 0 ? uncoordData : [['No data available', '', '', '']],
-        theme: 'striped',
-        headStyles: { fillColor: [239, 68, 68], textColor: [255, 255, 255] },
-        margin: { left: 15, right: 15 },
-        styles: { fontSize: 8 },
-      });
-
-      if (uncoordinatedData.length > 50) {
-        yPosition = (pdf as any).lastAutoTable.finalY + 5;
-        pdf.setFontSize(9);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(`... and ${uncoordinatedData.length - 50} more records`, 15, yPosition);
-      }
-
-      yPosition = (pdf as any).lastAutoTable.finalY + 10;
-
       // Status Distribution
       checkNewPage(40);
       pdf.setFontSize(14);
@@ -548,8 +580,6 @@ const Reports = () => {
 
   // Destructure data after null checks
   const { summary } = reportsData;
-  const maxReferrals = Math.max(...referralsByTime.map(item => item.count), 1);
-  const totalDepartmentReferrals = departmentData.reduce((sum, dept) => sum + dept.count, 0);
 
   return (
     <Layout>
@@ -568,12 +598,21 @@ const Reports = () => {
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Global Filter:</span>
               </div>
               <div className="flex gap-2">
-                {(['week', 'month', 'year'] as TimeFilter[]).map((filter) => (
+                {(['week', 'month'] as TimeFilter[]).map((filter) => (
                   <Button
                     key={filter}
                     variant={globalFilter === filter ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setGlobalFilter(filter)}
+                    onClick={() => {
+                      setGlobalFilter(filter);
+                      // Set appropriate defaults when switching filter type
+                      if (filter === 'week') {
+                        // For week filter, ensure we have a specific month selected
+                        if (globalMonth === 0) {
+                          setGlobalMonth(new Date().getMonth() + 1);
+                        }
+                      }
+                    }}
                     className="text-sm"
                   >
                     {filter.charAt(0).toUpperCase() + filter.slice(1)}
@@ -581,8 +620,8 @@ const Reports = () => {
                 ))}
               </div>
               
-              {/* Year Selector */}
-              {globalFilter !== 'year' && (
+              {/* Year Selector - Only show for Month filter */}
+              {globalFilter === 'month' && (
                 <select
                   value={globalYear}
                   onChange={(e) => setGlobalYear(Number(e.target.value))}
@@ -594,14 +633,13 @@ const Reports = () => {
                 </select>
               )}
               
-              {/* Month Selector */}
-              {globalFilter === 'month' && (
+              {/* Month Selector - Only show for Week filter */}
+              {globalFilter === 'week' && (
                 <select
                   value={globalMonth}
                   onChange={(e) => setGlobalMonth(Number(e.target.value))}
                   className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  <option value={0}>All Months</option>
                   <option value={1}>January</option>
                   <option value={2}>February</option>
                   <option value={3}>March</option>
@@ -614,57 +652,6 @@ const Reports = () => {
                   <option value={10}>October</option>
                   <option value={11}>November</option>
                   <option value={12}>December</option>
-                </select>
-              )}
-              
-              {/* Week Selector */}
-              {globalFilter === 'week' && (
-                <>
-                  <select
-                    value={weekFilterMonth}
-                    onChange={(e) => {
-                      setWeekFilterMonth(Number(e.target.value));
-                      setGlobalWeek(0); // Reset week when month changes
-                    }}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value={0}>All Months</option>
-                    <option value={1}>January</option>
-                    <option value={2}>February</option>
-                    <option value={3}>March</option>
-                    <option value={4}>April</option>
-                    <option value={5}>May</option>
-                    <option value={6}>June</option>
-                    <option value={7}>July</option>
-                    <option value={8}>August</option>
-                    <option value={9}>September</option>
-                    <option value={10}>October</option>
-                    <option value={11}>November</option>
-                    <option value={12}>December</option>
-                  </select>
-                  <select
-                    value={globalWeek}
-                    onChange={(e) => setGlobalWeek(Number(e.target.value))}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value={0}>All Weeks</option>
-                    {Array.from({ length: 52 }, (_, i) => i + 1).map(week => (
-                      <option key={week} value={week}>Week {week}</option>
-                    ))}
-                  </select>
-                </>
-              )}
-              
-              {/* Year Selector for Year filter */}
-              {globalFilter === 'year' && (
-                <select
-                  value={globalYear}
-                  onChange={(e) => setGlobalYear(Number(e.target.value))}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
                 </select>
               )}
             </div>
@@ -737,218 +724,443 @@ const Reports = () => {
           </div>
         </div>
         
-        {/* Referrals by Time Period */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
-          <div className="flex items-center gap-2 mb-6">
-            <TrendingUp className="w-5 h-5 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Referrals by {globalFilter.charAt(0).toUpperCase() + globalFilter.slice(1)}</h3>
-          </div>
-          
-          <div className="space-y-3">
+        {/* Referrals and Charts Row - Three Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* First Column: Referrals by Time Period - Bar Graph */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300 min-h-[650px]">
+            <div className="flex items-center gap-2 mb-6">
+              <TrendingUp className="w-5 h-5 text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Referrals by {globalFilter.charAt(0).toUpperCase() + globalFilter.slice(1)}</h3>
+            </div>
+            
             {loadingTimeData ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
             ) : referralsByTime.length > 0 ? (
-              referralsByTime.map((item, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{item.period}</span>
-                    {(globalFilter === 'week' || globalFilter === 'month') && item.full_period && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{item.full_period}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <span className="text-sm font-bold text-gray-900 dark:text-white">{item.count}</span>
-                    <div className="w-32 bg-gray-200 dark:bg-gray-600 rounded-full h-3">
-                      <div 
-                        className="bg-blue-600 dark:bg-blue-400 h-3 rounded-full transition-all duration-300" 
-                        style={{ 
-                          width: `${Math.max(5, (item.count / maxReferrals) * 100)}%` 
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-8">No data available for the selected period</p>
-            )}
-          </div>
-        </div>
-
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Top Referring Hospitals - Bar Chart */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
-            <div className="flex items-center gap-2 mb-6">
-              <BarChart3 className="w-5 h-5 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Top Referring Hospitals</h3>
-            </div>
-            <div className="space-y-4">
-              {loadingHospitals ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-                </div>
-              ) : hospitalsData.length > 0 ? (
-                hospitalsData.slice(0, 8).map((hospital, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate max-w-[200px]">
-                          {hospital.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {hospital.count}
-                        </Badge>
-                        <span className="text-sm font-bold text-gray-900 dark:text-white min-w-[40px] text-right">
-                          {hospital.percentage}%
-                        </span>
-                      </div>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                      <div 
-                        className="bg-green-600 dark:bg-green-400 h-2 rounded-full transition-all duration-500" 
-                        style={{ width: `${hospital.percentage}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No hospital data available</p>
-              )}
-            </div>
-          </div>
-
-          {/* Top Referring Departments - Pie Chart */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
-            <div className="flex items-center gap-2 mb-6">
-              <PieChart className="w-5 h-5 text-purple-600" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Top Referring Departments</h3>
-            </div>
-            
-            {/* Pie Chart Visualization */}
-            {loadingDepartmentData ? (
-              <div className="flex items-center justify-center mb-6">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-              </div>
-            ) : departmentData.length > 0 ? (
-              <>
-                <div className="flex items-center justify-center mb-6" id="department-pie-chart">
-                  <div className="relative w-64 h-64">
-                    <svg className="w-64 h-64 transform -rotate-90" viewBox="0 0 100 100">
-                      {departmentData.map((dept, index) => {
-                        const percentage = (dept.count / totalDepartmentReferrals) * 100;
-                        const circumference = 2 * Math.PI * 25; // 2πr where r=25
-                        const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
-                        
-                        // Calculate the offset based on previous segments
-                        const previousPercentages = departmentData
-                          .slice(0, index)
-                          .reduce((acc, d) => acc + (d.count / totalDepartmentReferrals) * 100, 0);
-                        const strokeDashoffset = -(previousPercentages / 100) * circumference;
-                        
-                        return (
-                          <circle
-                            key={index}
-                            cx="50"
-                            cy="50"
-                            r="25"
-                            fill="transparent"
-                            stroke={dept.color}
-                            strokeWidth="12"
-                            strokeDasharray={strokeDasharray}
-                            strokeDashoffset={strokeDashoffset}
-                            className="transition-all duration-300 hover:stroke-width-14"
+              <div className="space-y-4">
+                {/* Column Bar Graph Container */}
+                <div className="h-80 w-full">
+                  <svg className="w-full h-full" viewBox="0 0 500 300" preserveAspectRatio="xMidYMid meet">
+                    {/* Background */}
+                    <rect width="100%" height="100%" fill="transparent" />
+                    
+                    {/* Y-axis */}
+                    <line x1="60" y1="30" x2="60" y2="220" stroke="#374151" strokeWidth="2"/>
+                    
+                    {/* X-axis */}
+                    <line x1="60" y1="220" x2="450" y2="220" stroke="#374151" strokeWidth="2"/>
+                    
+                    {/* Horizontal grid lines */}
+                    {(() => {
+                      const maxValue = Math.max(...referralsByTime.map(item => item.count), 1);
+                      // Ensure we have at least 4 steps, but make them meaningful
+                      const step = Math.max(1, Math.ceil(maxValue / 4));
+                      // Create proper incremental values: 0, step, step*2, step*3, step*4
+                      const gridValues = Array.from({ length: 5 }, (_, i) => i * step);
+                      // Ensure the last value covers the max
+                      const actualMaxValue = Math.max(maxValue, gridValues[gridValues.length - 1]);
+                      
+                      return gridValues.map((value, index) => (
+                        <line 
+                          key={index}
+                          x1="60" 
+                          y1={220 - (value / actualMaxValue) * 190} 
+                          x2="450" 
+                          y2={220 - (value / actualMaxValue) * 190} 
+                          stroke="#e5e7eb" 
+                          strokeWidth="1"
+                          opacity="0.5"
+                        />
+                      ));
+                    })()}
+                    
+                    {/* Y-axis labels */}
+                    {(() => {
+                      const maxValue = Math.max(...referralsByTime.map(item => item.count), 1);
+                      // Ensure we have at least 4 steps, but make them meaningful
+                      const step = Math.max(1, Math.ceil(maxValue / 4));
+                      // Create proper incremental values: 0, step, step*2, step*3, step*4
+                      const gridValues = Array.from({ length: 5 }, (_, i) => i * step);
+                      // Ensure the last value covers the max
+                      const actualMaxValue = Math.max(maxValue, gridValues[gridValues.length - 1]);
+                      
+                      return gridValues.map((value, index) => (
+                        <text 
+                          key={index}
+                          x="50" 
+                          y={225 - (value / actualMaxValue) * 190} 
+                          className="text-sm fill-gray-700 dark:fill-gray-300 font-semibold" 
+                          textAnchor="end"
+                          dominantBaseline="middle"
+                        >
+                          {value}
+                        </text>
+                      ));
+                    })()}
+                    
+                    {/* Column bars */}
+                    {referralsByTime.map((item, index) => {
+                      const maxValue = Math.max(...referralsByTime.map(item => item.count), 1);
+                      // Ensure we have at least 4 steps, but make them meaningful
+                      const step = Math.max(1, Math.ceil(maxValue / 4));
+                      // Create proper incremental values: 0, step, step*2, step*3, step*4
+                      const gridValues = Array.from({ length: 5 }, (_, i) => i * step);
+                      // Ensure the last value covers the max
+                      const actualMaxValue = Math.max(maxValue, gridValues[gridValues.length - 1]);
+                      
+                      const barWidth = Math.max(20, 350 / referralsByTime.length * 0.6); // Minimum 20px width, 60% of space
+                      const barSpacing = 350 / referralsByTime.length;
+                      const x = 60 + (index * barSpacing) + (barSpacing - barWidth) / 2;
+                      const barHeight = (item.count / actualMaxValue) * 190;
+                      const y = 220 - barHeight;
+                      
+                      return (
+                        <g key={index}>
+                          {/* Bar */}
+                          <rect
+                            x={x}
+                            y={y}
+                            width={barWidth}
+                            height={Math.max(barHeight, 2)} // Minimum 2px height for visibility
+                            fill="#3b82f6"
+                            className="hover:fill-blue-700 transition-colors cursor-pointer"
+                            rx="3"
+                            ry="3"
                           />
-                        );
-                      })}
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                          {totalDepartmentReferrals}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Total</p>
-                      </div>
-                    </div>
-                  </div>
+                          {/* Value label on top of bar - only show if value > 0 */}
+                          {item.count > 0 && (
+                            <text
+                              x={x + barWidth / 2}
+                              y={y - 8}
+                              className="text-sm fill-gray-800 dark:fill-gray-200 font-bold"
+                              textAnchor="middle"
+                              dominantBaseline="text-after-edge"
+                            >
+                              {item.count}
+                            </text>
+                          )}
+                          {/* Hover tooltip */}
+                          <g className="opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                            <rect
+                              x={x + barWidth / 2 - 35}
+                              y={y - 45}
+                              width="70"
+                              height="28"
+                              fill="rgba(0,0,0,0.9)"
+                              rx="6"
+                            />
+                            <text
+                              x={x + barWidth / 2}
+                              y={y - 32}
+                              className="text-sm fill-white font-bold"
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                            >
+                              {item.count}
+                            </text>
+                            <text
+                              x={x + barWidth / 2}
+                              y={y - 18}
+                              className="text-xs fill-gray-300"
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                            >
+                              referrals
+                            </text>
+                          </g>
+                        </g>
+                      );
+                    })}
+                    
+                    {/* X-axis labels - rotated and properly spaced to prevent overlap */}
+                    {referralsByTime.map((item, index) => {
+                      const barSpacing = 350 / referralsByTime.length;
+                      const x = 60 + (index * barSpacing) + barSpacing / 2;
+                      
+                      // Clean up the period label - remove redundancy and improve readability
+                      let displayLabel = item.period;
+                      
+                      // Remove redundant parenthetical information if it's the same as the main label
+                      if (item.full_period && item.period !== item.full_period) {
+                        // Check if the full_period contains redundant information
+                        const periodLower = item.period.toLowerCase();
+                        const fullPeriodLower = item.full_period.toLowerCase();
+                        
+                        // If full_period just repeats the period, use only the period
+                        if (fullPeriodLower.includes(periodLower) && fullPeriodLower.includes('(') && fullPeriodLower.includes(')')) {
+                          displayLabel = item.period;
+                        } else {
+                          // Use the shorter, cleaner version
+                          displayLabel = item.period.length <= item.full_period.length ? item.period : item.full_period;
+                        }
+                      }
+                      
+                      // For better readability, shorten labels if there are many items
+                      if (referralsByTime.length > 6 && displayLabel.length > 6) {
+                        displayLabel = displayLabel.substring(0, 4) + '...';
+                      } else if (displayLabel.length > 12) {
+                        displayLabel = displayLabel.substring(0, 10) + '...';
+                      }
+                      
+                      return (
+                        <text
+                          key={index}
+                          x={x}
+                          y="245"
+                          className="text-xs fill-gray-800 dark:fill-gray-200 font-semibold"
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          transform={`rotate(-45 ${x} 245)`}
+                        >
+                          {displayLabel}
+                        </text>
+                      );
+                    })}
+                  </svg>
                 </div>
-
-                {/* Legend */}
-                <div className="space-y-2">
-                  {departmentData.map((dept, index) => {
-                    const percentage = ((dept.count / totalDepartmentReferrals) * 100).toFixed(1);
+                
+                {/* Data list below graph - improved spacing and larger scrollable area */}
+                <div className="space-y-3 max-h-48 overflow-y-auto border-t pt-4 mt-4">
+                  {referralsByTime.map((item, index) => {
+                    // Clean up display labels to remove redundancy
+                    let displayLabel = item.period;
+                    let additionalInfo = '';
+                    
+                    if (item.full_period && item.period !== item.full_period) {
+                      // Check if full_period contains redundant information
+                      const periodLower = item.period.toLowerCase();
+                      const fullPeriodLower = item.full_period.toLowerCase();
+                      
+                      // If full_period just repeats the period, don't show it
+                      if (!fullPeriodLower.includes(periodLower) || (!fullPeriodLower.includes('(') && !fullPeriodLower.includes(')'))) {
+                        additionalInfo = item.full_period;
+                      }
+                    }
+                    
                     return (
-                      <div key={index} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: dept.color }}
-                          ></div>
-                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[120px]">
-                            {dept.name}
-                          </span>
+                      <div key={index} className="flex items-center justify-between text-sm py-2 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 bg-blue-600 rounded-full flex-shrink-0"></div>
+                          <div className="flex flex-col">
+                            <span className="text-gray-800 dark:text-gray-200 font-medium">
+                              {displayLabel}
+                            </span>
+                            {additionalInfo && (
+                              <span className="text-gray-500 dark:text-gray-400 text-xs">
+                                {additionalInfo}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {dept.count}
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[35px] text-right">
-                            ({percentage}%)
-                          </span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="font-bold text-gray-900 dark:text-white text-lg">{item.count}</span>
+                          <span className="text-gray-500 dark:text-gray-400 text-xs">referrals</span>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              </>
+              </div>
             ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-8">No department data available</p>
+              <p className="text-gray-500 dark:text-gray-400 text-center py-8">No data available for the selected period</p>
             )}
           </div>
-        </div>
 
-        {/* Top Specialties */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="w-5 h-5 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Top Specialties</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {loadingSpecialties ? (
-              <div className="col-span-full flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            ) : specialtiesData.length > 0 ? (
-              specialtiesData.slice(0, 8).map((specialty, index) => {
-                const total = specialtiesData.reduce((sum, s) => sum + s.count, 0);
-                const percentage = (specialty.count / total * 100).toFixed(1);
-                return (
-                  <div key={index} className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
-                    <h4 className="font-medium text-gray-900 dark:text-white text-sm mb-2 truncate">
-                      {specialty.name}
-                    </h4>
-                    <div className="flex items-center justify-between">
-                      <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                        {specialty.count}
-                      </span>
-                      <Badge variant="outline" className="text-xs">
-                        {percentage}%
-                      </Badge>
+          {/* Second Column: Top Referring Hospitals - Pie Chart */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300 min-h-[650px]">
+            <div className="flex items-center gap-2 mb-4">
+              <PieChart className="w-5 h-5 text-green-600" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Top Referring Hospitals</h3>
+            </div>
+            
+            <div className="h-full flex flex-col">
+              {loadingHospitals ? (
+                <div className="flex items-center justify-center flex-1">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+                </div>
+              ) : hospitalsData.length > 0 ? (
+                <>
+                  {/* Pie Chart Visualization - Same size as bar graph */}
+                  <div className="h-80 w-full flex items-center justify-center mb-4">
+                    <div className="relative w-64 h-64">
+                      <svg className="w-64 h-64 transform -rotate-90" viewBox="0 0 100 100">
+                        {hospitalsData.slice(0, 6).map((hospital, index) => {
+                          const totalHospitalReferrals = hospitalsData.reduce((sum, h) => sum + h.count, 0);
+                          const percentage = (hospital.count / totalHospitalReferrals) * 100;
+                          const circumference = 2 * Math.PI * 30; // 2πr where r=30
+                          const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
+                          
+                          // Calculate the offset based on previous segments
+                          const previousPercentages = hospitalsData
+                            .slice(0, index)
+                            .reduce((acc, h) => acc + (h.count / totalHospitalReferrals) * 100, 0);
+                          const strokeDashoffset = -(previousPercentages / 100) * circumference;
+                          
+                          // Generate colors for hospitals
+                          const colors = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
+                          
+                          return (
+                            <circle
+                              key={index}
+                              cx="50"
+                              cy="50"
+                              r="30"
+                              fill="transparent"
+                              stroke={colors[index % colors.length]}
+                              strokeWidth="8"
+                              strokeDasharray={strokeDasharray}
+                              strokeDashoffset={strokeDashoffset}
+                              className="transition-all duration-300 hover:stroke-width-10"
+                            />
+                          );
+                        })}
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                          <p className="text-xl font-bold text-gray-900 dark:text-white">
+                            {hospitalsData.reduce((sum, h) => sum + h.count, 0)}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Total</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                );
-              })
-            ) : (
-              <div className="col-span-full">
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No specialty data available</p>
-              </div>
-            )}
+
+                  {/* Legend - Same style as bar graph data list */}
+                  <div className="space-y-3 max-h-48 overflow-y-auto border-t pt-4 mt-4">
+                    {hospitalsData.slice(0, 6).map((hospital, index) => {
+                      const colors = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
+                      return (
+                        <div key={index} className="flex items-center justify-between text-sm py-2 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-4 h-4 rounded-full flex-shrink-0" 
+                              style={{ backgroundColor: colors[index % colors.length] }}
+                            ></div>
+                            <div className="flex flex-col">
+                              <span className="text-gray-800 dark:text-gray-200 font-medium" title={hospital.name}>
+                                {hospital.name}
+                              </span>
+                              <span className="text-gray-500 dark:text-gray-400 text-xs">
+                                {hospital.percentage}% of total
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="font-bold text-gray-900 dark:text-white text-lg">{hospital.count}</span>
+                            <span className="text-gray-500 dark:text-gray-400 text-xs">referrals</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400 text-center flex-1 flex items-center justify-center">No hospital data available</p>
+              )}
+            </div>
           </div>
+
+          {/* Third Column: Specialty Required - Pie Chart */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300 min-h-[650px]">
+            <div className="flex items-center gap-2 mb-4">
+              <PieChart className="w-5 h-5 text-purple-600" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Specialty Required</h3>
+            </div>
+            
+            <div className="h-full flex flex-col">
+              {/* Pie Chart Visualization */}
+              {loadingSpecialtyData ? (
+                <div className="flex items-center justify-center flex-1">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+                </div>
+              ) : specialtyData.length > 0 ? (
+                <>
+                  <div className="h-80 w-full flex items-center justify-center mb-4" id="specialty-pie-chart">
+                    <div className="relative w-64 h-64">
+                      <svg className="w-64 h-64 transform -rotate-90" viewBox="0 0 100 100">
+                        {specialtyData.slice(0, 6).map((specialty, index) => {
+                          const totalSpecialtyReferrals = specialtyData.reduce((sum, s) => sum + s.count, 0);
+                          const percentage = (specialty.count / totalSpecialtyReferrals) * 100;
+                          const circumference = 2 * Math.PI * 30; // 2πr where r=30
+                          const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
+                          
+                          // Calculate the offset based on previous segments
+                          const previousPercentages = specialtyData
+                            .slice(0, index)
+                            .reduce((acc, s) => acc + (s.count / totalSpecialtyReferrals) * 100, 0);
+                          const strokeDashoffset = -(previousPercentages / 100) * circumference;
+                          
+                          // Generate colors for specialties
+                          const colors = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
+                          
+                          return (
+                            <circle
+                              key={index}
+                              cx="50"
+                              cy="50"
+                              r="30"
+                              fill="transparent"
+                              stroke={colors[index % colors.length]}
+                              strokeWidth="8"
+                              strokeDasharray={strokeDasharray}
+                              strokeDashoffset={strokeDashoffset}
+                              className="transition-all duration-300 hover:stroke-width-10"
+                            />
+                          );
+                        })}
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                          <p className="text-xl font-bold text-gray-900 dark:text-white">
+                            {specialtyData.reduce((sum, s) => sum + s.count, 0)}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Total</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Legend - Same style as bar graph data list */}
+                  <div className="space-y-3 max-h-48 overflow-y-auto border-t pt-4 mt-4">
+                    {specialtyData.slice(0, 6).map((specialty, index) => {
+                      const totalSpecialtyReferrals = specialtyData.reduce((sum, s) => sum + s.count, 0);
+                      const percentage = ((specialty.count / totalSpecialtyReferrals) * 100).toFixed(1);
+                      const colors = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
+                      
+                      return (
+                        <div key={index} className="flex items-center justify-between text-sm py-2 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-4 h-4 rounded-full flex-shrink-0" 
+                              style={{ backgroundColor: colors[index % colors.length] }}
+                            ></div>
+                            <div className="flex flex-col">
+                              <span className="text-gray-800 dark:text-gray-200 font-medium" title={specialty.name}>
+                                {specialty.name}
+                              </span>
+                              <span className="text-gray-500 dark:text-gray-400 text-xs">
+                                {percentage}% of total
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="font-bold text-gray-900 dark:text-white text-lg">{specialty.count}</span>
+                            <span className="text-gray-500 dark:text-gray-400 text-xs">referrals</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400 text-center flex-1 flex items-center justify-center">No specialty data available</p>
+              )}
+            </div>
+          </div>
+        
+        {/* Close the three-column grid */}
         </div>
 
         {/* New Report Categories Section */}
@@ -958,400 +1170,203 @@ const Reports = () => {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">Detailed Report Categories</h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Coordinated Overall */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+          {loadingRegionalData ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Coordinated Overall */}
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Coordinated Overall</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">All Regions</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Coordinated Overall</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Southern Mindanao</p>
+                  <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 px-2 py-1 rounded text-xs font-medium">
+                    Active
                   </div>
                 </div>
-                <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
-                  Coming Soon
-                </Badge>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  Count of all referrals in all regions
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-green-600 dark:text-green-400">{regionalData.coordinatedOverall.toLocaleString()}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Referrals</span>
+                </div>
               </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                Top referring hospitals in overall Southern Mindanao region
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold text-green-600 dark:text-green-400">---</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Hospitals</span>
-              </div>
-            </div>
 
-            {/* Coordinated Inside Davao */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              {/* Uncoordinated Overall */}
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Overall</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">All Regions</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Coordinated Inside Davao</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Davao City</p>
+                  <div className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 px-2 py-1 rounded text-xs font-medium">
+                    Active
                   </div>
                 </div>
-                <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800">
-                  Coming Soon
-                </Badge>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  Count of all cancelled referrals
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-red-600 dark:text-red-400">{regionalData.uncoordinatedOverall.toLocaleString()}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Referrals</span>
+                </div>
               </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                Top referring hospitals within Davao City
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">---</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Hospitals</span>
-              </div>
-            </div>
 
-            {/* Coordinated Outside Davao */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              {/* Coordinated Inside Davao */}
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Coordinated Inside Davao</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Davao Region</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Coordinated Outside Davao</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Outside Davao City</p>
+                  <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 px-2 py-1 rounded text-xs font-medium">
+                    Active
                   </div>
                 </div>
-                <Badge className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800">
-                  Coming Soon
-                </Badge>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  Referrals inside Davao City, Davao del Sur region
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{regionalData.coordinatedInsideDavao.toLocaleString()}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Referrals</span>
+                </div>
               </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                Top referring hospitals outside Davao City
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">---</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Hospitals</span>
-              </div>
-            </div>
 
-            {/* Uncoordinated Overall */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+              {/* Uncoordinated Inside Davao */}
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Inside Davao</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Davao Region</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Overall</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Southern Mindanao</p>
+                  <div className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 px-2 py-1 rounded text-xs font-medium">
+                    Active
                   </div>
                 </div>
-                <Badge className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800">
-                  Coming Soon
-                </Badge>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  Cancelled referrals inside Davao City, Davao del Sur
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">{regionalData.uncoordinatedInsideDavao.toLocaleString()}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Referrals</span>
+                </div>
               </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                Uncoordinated referrals in overall Southern Mindanao
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold text-red-600 dark:text-red-400">---</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Referrals</span>
-              </div>
-            </div>
 
-            {/* Uncoordinated Inside Davao */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              {/* Coordinated Outside Davao */}
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Coordinated Outside Davao</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Outside Davao</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Inside Davao</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Davao City</p>
+                  <div className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 px-2 py-1 rounded text-xs font-medium">
+                    Active
                   </div>
                 </div>
-                <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800">
-                  Coming Soon
-                </Badge>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  Referrals outside Davao City, Davao del Sur region
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{regionalData.coordinatedOutsideDavao.toLocaleString()}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Referrals</span>
+                </div>
               </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                Top uncoordinated hospitals in Davao City
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">---</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Hospitals</span>
-              </div>
-            </div>
 
-            {/* Uncoordinated Outside Davao */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              {/* Uncoordinated Outside Davao */}
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Outside Davao</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Outside Davao</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Outside Davao</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Outside Davao City</p>
+                  <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 px-2 py-1 rounded text-xs font-medium">
+                    Active
                   </div>
                 </div>
-                <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800">
-                  Coming Soon
-                </Badge>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  Cancelled referrals outside Davao City, Davao del Sur
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">{regionalData.uncoordinatedOutsideDavao.toLocaleString()}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Referrals</span>
+                </div>
               </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                Top uncoordinated hospitals outside Davao City
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">---</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Hospitals</span>
-              </div>
-            </div>
 
-            {/* Delay Department */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
-                    <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              {/* Delay Department */}
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                      <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Delay Department</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Processing Delays</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Delay Department</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Processing Delays</p>
+                  <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800 px-2 py-1 rounded text-xs font-medium">
+                    Active
                   </div>
                 </div>
-                <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800">
-                  Coming Soon
-                </Badge>
-              </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                Top delayed departments by processing time
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">---</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Departments</span>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  Referrals with processing time over 24 hours
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">{regionalData.delayDepartmentCount.toLocaleString()}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Referrals</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-semibold text-blue-900 dark:text-blue-300 text-sm mb-1">Report Categories Information</h4>
+                <h4 className="font-semibold text-blue-900 dark:text-blue-300 text-sm mb-1">Regional Data Information</h4>
                 <p className="text-xs text-blue-700 dark:text-blue-400">
-                  These report categories are currently in development and will be connected to the backend system soon. 
-                  Each category will provide detailed analytics with interactive graphs and downloadable reports.
+                  Regional categorization is based on hospital location and city data. Davao region includes Davao City, Davao del Sur, Davao del Norte, Davao Oriental, and Davao de Oro. 
+                  Data is filtered according to the selected time period above.
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Coordinated and Uncoordinated Referrals - Graphs and Tables */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Coordinated Referrals */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
-            <div className="flex items-center gap-2 mb-6">
-              <Calendar className="w-5 h-5 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Coordinated Referrals</h3>
-              <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
-                Received by Department
-              </Badge>
-            </div>
-            
-            {/* Graph Section */}
-            <div className="mb-6">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Trend Overview</h4>
-              {loadingCoordinated ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-                </div>
-              ) : coordinatedData.length > 0 ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Total Coordinated</span>
-                    <span className="font-bold text-green-600 dark:text-green-400 text-2xl">{coordinatedData.length}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4">
-                    <div 
-                      className="bg-green-600 dark:bg-green-400 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2" 
-                      style={{ width: '100%' }}
-                    >
-                      <span className="text-xs text-white font-medium">100%</span>
-                    </div>
-                  </div>
-                  
-                  {/* Status breakdown */}
-                  <div className="mt-4 space-y-2">
-                    {(() => {
-                      const statusCounts = coordinatedData.reduce((acc: any, ref: any) => {
-                        acc[ref.status] = (acc[ref.status] || 0) + 1;
-                        return acc;
-                      }, {});
-                      const total = coordinatedData.length;
-                      
-                      return Object.entries(statusCounts).map(([status, count]: [string, any]) => {
-                        const percentage = (count / total * 100).toFixed(1);
-                        return (
-                          <div key={status} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                              <span className="text-xs text-gray-700 dark:text-gray-300">{status}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-gray-900 dark:text-white">{count}</span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400">({percentage}%)</span>
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>
-              )}
-            </div>
-
-            {/* Table Section */}
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Recent Records (Top 10)</h4>
-              <div className="overflow-x-auto max-h-96">
-                {loadingCoordinated ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-                  </div>
-                ) : coordinatedData.length > 0 ? (
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700">
-                      <tr className="border-b border-gray-200 dark:border-gray-600">
-                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">ID</th>
-                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Patient</th>
-                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {coordinatedData.slice(0, 10).map((referral, index) => (
-                        <tr key={index} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                          <td className="py-2 px-2 text-blue-600 dark:text-blue-400 font-medium">{referral.referral_id}</td>
-                          <td className="py-2 px-2 text-gray-900 dark:text-white truncate max-w-[120px]">{referral.patient_name}</td>
-                          <td className="py-2 px-2">
-                            <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
-                              {referral.status}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p className="text-gray-500 dark:text-gray-400 text-center py-8">No coordinated referrals for the selected period</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Uncoordinated Referrals */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
-            <div className="flex items-center gap-2 mb-6">
-              <Calendar className="w-5 h-5 text-red-600" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Uncoordinated Referrals</h3>
-              <Badge variant="outline" className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
-                Uncoordinated
-              </Badge>
-            </div>
-            
-            {/* Graph Section */}
-            <div className="mb-6">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Trend Overview</h4>
-              {loadingCoordinated ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-                </div>
-              ) : uncoordinatedData.length > 0 ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Total Uncoordinated</span>
-                    <span className="font-bold text-red-600 dark:text-red-400 text-2xl">{uncoordinatedData.length}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4">
-                    <div 
-                      className="bg-red-600 dark:bg-red-400 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2" 
-                      style={{ width: '100%' }}
-                    >
-                      <span className="text-xs text-white font-medium">100%</span>
-                    </div>
-                  </div>
-                  
-                  {/* Top cancellation reasons */}
-                  <div className="mt-4 space-y-2">
-                    {(() => {
-                      const reasonCounts = uncoordinatedData.reduce((acc: any, ref: any) => {
-                        const reason = ref.reason.substring(0, 30) + (ref.reason.length > 30 ? '...' : '');
-                        acc[reason] = (acc[reason] || 0) + 1;
-                        return acc;
-                      }, {});
-                      const total = uncoordinatedData.length;
-                      
-                      return Object.entries(reasonCounts).slice(0, 5).map(([reason, count]: [string, any]) => {
-                        const percentage = (count / total * 100).toFixed(1);
-                        return (
-                          <div key={reason} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                              <span className="text-xs text-gray-700 dark:text-gray-300 truncate max-w-[150px]" title={reason}>{reason}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-gray-900 dark:text-white">{count}</span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400">({percentage}%)</span>
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>
-              )}
-            </div>
-
-            {/* Table Section */}
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Recent Records (Top 10)</h4>
-              <div className="overflow-x-auto max-h-96">
-                {loadingCoordinated ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-                  </div>
-                ) : uncoordinatedData.length > 0 ? (
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700">
-                      <tr className="border-b border-gray-200 dark:border-gray-600">
-                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">ID</th>
-                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Patient</th>
-                        <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Reason</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {uncoordinatedData.slice(0, 10).map((referral, index) => (
-                        <tr key={index} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                          <td className="py-2 px-2 text-red-600 dark:text-red-400 font-medium">{referral.referral_id}</td>
-                          <td className="py-2 px-2 text-gray-900 dark:text-white truncate max-w-[120px]">{referral.patient_name}</td>
-                          <td className="py-2 px-2 text-gray-700 dark:text-gray-300 truncate max-w-[150px]" title={referral.reason}>{referral.reason}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p className="text-gray-500 dark:text-gray-400 text-center py-8">No uncoordinated referrals for the selected period</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </Layout>
   );
