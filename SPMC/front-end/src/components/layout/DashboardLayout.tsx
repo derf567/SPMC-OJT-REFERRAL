@@ -63,7 +63,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   const navigation: NavigationItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
-    { name: "Active Referrals", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
+    { name: "Referral Requests", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
     { name: "Triage", href: "/triage", icon: ClipboardList },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
     { name: "Archived Referrals", href: "/patients", icon: Users },
@@ -101,7 +101,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   ];
 
   // Determine which navigation to use
-  const finalNavigation = user?.role === 'doctor' || user?.permissions?.is_doctor
+  const finalNavigation = user?.role === 'doctor'
     ? doctorNavigation
     : user?.role === 'view_only'
     ? viewOnlyNavigation
