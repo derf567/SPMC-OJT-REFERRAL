@@ -12,9 +12,7 @@ import {
   AlertTriangle,
   Plus,
   TrendingUp,
-  Calendar,
   Archive,
-  BarChart3,
   X,
   MapPin,
   PhoneCall,
@@ -62,7 +60,6 @@ const ReferrerDashboard = () => {
     const path = location.pathname;
     if (path === '/referrer/referred') return 'referred';
     if (path === '/referrer/archived') return 'archived';
-    if (path === '/referrer/reports') return 'reports';
     return 'dashboard';
   };
 
@@ -339,8 +336,6 @@ const ReferrerDashboard = () => {
         return renderReferredSection();
       case 'archived':
         return renderArchivedSection();
-      case 'reports':
-        return renderReportsSection();
       default:
         return renderMainDashboard();
     }
@@ -673,33 +668,6 @@ const ReferrerDashboard = () => {
           </div>
         </div>
       </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Link to="/referral" className="block">
-          <div className="bg-green-600 hover:bg-green-700 rounded-lg p-6 text-white transition-colors cursor-pointer">
-            <Plus className="w-8 h-8 mb-3" />
-            <h4 className="font-semibold text-lg">New Referral</h4>
-            <p className="text-sm text-green-100 mt-1">Submit a new patient referral</p>
-          </div>
-        </Link>
-        
-        <Link to="/referrer/referred" className="block">
-          <div className="bg-blue-600 hover:bg-blue-700 rounded-lg p-6 text-white transition-colors cursor-pointer">
-            <FileText className="w-8 h-8 mb-3" />
-            <h4 className="font-semibold text-lg">My Referrals</h4>
-            <p className="text-sm text-blue-100 mt-1">View active referrals</p>
-          </div>
-        </Link>
-        
-        <Link to="/referrer/reports" className="block">
-          <div className="bg-purple-600 hover:bg-purple-700 rounded-lg p-6 text-white transition-colors cursor-pointer">
-            <Calendar className="w-8 h-8 mb-3" />
-            <h4 className="font-semibold text-lg">Reports</h4>
-            <p className="text-sm text-purple-100 mt-1">View referral analytics</p>
-          </div>
-        </Link>
-      </div>
     </div>
   );
 
@@ -964,107 +932,6 @@ const ReferrerDashboard = () => {
     );
   };
 
-  const renderReportsSection = () => {
-    const monthlyData: { [key: string]: number } = {};
-    const specialtyData: { [key: string]: number } = {};
-    
-    // Process data for reports
-    allReferrals.forEach(referral => {
-      const month = new Date(referral.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-      monthlyData[month] = (monthlyData[month] || 0) + 1;
-      
-      const specialty = referral.specialty_needed_name || 'Unknown';
-      specialtyData[specialty] = (specialtyData[specialty] || 0) + 1;
-    });
-
-    return (
-      <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-current">Reports & Analytics</h1>
-            <p className="text-gray-500 dark:text-gray-400">
-              View detailed analytics of your referral activity.
-            </p>
-          </div>
-        </div>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Referrals</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{stats.total_referrals}</p>
-              </div>
-              <BarChart3 className="w-8 h-8 text-blue-600" />
-            </div>
-          </div>
-          
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Success Rate</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-                  {stats.total_referrals > 0 ? Math.round((stats.completed_referrals / stats.total_referrals) * 100) : 0}%
-                </p>
-              </div>
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-          </div>
-          
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">This Month</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{stats.this_month}</p>
-              </div>
-              <Calendar className="w-8 h-8 text-purple-600" />
-            </div>
-          </div>
-          
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Avg. per Month</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-                  {Object.keys(monthlyData).length > 0 ? Math.round(stats.total_referrals / Object.keys(monthlyData).length) : 0}
-                </p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-orange-600" />
-            </div>
-          </div>
-        </div>
-
-        {/* Monthly Breakdown */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Monthly Breakdown</h3>
-          <div className="space-y-3">
-            {Object.entries(monthlyData).map(([month, count]) => (
-              <div key={month} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
-                <span className="font-medium text-gray-900 dark:text-white">{month}</span>
-                <span className="text-green-600 dark:text-green-400 font-semibold">{count} referrals</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Specialty Breakdown */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Referrals by Specialty</h3>
-          <div className="space-y-3">
-            {Object.entries(specialtyData).map(([specialty, count]) => (
-              <div key={specialty} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
-                <span className="font-medium text-gray-900 dark:text-white">{specialty}</span>
-                <span className="text-blue-600 dark:text-blue-400 font-semibold">{count} referrals</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   if (loading) {
     return (
       <ReferrerDashboardLayout>
@@ -1262,7 +1129,7 @@ const ReferrerDashboard = () => {
                   }}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg font-medium flex items-center justify-center gap-2"
                 >
-                  <Calendar className="w-5 h-5" />
+                  <Clock className="w-5 h-5" />
                   Schedule Transport (2 hours from now)
                 </button>
               </div>
