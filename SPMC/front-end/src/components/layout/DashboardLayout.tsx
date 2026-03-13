@@ -65,6 +65,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Referral Requests", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
     { name: "Triage", href: "/triage", icon: ClipboardList },
+    { name: "Referral Requests", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
+    { name: "Endorsement & Transit", href: "/endorsement-transit", icon: ClipboardList },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
     { name: "Archived Referrals", href: "/patients", icon: Users },
     { name: "Reports", href: "/reports", icon: BarChart3 },
