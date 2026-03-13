@@ -541,7 +541,6 @@ export const ReferralTable = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"priority" | "date" | "name">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [showTriageModal, setShowTriageModal] = useState(false);
   const [showChangeDepartmentModal, setShowChangeDepartmentModal] = useState(false);
   const [selectedReferralForDepartmentChange, setSelectedReferralForDepartmentChange] = useState<ReferralData | null>(null);
@@ -1032,12 +1031,7 @@ export const ReferralTable = () => {
         referral.referrer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (referral.hrn && referral.hrn.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      // Department filter (only for triage users)
-      const matchesDepartment = departmentFilter === "all" || 
-        referral.assigned_department === departmentFilter ||
-        (!referral.assigned_department && departmentFilter === "unassigned");
-      
-      return matchesSearch && matchesDepartment;
+      return matchesSearch;
     })
     .sort((a, b) => {
       // For triage users: Always prioritize 'waiting' status (needs action) at the top
@@ -1056,15 +1050,32 @@ export const ReferralTable = () => {
       
       switch (sortBy) {
         case "priority":
-          // Define priority order: emergent > urgent > routine
-          const getUrgencyLevel = (ref: ReferralData) => {
-            if (ref.is_emergent) return 3;
-            if (ref.is_urgent) return 2;
-            return 1; // routine
+          // Define priority order based on department needs
+          const getDepartmentPriority = (ref: ReferralData) => {
+            const specialty = ref.specialty_needed_name?.toLowerCase() || '';
+            
+            // Priority 5: Cardiology & Emergency/Trauma
+            if (specialty.includes('cardiology') || specialty.includes('emergency') || specialty.includes('trauma')) {
+              return 5;
+            }
+            // Priority 4: Surgery & Neurology
+            if (specialty.includes('surgery') || specialty.includes('neurology')) {
+              return 4;
+            }
+            // Priority 3: Internal Medicine & Orthopedics
+            if (specialty.includes('internal medicine') || specialty.includes('orthopedics')) {
+              return 3;
+            }
+            // Priority 2: Pediatrics
+            if (specialty.includes('pediatrics')) {
+              return 2;
+            }
+            // Priority 1: Others
+            return 1;
           };
-          const aUrgency = getUrgencyLevel(a);
-          const bUrgency = getUrgencyLevel(b);
-          comparison = bUrgency - aUrgency; // Higher urgency first by default
+          const aPriority = getDepartmentPriority(a);
+          const bPriority = getDepartmentPriority(b);
+          comparison = bPriority - aPriority; // Higher priority first by default
           break;
         case "date":
           comparison = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -1196,103 +1207,6 @@ export const ReferralTable = () => {
               </Badge>
             </div>
           </div>
-          
-          {/* Department Filter Widget - Only show for triage users */}
-          {user?.permissions?.can_triage_referrals && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Department</h3>
-                <Badge variant="outline" className="text-xs">
-                  {filteredReferrals.length} referrals
-                </Badge>
-              </div>
-              
-              {/* Department Filter Buttons */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
-                {/* All Departments Button */}
-                <Button
-                  variant={departmentFilter === "all" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setDepartmentFilter("all")}
-                  className={`text-xs h-auto py-2 px-3 flex flex-col items-center gap-1 ${
-                    departmentFilter === "all" 
-                      ? "bg-gray-600 hover:bg-gray-700 text-white" 
-                      : "border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-900/20"
-                  }`}
-                >
-                  <span className="text-lg">📋</span>
-                  <span className="text-xs font-medium">All Depts</span>
-                  <span className="text-xs opacity-75">({referrals.length})</span>
-                </Button>
-
-                {/* Individual Department Buttons */}
-                {DEPARTMENT_OPTIONS.map((dept) => {
-                  const deptCount = referrals.filter(r => r.assigned_department === dept.value).length;
-                  const isActive = departmentFilter === dept.value;
-                  
-                  return (
-                    <Button
-                      key={dept.value}
-                      variant={isActive ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setDepartmentFilter(dept.value)}
-                      className={`text-xs h-auto py-2 px-3 flex flex-col items-center gap-1 ${getDepartmentColorClasses(dept.color, isActive)}`}
-                      disabled={deptCount === 0}
-                    >
-                      <span className="text-lg">{dept.icon}</span>
-                      <span className="text-xs font-medium text-center leading-tight">
-                        {dept.label.split(' ').slice(0, 2).join(' ')}
-                      </span>
-                      <span className="text-xs opacity-75">({deptCount})</span>
-                    </Button>
-                  );
-                })}
-
-                {/* Unassigned Button */}
-                <Button
-                  variant={departmentFilter === "unassigned" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setDepartmentFilter("unassigned")}
-                  className={`text-xs h-auto py-2 px-3 flex flex-col items-center gap-1 ${
-                    departmentFilter === "unassigned" 
-                      ? "bg-amber-600 hover:bg-amber-700 text-white" 
-                      : "border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/20"
-                  }`}
-                >
-                  <span className="text-lg">❓</span>
-                  <span className="text-xs font-medium">Unassigned</span>
-                  <span className="text-xs opacity-75">
-                    ({referrals.filter(r => !r.assigned_department).length})
-                  </span>
-                </Button>
-              </div>
-
-              {/* Active Filter Indicator */}
-              {departmentFilter !== "all" && (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <div className="text-blue-600 dark:text-blue-400">🔍</div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                      Filtering by: {departmentFilter === "unassigned" 
-                        ? "Unassigned Referrals" 
-                        : DEPARTMENT_OPTIONS.find(d => d.value === departmentFilter)?.label}
-                    </p>
-                    <p className="text-xs text-blue-600 dark:text-blue-300">
-                      Showing {filteredReferrals.length} of {referrals.length} referrals
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDepartmentFilter("all")}
-                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
-                  >
-                    Clear Filter
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
           
           {/* Search Bar and Sort Controls */}
           <div className="flex items-center gap-4">
