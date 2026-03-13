@@ -224,6 +224,8 @@ class Referral(models.Model):
     rr = models.IntegerField(verbose_name="Respiratory Rate")
     temp = models.DecimalField(max_digits=4, decimal_places=1, verbose_name="Temperature")
     o2_sat = models.IntegerField(verbose_name="O2 Saturation")
+    vital_signs_date = models.DateField(blank=True, null=True, verbose_name="Vital Signs Date", help_text="Date when vital signs were taken")
+    vital_signs_time = models.TimeField(blank=True, null=True, verbose_name="Vital Signs Time", help_text="Time when vital signs were taken")
     
     gcs_score = models.CharField(max_length=50, verbose_name="GCS Score or AVPU")
     o2_support = models.CharField(max_length=100, verbose_name="O2 Support")

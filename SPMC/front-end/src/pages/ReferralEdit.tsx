@@ -125,6 +125,7 @@ export const ReferralEdit = () => {
           rr: data.rr || '',
           temp: data.temp || '',
           o2_sat: data.o2_sat || '',
+          vital_signs_date: data.vital_signs_date || '',
           vital_signs_time: data.vital_signs_time || '',
           gcs_score: data.gcs_score || '',
           o2_support: data.o2_support || '',
@@ -191,6 +192,8 @@ export const ReferralEdit = () => {
         rr: parseInt(formData.rr) || 0,
         temp: parseFloat(formData.temp) || 0,
         o2_sat: parseInt(formData.o2_sat) || 0,
+        vital_signs_date: formData.vital_signs_date || null,
+        vital_signs_time: formData.vital_signs_time || null,
         gcs_score: formData.gcs_score,
         o2_support: formData.o2_support,
         rtpcr_result: formData.rtpcr_result,
@@ -509,7 +512,8 @@ export const ReferralEdit = () => {
               </p>
             )}
             
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-3 gap-4">
+              {/* First Row */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   BP
@@ -562,6 +566,7 @@ export const ReferralEdit = () => {
                   }`}
                 />
               </div>
+              {/* Second Row */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Temp (°C)
@@ -596,6 +601,38 @@ export const ReferralEdit = () => {
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                   }`}
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Time Taken
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={formData.vital_signs_date || new Date().toISOString().split('T')[0]}
+                    onChange={(e) => handleChange('vital_signs_date', e.target.value)}
+                    readOnly={!isEDCCorTriage}
+                    disabled={!isEDCCorTriage}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
+                      isEDCCorTriage 
+                        ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    }`}
+                  />
+                  <input
+                    type="time"
+                    value={formData.vital_signs_time || ''}
+                    onChange={(e) => handleChange('vital_signs_time', e.target.value)}
+                    readOnly={!isEDCCorTriage}
+                    disabled={!isEDCCorTriage}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
+                      isEDCCorTriage 
+                        ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    }`}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Date and time when vital signs were taken</p>
               </div>
             </div>
 

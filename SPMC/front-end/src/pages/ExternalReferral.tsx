@@ -37,6 +37,7 @@ interface ReferralFormData {
     rr: string;
     temp: string;
     o2Sat: string;
+    vitalSignsDate: string;
     timeTaken: string;
   };
   gcsScore: string;
@@ -83,9 +84,6 @@ interface ReferralFormData {
   referrerProfession: string;
   referrerProfessionOther: string;
   referrerCellphone: string;
-  referrerContactNumbers: string[];
-  patientWatcherName: string;
-  patientWatcherContactNumbers: string[];
   modeOfTransportation: string;
   modeOfTransportationOther: string;
   
@@ -99,7 +97,7 @@ const initialFormData: ReferralFormData = {
   chiefComplaint: "",
   pertinentHistory: "",
   pertinentPhysicalExam: "",
-  latestVitalSigns: { bp: "", hr: "", rr: "", temp: "", o2Sat: "", timeTaken: "" },
+  latestVitalSigns: { bp: "", hr: "", rr: "", temp: "", o2Sat: "", vitalSignsDate: "", timeTaken: "" },
   gcsScore: "",
   o2Support: "",
   admissionStatus: "",
@@ -139,9 +137,6 @@ const initialFormData: ReferralFormData = {
   referrerProfession: "",
   referrerProfessionOther: "",
   referrerCellphone: "",
-  referrerContactNumbers: [],
-  patientWatcherName: "",
-  patientWatcherContactNumbers: [],
   modeOfTransportation: "",
   modeOfTransportationOther: "",
   
@@ -171,9 +166,7 @@ const ExternalReferral = () => {
   const [loadingProvinces, setLoadingProvinces] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
   
-  // Contact number input states
-  const [currentReferrerContact, setCurrentReferrerContact] = useState("");
-  const [currentPatientWatcherContact, setCurrentPatientWatcherContact] = useState("");
+  // Contact number input states - removed all contact input states
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -302,6 +295,7 @@ const ExternalReferral = () => {
               rr: referralData.rr?.toString() || '',
               temp: referralData.temp?.toString() || '',
               o2Sat: referralData.o2_sat?.toString() || '',
+              vitalSignsDate: referralData.vital_signs_date || '',
               timeTaken: referralData.vital_signs_time || ''
             },
             gcsScore: referralData.gcs_score || '',
@@ -347,9 +341,6 @@ const ExternalReferral = () => {
             referrerProfession: referralData.referrer_profession || '',
             referrerProfessionOther: referralData.referrer_profession_other || '',
             referrerCellphone: referralData.referrer_cellphone || '',
-            referrerContactNumbers: referralData.referrer_contact_numbers || [],
-            patientWatcherName: referralData.patient_watcher_name || '',
-            patientWatcherContactNumbers: referralData.patient_watcher_contact_numbers || referralData.contact_numbers || [],
             modeOfTransportation: (() => {
               const transportMode = referralData.mode_of_transportation || '';
               const validOptions = ['ambulance', 'private_vehicle', 'patient_transport_vehicle', 'air_ambulance'];
@@ -591,13 +582,10 @@ const ExternalReferral = () => {
         const hospitalDohLevel = (user && user.hospital_doh_level) ? user.hospital_doh_level : formData.hospitalDohLevel;
         if (!hospitalDohLevel) errors.add('hospitalDohLevel');
         if (!formData.referrerName.trim()) errors.add('referrerName');
-        if (formData.referrerContactNumbers.length === 0) errors.add('referrerContactNumbers');
         if (!formData.referrerProfession.trim()) errors.add('referrerProfession');
         if (formData.referrerProfession === "others" && !formData.referrerProfessionOther.trim()) errors.add('referrerProfessionOther');
         if (!formData.modeOfTransportation.trim()) errors.add('modeOfTransportation');
         if (formData.modeOfTransportation === "others" && !formData.modeOfTransportationOther.trim()) errors.add('modeOfTransportationOther');
-        if (!formData.patientWatcherName.trim()) errors.add('patientWatcherName');
-        if (formData.patientWatcherContactNumbers.length === 0) errors.add('patientWatcherContactNumbers');
         break;
     }
     
@@ -630,7 +618,7 @@ const ExternalReferral = () => {
   };
 
   const getFieldErrorClass = (fieldName: string) => {
-    return fieldErrors.has(fieldName) ? 'border-red-500 border-2' : '';
+    return fieldErrors.has(fieldName) ? 'border-red-500 dark:border-red-400 border-2' : '';
   };
 
   const validateForm = () => {
@@ -689,7 +677,6 @@ const ExternalReferral = () => {
     const hospitalDohLevel = (user && user.hospital_doh_level) ? user.hospital_doh_level : formData.hospitalDohLevel;
     if (!hospitalDohLevel) errors.push("Hospital DOH Level is required");
     if (!formData.referrerName.trim()) errors.push("Referrer Name is required");
-    if (formData.referrerContactNumbers.length === 0) errors.push("At least one Referrer Contact Number is required");
     if (!formData.referrerProfession.trim()) errors.push("Referrer Profession is required");
     if (formData.referrerProfession === "others" && !formData.referrerProfessionOther.trim()) {
       errors.push("Please specify the referrer profession");
@@ -698,7 +685,6 @@ const ExternalReferral = () => {
     if (formData.modeOfTransportation === "others" && !formData.modeOfTransportationOther.trim()) {
       errors.push("Please specify the mode of transportation");
     }
-    if (formData.patientWatcherContactNumbers.length === 0) errors.push("At least one Patient/Watcher Contact Number is required");
     
     return errors;
   };
@@ -748,6 +734,7 @@ const ExternalReferral = () => {
         rr: parseInt(formData.latestVitalSigns.rr) || 0,
         temp: parseFloat(formData.latestVitalSigns.temp) || 0,
         o2_sat: parseInt(formData.latestVitalSigns.o2Sat) || 0,
+        vital_signs_date: formData.latestVitalSigns.vitalSignsDate || null,
         vital_signs_time: formData.latestVitalSigns.timeTaken || null,
         gcs_score: formData.gcsScore,
         o2_support: formData.o2Support,
@@ -792,11 +779,11 @@ const ExternalReferral = () => {
         referrer_name: formData.referrerName,
         referrer_profession: formData.referrerProfession,
         referrer_profession_other: formData.referrerProfession === "others" ? formData.referrerProfessionOther : null,
-        referrer_cellphone: formData.referrerContactNumbers[0] || null,
-        referrer_contact_numbers: formData.referrerContactNumbers,
-        patient_watcher_name: formData.patientWatcherName || null,
-        patient_watcher_contact_numbers: formData.patientWatcherContactNumbers,
-        contact_numbers: formData.patientWatcherContactNumbers,
+        referrer_cellphone: formData.referrerCellphone || null,
+        referrer_contact_numbers: [],
+        patient_watcher_name: null,
+        patient_watcher_contact_numbers: [],
+        contact_numbers: [],
         mode_of_transportation: formData.modeOfTransportation === "others" ? formData.modeOfTransportationOther : formData.modeOfTransportation,
         
         // Consent
@@ -917,12 +904,12 @@ const ExternalReferral = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient's Name <span className="text-red-500">*</span>
+                  Patient's Name <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      First Name <span className="text-red-500">*</span>
+                      First Name <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -934,7 +921,7 @@ const ExternalReferral = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Middle Name <span className="text-red-500">*</span>
+                      Middle Name <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -946,7 +933,7 @@ const ExternalReferral = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Last Name <span className="text-red-500">*</span>
+                      Last Name <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -973,7 +960,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient Category <span className="text-red-500">*</span>
+                  Patient Category <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <select 
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('patientCategory')}`}
@@ -1003,7 +990,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Birthday <span className="text-red-500">*</span>
+                  Birthday <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <input
                   type="date"
@@ -1015,7 +1002,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Age <span className="text-red-500">*</span> <span className="text-xs text-gray-500 dark:text-gray-400">(Auto-calculated from birthday)</span>
+                  Age <span className="text-red-500 dark:text-red-400">*</span> <span className="text-xs text-gray-500 dark:text-gray-400">(Auto-calculated from birthday)</span>
                 </label>
                 <input
                   type="number"
@@ -1028,7 +1015,7 @@ const ExternalReferral = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Gender <span className="text-red-500">*</span>
+                  Gender <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <select 
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('gender')}`}
@@ -1043,7 +1030,7 @@ const ExternalReferral = () => {
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient Current Complete Address <span className="text-red-500">*</span>
+                  Patient Current Complete Address <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <textarea
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('currentAddress')}`}
@@ -1063,7 +1050,7 @@ const ExternalReferral = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Chief Complaint <span className="text-red-500">*</span>
+                  Chief Complaint <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <textarea
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('chiefComplaint')}`}
@@ -1076,7 +1063,7 @@ const ExternalReferral = () => {
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Pertinent History <span className="text-red-500">*</span>
+                  Pertinent History <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <textarea
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('pertinentHistory')}`}
@@ -1089,7 +1076,7 @@ const ExternalReferral = () => {
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Pertinent Physical Exam or Laboratories <span className="text-red-500">*</span>
+                  Pertinent Physical Exam or Laboratories <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <textarea
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('pertinentPhysicalExam')}`}
@@ -1103,8 +1090,9 @@ const ExternalReferral = () => {
 
             {/* Vital Signs */}
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Latest Vital Signs <span className="text-red-500">*</span></h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Latest Vital Signs <span className="text-red-500 dark:text-red-400">*</span></h3>
+              <div className="grid grid-cols-3 gap-4">
+                {/* First Row */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Blood Pressure
@@ -1141,6 +1129,7 @@ const ExternalReferral = () => {
                     onChange={(e) => updateNestedFormData('latestVitalSigns', 'rr', e.target.value)}
                   />
                 </div>
+                {/* Second Row */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Temperature
@@ -1169,12 +1158,21 @@ const ExternalReferral = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Time Taken
                   </label>
-                  <input
-                    type="time"
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('timeTaken')}`}
-                    value={formData.latestVitalSigns.timeTaken}
-                    onChange={(e) => updateNestedFormData('latestVitalSigns', 'timeTaken', e.target.value)}
-                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('vitalSignsDate')}`}
+                      value={formData.latestVitalSigns.vitalSignsDate || new Date().toISOString().split('T')[0]}
+                      onChange={(e) => updateNestedFormData('latestVitalSigns', 'vitalSignsDate', e.target.value)}
+                    />
+                    <input
+                      type="time"
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('timeTaken')}`}
+                      value={formData.latestVitalSigns.timeTaken}
+                      onChange={(e) => updateNestedFormData('latestVitalSigns', 'timeTaken', e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Date and time when vital signs were taken</p>
                 </div>
               </div>
             </div>
@@ -1739,10 +1737,10 @@ const ExternalReferral = () => {
               </div>
             </div>
 
-            {/* Referrer Information and Contact Numbers */}
+            {/* Referrer Information */}
             <div className="space-y-6">
-              {/* Row 1: Name of Referrer - Referrer Contact Number */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Row 1: Name of Referrer */}
+              <div className="grid grid-cols-1 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Name of the Referrer <span className="text-red-500">*</span>
@@ -1759,56 +1757,6 @@ const ExternalReferral = () => {
                     value={formData.referrerName}
                     onChange={(e) => updateFormData('referrerName', e.target.value)}
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Referrer Contact Number <span className="text-red-500">*</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="tel"
-                      value={currentReferrerContact}
-                      onChange={(e) => setCurrentReferrerContact(e.target.value)}
-                      placeholder="e.g., 0912-345-6789 or 082-123-4567"
-                      className={`flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('referrerContactNumbers')}`}
-                    />
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        if (currentReferrerContact.trim()) {
-                          updateFormData('referrerContactNumbers', [...formData.referrerContactNumbers, currentReferrerContact.trim()]);
-                          setCurrentReferrerContact("");
-                        }
-                      }}
-                      className="px-4 bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Add
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Add at least one contact number
-                  </p>
-                  
-                  {formData.referrerContactNumbers.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {formData.referrerContactNumbers.map((number, index) => (
-                        <div key={index} className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm">
-                          <Phone className="w-3 h-3" />
-                          <span>{number}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              updateFormData('referrerContactNumbers', formData.referrerContactNumbers.filter((_, i) => i !== index));
-                            }}
-                            className="ml-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -1900,77 +1848,6 @@ const ExternalReferral = () => {
                 </div>
               )}
 
-              {/* Row 3: Patient/Watcher - Patient/Watcher Contact Number */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Patient/Watcher <span className="text-red-500">*</span>
-                  </label>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                    Name of patient or watcher for emergency communication during referral
-                  </p>
-                  <input
-                    type="text"
-                    placeholder="Full Name"
-                    value={formData.patientWatcherName}
-                    onChange={(e) => updateFormData('patientWatcherName', e.target.value)}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('patientWatcherName')}`}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Patient/Watcher Contact Number <span className="text-red-500">*</span>
-                  </label>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    Contact number of patient or watcher for emergency communication during referral
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="tel"
-                      value={currentPatientWatcherContact}
-                      onChange={(e) => setCurrentPatientWatcherContact(e.target.value)}
-                      placeholder="e.g., 0912-345-6789 or 082-123-4567"
-                      className={`flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('patientWatcherContactNumbers')}`}
-                    />
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        if (currentPatientWatcherContact.trim()) {
-                          updateFormData('patientWatcherContactNumbers', [...formData.patientWatcherContactNumbers, currentPatientWatcherContact.trim()]);
-                          setCurrentPatientWatcherContact("");
-                        }
-                      }}
-                      className="px-4 bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Add
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Add at least one contact number
-                  </p>
-                  
-                  {formData.patientWatcherContactNumbers.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {formData.patientWatcherContactNumbers.map((number, index) => (
-                        <div key={index} className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm">
-                          <Phone className="w-3 h-3" />
-                          <span>{number}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              updateFormData('patientWatcherContactNumbers', formData.patientWatcherContactNumbers.filter((_, i) => i !== index));
-                            }}
-                            className="ml-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
         );

@@ -575,7 +575,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   {(selectedReferral.bp || selectedReferral.hr || selectedReferral.rr || selectedReferral.temp || selectedReferral.o2_sat) && (
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                       <h4 className="font-medium text-gray-900 dark:text-white mb-3">Latest Vital Signs</h4>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
+                        {/* First Row */}
                         {selectedReferral.bp && (
                           <div className="text-center">
                             <p className="text-xs text-gray-500 dark:text-gray-400">Blood Pressure</p>
@@ -594,6 +595,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                             <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.rr} /min</p>
                           </div>
                         )}
+                        {/* Second Row */}
                         {selectedReferral.temp && (
                           <div className="text-center">
                             <p className="text-xs text-gray-500 dark:text-gray-400">Temperature</p>
@@ -604,6 +606,19 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                           <div className="text-center">
                             <p className="text-xs text-gray-500 dark:text-gray-400">O2 Saturation</p>
                             <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.o2_sat}%</p>
+                          </div>
+                        )}
+                        {(selectedReferral.vital_signs_time || selectedReferral.vital_signs_date) && (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Time Taken</p>
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {selectedReferral.vital_signs_date && (
+                                <p className="text-xs">{new Date(selectedReferral.vital_signs_date).toLocaleDateString()}</p>
+                              )}
+                              {selectedReferral.vital_signs_time && (
+                                <p className="text-sm">{selectedReferral.vital_signs_time}</p>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -629,18 +644,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Address</label>
                       <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.current_address}</p>
                     </div>
-                    {selectedReferral.contact_numbers && selectedReferral.contact_numbers.length > 0 && (
-                      <div className="md:col-span-2">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Patient/Watcher Contact Numbers</label>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {selectedReferral.contact_numbers.map((number: string, index: number) => (
-                            <div key={index} className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 rounded-full text-sm font-medium">
-                              {number}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
 

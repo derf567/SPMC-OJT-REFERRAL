@@ -230,7 +230,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'reason_for_referral', 'management_done',
             
             # Vital signs
-            'bp', 'hr', 'rr', 'temp', 'o2_sat', 'gcs_score', 'o2_support',
+            'bp', 'hr', 'rr', 'temp', 'o2_sat', 'vital_signs_date', 'vital_signs_time', 'gcs_score', 'o2_support',
             
             # Medical status
             'admission_status', 'rtpcr_result',

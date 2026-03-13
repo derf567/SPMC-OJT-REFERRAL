@@ -274,7 +274,8 @@ const ReferralDetailModal = ({
             {(referral.bp || referral.hr || referral.rr || referral.temp || referral.o2_sat || referral.vital_signs_time) && (
               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                 <h4 className="font-medium text-gray-900 dark:text-white mb-3">Latest Vital Signs</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-3 gap-4">
+                  {/* First Row */}
                   {referral.bp && (
                     <div className="text-center p-2">
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Blood Pressure</p>
@@ -293,6 +294,7 @@ const ReferralDetailModal = ({
                       <p className="font-semibold text-gray-900 dark:text-white">{referral.rr} /min</p>
                     </div>
                   )}
+                  {/* Second Row */}
                   {referral.temp && (
                     <div className="text-center p-2">
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Temperature</p>
@@ -305,10 +307,17 @@ const ReferralDetailModal = ({
                       <p className="font-semibold text-gray-900 dark:text-white">{referral.o2_sat}%</p>
                     </div>
                   )}
-                  {referral.vital_signs_time && (
+                  {(referral.vital_signs_time || referral.vital_signs_date) && (
                     <div className="text-center p-2">
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Time Taken</p>
-                      <p className="font-semibold text-gray-900 dark:text-white">{referral.vital_signs_time}</p>
+                      <div className="font-semibold text-gray-900 dark:text-white">
+                        {referral.vital_signs_date && (
+                          <p className="text-xs">{new Date(referral.vital_signs_date).toLocaleDateString()}</p>
+                        )}
+                        {referral.vital_signs_time && (
+                          <p className="text-sm">{referral.vital_signs_time}</p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -385,29 +394,6 @@ const ReferralDetailModal = ({
               )}
             </div>
           </div>
-
-          {/* Patient/Watcher Contact Numbers Section */}
-          {referral.contact_numbers && referral.contact_numbers.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Phone className="w-5 h-5 text-orange-600" />
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Patient/Watcher Contact Numbers</h3>
-              </div>
-              <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
-                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                  Contact numbers for emergency communication during referral
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {referral.contact_numbers.map((number: string, index: number) => (
-                    <div key={index} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-800 text-orange-800 dark:text-orange-300 rounded-lg text-sm font-medium shadow-sm">
-                      <Phone className="w-4 h-4" />
-                      <span>{number}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Service Needed Section */}
           <div className="space-y-4">

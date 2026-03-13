@@ -237,12 +237,7 @@ export const ReferralView = () => {
         ...(referral.hospital_doh_level ? [['DOH Level:', referral.hospital_doh_level]] : []),
         ['Referrer Name:', referral.referrer_name],
         ...(referral.referrer_profession ? [['Profession:', referral.referrer_profession.replace(/_/g, ' ')]] : []),
-        ...(referral.referrer_contact_numbers && referral.referrer_contact_numbers.length > 0 
-          ? [['Referrer Contacts:', referral.referrer_contact_numbers.join(', ')]] : []),
-        ...(referral.mode_of_transportation ? [['Transportation:', referral.mode_of_transportation.replace(/_/g, ' ')]] : []),
-        ...(referral.patient_watcher_name ? [['Patient/Watcher:', referral.patient_watcher_name]] : []),
-        ...(referral.patient_watcher_contact_numbers && referral.patient_watcher_contact_numbers.length > 0 
-          ? [['Watcher Contacts:', referral.patient_watcher_contact_numbers.join(', ')]] : [])
+        ...(referral.mode_of_transportation ? [['Transportation:', referral.mode_of_transportation.replace(/_/g, ' ')]] : [])
       ];
 
       hospitalData.forEach(([label, value]) => {
@@ -494,19 +489,6 @@ export const ReferralView = () => {
                 </p>
               </div>
               
-              {referral.contact_numbers && referral.contact_numbers.length > 0 && (
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Patient/Watcher Contact Numbers</p>
-                  <div className="space-y-1">
-                    {referral.contact_numbers.map((number: string, index: number) => (
-                      <p key={index} className="font-medium text-gray-900 dark:text-white">
-                        {number}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
               <div className="md:col-span-2">
                 <p className="text-sm text-gray-600 dark:text-gray-400">Current Address</p>
                 <p className="font-medium text-gray-900 dark:text-white">{referral.current_address}</p>
@@ -555,7 +537,8 @@ export const ReferralView = () => {
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Latest Vital Signs</h4>
               
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+              <div className="grid grid-cols-3 gap-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                {/* First Row */}
                 {referral.bp && (
                   <div className="text-center">
                     <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Blood Pressure</p>
@@ -577,6 +560,7 @@ export const ReferralView = () => {
                   </div>
                 )}
                 
+                {/* Second Row */}
                 {referral.temp && (
                   <div className="text-center">
                     <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Temperature</p>
@@ -588,6 +572,20 @@ export const ReferralView = () => {
                   <div className="text-center">
                     <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">O2 Saturation</p>
                     <p className="text-xl font-bold text-gray-900 dark:text-white">{referral.o2_sat}%</p>
+                  </div>
+                )}
+
+                {(referral.vital_signs_time || referral.vital_signs_date) && (
+                  <div className="text-center">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Time Taken</p>
+                    <div className="text-xl font-bold text-gray-900 dark:text-white">
+                      {referral.vital_signs_date && (
+                        <p className="text-sm">{new Date(referral.vital_signs_date).toLocaleDateString()}</p>
+                      )}
+                      {referral.vital_signs_time && (
+                        <p className="text-lg">{referral.vital_signs_time}</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -655,45 +653,10 @@ export const ReferralView = () => {
                 </div>
               )}
 
-              {referral.referrer_contact_numbers && referral.referrer_contact_numbers.length > 0 && (
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Referrer Contact Numbers</p>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {referral.referrer_contact_numbers.map((number: string, index: number) => (
-                      <span key={index} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm font-medium">
-                        <Phone className="w-3 h-3" />
-                        {number}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {referral.mode_of_transportation && (
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Mode of Transportation</p>
                   <p className="font-medium text-gray-900 dark:text-white capitalize">{referral.mode_of_transportation.replace(/_/g, ' ')}</p>
-                </div>
-              )}
-
-              {referral.patient_watcher_name && (
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Patient/Watcher Name</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{referral.patient_watcher_name}</p>
-                </div>
-              )}
-
-              {referral.patient_watcher_contact_numbers && referral.patient_watcher_contact_numbers.length > 0 && (
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Patient/Watcher Contact Numbers</p>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {referral.patient_watcher_contact_numbers.map((number: string, index: number) => (
-                      <span key={index} className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm font-medium">
-                        <Phone className="w-3 h-3" />
-                        {number}
-                      </span>
-                    ))}
-                  </div>
                 </div>
               )}
             </div>
