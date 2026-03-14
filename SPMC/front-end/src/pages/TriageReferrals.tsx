@@ -488,6 +488,12 @@ const PatientArrivalPage = () => {
                       <p className="text-gray-800 dark:text-gray-200">Driver: {selectedReferral.transit_info.driver}</p>
                     )}
                   </div>
+                  {selectedReferral.transit_info.remarks && (
+                    <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/50 dark:bg-amber-900/20">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-1">Transit Remarks</p>
+                      <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{selectedReferral.transit_info.remarks}</p>
+                    </div>
+                  )}
                 </div>
               )}
 
