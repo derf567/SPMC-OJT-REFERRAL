@@ -237,7 +237,7 @@ const DoctorRegister = () => {
         fd.append('spmc_id_file', spmcIdFile);
       }
 
-      const response = await authAPI.registerDoctor(fd);
+      await authAPI.registerDoctor(fd);
       
       toast({
         title: "Doctor Registration Submitted! 🎉",

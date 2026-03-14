@@ -194,7 +194,7 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
       <NotificationContainer 
         notifications={liveNotifications} 
         onRemove={removeNotification}
-        onNotificationClick={(referralId, type) => {
+        onNotificationClick={(_referralId, type) => {
           if (type === 'account_approval') {
             handleAccountApprovalClick();
           }

@@ -1,17 +1,14 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { AdminDashboardLayout } from "@/components/layout/AdminDashboardLayout";
 import { Link } from "react-router-dom";
 import {
   UserCheck,
-  Users,
   Building2,
   BarChart3,
   Clock,
   CheckCircle,
   AlertCircle,
   ArrowRight,
-  UserPlus,
 } from "lucide-react";
 import { adminAPI } from "@/lib/api";
 import { toast } from "sonner";
@@ -44,7 +41,6 @@ interface PendingReferrer {
 }
 
 const AdminDashboard = () => {
-  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [pendingReferrers, setPendingReferrers] = useState<PendingReferrer[]>([]);
   const [loading, setLoading] = useState(true);

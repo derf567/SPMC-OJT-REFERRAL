@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,6 @@ import { startNotificationPolling, stopNotificationPolling, checkReferrerAccount
 import {
   Home,
   Users,
-  Building2,
   BarChart3,
   Calendar,
   Bell,
@@ -50,12 +49,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [activeReferralsCount, setActiveReferralsCount] = useState(0);
   const [liveNotifications, setLiveNotifications] = useState<NotificationData[]>([]);
-  const [displayedNotifications, setDisplayedNotifications] = useState<NotificationData[]>([]);
-  const [dropdownNotifications, setDropdownNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [selectedReferral, setSelectedReferral] = useState<any | null>(null);
   
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -64,8 +59,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const navigation: NavigationItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Referral Requests", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
-    { name: "Triage", href: "/triage", icon: ClipboardList },
     { name: "Endorsement & Transit", href: "/endorsement-transit", icon: ClipboardList },
+    { name: "Patient Arrival", href: "/triage", icon: ClipboardList },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
     { name: "Archived Referrals", href: "/patients", icon: Users },
     { name: "Reports", href: "/reports", icon: BarChart3 },
@@ -129,7 +124,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         setShowUserMenu(false);
       }
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
+        setShowNotificationPanel(false);
       }
     };
 
@@ -154,11 +149,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             ? referrals.filter((ref: any) => ref.status === 'pending')
             : [];
         } else if (user?.permissions?.can_triage_referrals) {
-          // Triage Users: Count waiting and triaged referrals (not yet completed)
+          // Referral Requests page is pending-only for all users.
           activeReferrals = Array.isArray(referrals) 
-            ? referrals.filter((ref: any) => 
-                ['waiting', 'urgent', 'emergent', 'schedule_opd', 'in_transit'].includes(ref.status)
-              )
+            ? referrals.filter((ref: any) => ref.status === 'pending')
             : [];
         } else if (user?.permissions?.is_his_department) {
           // HIS Department: Count referrals that need arrival confirmation
@@ -175,67 +168,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         }
         
         setActiveReferralsCount(activeReferrals.length);
-
-        // Generate dynamic notifications from recent referrals
-        const recentReferrals = Array.isArray(referrals) 
-          ? referrals.slice(0, 5).map((ref: any) => {
-              let notifType = 'info';
-              let title = 'Referral Update';
-              let message = '';
-
-              if (ref.status === 'pending') {
-                notifType = 'critical';
-                title = 'New Referral Pending';
-                message = `${ref.patient_name} from ${ref.referring_hospital || 'External Hospital'}`;
-              } else if (ref.status === 'waiting') {
-                notifType = 'info';
-                title = 'Referral Waiting for Triage';
-                message = `${ref.patient_name} - ${ref.referral_id}`;
-              } else if (ref.triage_decision === 'emergent' && ref.status === 'in_transit') {
-                notifType = 'critical';
-                title = 'Emergent Referral';
-                message = `${ref.patient_name} requires immediate attention`;
-              } else if (ref.status === 'urgent') {
-                notifType = 'critical';
-                title = 'Urgent Referral';
-                message = `${ref.patient_name} - Priority case`;
-              } else if (ref.status === 'completed') {
-                notifType = 'success';
-                title = 'Referral Completed';
-                message = `${ref.patient_name} - Treatment completed`;
-              } else if (ref.assigned_department) {
-                notifType = 'info';
-                title = 'Department Assignment';
-                message = `${ref.patient_name} assigned to ${ref.assigned_department}`;
-              }
-
-              const timeAgo = getTimeAgo(ref.updated_at || ref.created_at);
-
-              return {
-                id: ref.id,
-                title,
-                message,
-                time: timeAgo,
-                type: notifType,
-              };
-            })
-          : [];
-
-        setDropdownNotifications(recentReferrals);
-        
-        // Count unread (for this demo, we'll count pending/waiting/emergent as unread)
-        const unread = Array.isArray(referrals)
-          ? referrals.filter((ref: any) => 
-              ref.status === 'pending' || 
-              ref.status === 'waiting' || 
-              (ref.triage_decision === 'emergent' && ref.status === 'in_transit')
-            ).length
-          : 0;
-        setUnreadCount(Math.min(unread, 99)); // Cap at 99 for display
       } catch (error) {
         console.error('Error fetching active referrals count:', error);
         setActiveReferralsCount(0);
-        setUnreadCount(0);
       }
     };
 
@@ -246,21 +181,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       return () => clearInterval(interval);
     }
   }, [user]);
-
-  // Helper function to calculate time ago
-  const getTimeAgo = (timestamp: string) => {
-    const now = new Date();
-    const past = new Date(timestamp);
-    const diffMs = now.getTime() - past.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-  };
 
   // Load stored notifications on mount
   useEffect(() => {
@@ -273,7 +193,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   // Start notification polling
   useEffect(() => {
     if (user && user.permissions) {
-      // Use useCallback to memoize the handler and prevent re-renders
       const handleNotification = (notification: NotificationData) => {
         setLiveNotifications((prev) => {
           // Avoid duplicates
@@ -321,7 +240,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     setLiveNotifications((prev) => prev.filter(n => n.id !== id));
   };
 
-  const handleNotificationClick = async (referralId?: string, notificationType?: string) => {
+  const handleNotificationClick = async (referralId?: string, _notificationType?: string) => {
     if (!referralId) return;
     
     try {

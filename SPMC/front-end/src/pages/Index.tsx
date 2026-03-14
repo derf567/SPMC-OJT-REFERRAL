@@ -12,7 +12,6 @@ import {
   ClipboardCheck,
   MapPin,
   X,
-  AlertTriangle,
 } from "lucide-react";
 import {
   Dialog,
@@ -36,6 +35,9 @@ interface Referral {
   id: number;
   referral_id: string;
   patient_full_name: string;
+  age?: number;
+  gender?: string;
+  chief_complaint?: string;
   status: string;
   priority: string;
   specialty_needed?: {
@@ -52,7 +54,7 @@ interface Referral {
 }
 
 const Index = () => {
-  const [stats, setStats] = useState<DashboardStats>({
+  const [, setStats] = useState<DashboardStats>({
     total_referrals_today: 0,
     pending_cases: 0,
     critical_cases: 0,
@@ -163,11 +165,6 @@ const Index = () => {
     }
   }, [user]);
 
-  const calculatePercentageChange = (current: number, previous: number) => {
-    if (previous === 0) return current > 0 ? 100 : 0;
-    return Math.round(((current - previous) / previous) * 100);
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -226,7 +223,7 @@ const Index = () => {
 
   const getTimelineSteps = (referral: Referral) => {
     const isCancelled = referral.status === 'cancelled';
-    const isScheduleOPD = referral.status === 'schedule_opd';
+    const isScheduleOPD = referral.status === 'schedule_opd' || referral.triage_decision === 'schedule_opd';
     
     // Check if disposition finalized (triage has made a decision and assigned departments)
     const dispositionFinalized = (
@@ -238,8 +235,7 @@ const Index = () => {
     const mainServiceAccepted = referral.status === 'awaiting_triage_verification' ||
                                  referral.status === 'dispositioned' || 
                                  referral.status === 'in_transit' || 
-                                 referral.status === 'completed' ||
-                                 isScheduleOPD;
+                                 referral.status === 'completed';
     const inTransit = referral.status === 'in_transit' || referral.status === 'completed';
     const isCompleted = referral.status === 'completed' || isScheduleOPD;
 
@@ -259,7 +255,9 @@ const Index = () => {
         description: 'EDCC/EDMA assigned departments',
         icon: Clock,
         color: 'blue',
-        completed: isCancelled ? false : (dispositionFinalized || mainServiceAccepted || inTransit || isCompleted),
+        completed: isCancelled
+          ? false
+          : (isScheduleOPD ? dispositionFinalized : (dispositionFinalized || mainServiceAccepted || inTransit || isCompleted)),
         date: referral.created_at,
       },
       {
