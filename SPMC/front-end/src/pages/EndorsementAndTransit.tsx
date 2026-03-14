@@ -53,6 +53,7 @@ interface Referral {
   created_at: string;
   updated_at?: string;
   triage_decision?: string;
+  triage_remarks?: string;
   main_service_code?: string;
   assigned_department?: string;
   assigned_departments?: string[];
@@ -876,6 +877,12 @@ const TriageReferrals = () => {
                     </div>
                   </div>
                 </div>
+                {selectedReferral.triage_remarks && (
+                  <div className="mt-3 rounded-md border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-700/50 dark:bg-yellow-900/20">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-yellow-700 dark:text-yellow-300 mb-1">Remarks</p>
+                    <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{selectedReferral.triage_remarks}</p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -905,6 +912,12 @@ const TriageReferrals = () => {
                       <p className="text-gray-800 dark:text-gray-200">Driver: {selectedReferral.transit_info.driver}</p>
                     )}
                   </div>
+                  {selectedReferral.transit_info.remarks && (
+                    <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/50 dark:bg-amber-900/20">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-1">Transit Remarks</p>
+                      <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{selectedReferral.transit_info.remarks}</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -913,9 +926,20 @@ const TriageReferrals = () => {
                   <p className="mb-3 font-semibold text-gray-800 dark:text-gray-200">Department Decisions</p>
                   <div className="space-y-2">
                     {selectedReferral.department_acceptances.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between rounded-md bg-white px-3 py-2 dark:bg-gray-800">
-                        <p className="font-medium text-gray-900 dark:text-gray-100">{item.department_name}</p>
-                        <span className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-300">{item.status}</span>
+                      <div key={item.id} className="rounded-md bg-white px-3 py-2 dark:bg-gray-800">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-gray-900 dark:text-gray-100">{item.department_name}</p>
+                          <span className={`text-xs uppercase tracking-wide font-semibold ${
+                            item.status === 'accepted' ? 'text-green-600 dark:text-green-400' :
+                            item.status === 'rejected' ? 'text-red-600 dark:text-red-400' :
+                            'text-gray-500 dark:text-gray-400'
+                          }`}>{item.status}</span>
+                        </div>
+                        {item.notes && (
+                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 italic border-t border-gray-100 dark:border-gray-700 pt-1">
+                            Notes: {item.notes}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>

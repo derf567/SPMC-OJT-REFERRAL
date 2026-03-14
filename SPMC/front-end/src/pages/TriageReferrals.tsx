@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { referralsAPI } from "@/lib/api";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Search, Eye, Clock, FileText, CheckCircle, MapPin, X } from "lucide-react";
+import { Loader2, RefreshCw, Search, Eye, Clock, FileText, CheckCircle, MapPin, X, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TransitFormDialog } from "@/components/ui/TransitFormDialog";
 
 interface TransitInfo {
   watcher_name: string;
@@ -69,6 +70,10 @@ const PatientArrivalPage = () => {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Transit form edit state
+  const [editTransitOpen, setEditTransitOpen] = useState(false);
+  const [editTransitReferral, setEditTransitReferral] = useState<Referral | null>(null);
 
   const normalizeResponse = (response: any): Referral[] => {
     if (Array.isArray(response)) return response;
@@ -285,6 +290,23 @@ const PatientArrivalPage = () => {
     }
   };
 
+  const openEditTransit = async (referral: Referral) => {
+    try {
+      const data = await referralsAPI.getById(referral.id.toString());
+      setEditTransitReferral(data);
+      setEditTransitOpen(true);
+    } catch (error: any) {
+      console.error("Error loading referral:", error);
+      toast.error(error.message || "Failed to load referral details");
+    }
+  };
+
+  const handleTransitFormSuccess = () => {
+    setEditTransitOpen(false);
+    setEditTransitReferral(null);
+    fetchQueue(true);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -365,6 +387,17 @@ const PatientArrivalPage = () => {
                             aria-label="View details"
                           >
                             <Eye className="h-4 w-4" />
+                          </Button>
+
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-blue-400 hover:bg-blue-700/40 hover:text-blue-100"
+                            onClick={() => openEditTransit(referral)}
+                            title="Edit transit form"
+                            aria-label="Edit transit form"
+                          >
+                            <Edit className="h-4 w-4" />
                           </Button>
 
                           <Button
@@ -455,6 +488,12 @@ const PatientArrivalPage = () => {
                       <p className="text-gray-800 dark:text-gray-200">Driver: {selectedReferral.transit_info.driver}</p>
                     )}
                   </div>
+                  {selectedReferral.transit_info.remarks && (
+                    <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/50 dark:bg-amber-900/20">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-1">Transit Remarks</p>
+                      <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{selectedReferral.transit_info.remarks}</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -599,6 +638,19 @@ const PatientArrivalPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Transit Form Edit Dialog */}
+      {editTransitReferral && (
+        <TransitFormDialog
+          open={editTransitOpen}
+          onOpenChange={setEditTransitOpen}
+          referralId={editTransitReferral.id.toString()}
+          patientName={editTransitReferral.patient_full_name}
+          onSuccess={handleTransitFormSuccess}
+          existingData={editTransitReferral.transit_info || null}
+          isEditMode={true}
+        />
+      )}
     </DashboardLayout>
   );
 };

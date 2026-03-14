@@ -16,7 +16,9 @@ import {
   Truck,
   XCircle,
   Download,
-  Phone
+  Phone,
+  MessageSquare,
+  Clock
 } from "lucide-react";
 import jsPDF from 'jspdf';
 
@@ -435,6 +437,36 @@ export const ReferralView = () => {
             </div>
           </div>
 
+          {/* Notes from EDCC/Triage - visible to referrer */}
+          {(referral.triage_verification_notes || referral.triage_remarks || referral.triage_notes) && (
+            <div className="mx-6 mt-4 mb-0 rounded-lg border-2 border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <MessageSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 uppercase tracking-wide">Notes from EDCC / Triage</p>
+              </div>
+              <div className="space-y-2">
+                {referral.triage_verification_notes && (
+                  <div>
+                    <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">Verification Notes (Transit Template)</p>
+                    <p className="text-gray-900 dark:text-white whitespace-pre-wrap text-sm">{referral.triage_verification_notes}</p>
+                  </div>
+                )}
+                {referral.triage_remarks && (
+                  <div>
+                    <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">Endorsement Remarks</p>
+                    <p className="text-gray-900 dark:text-white whitespace-pre-wrap text-sm">{referral.triage_remarks}</p>
+                  </div>
+                )}
+                {referral.triage_notes && (
+                  <div>
+                    <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">Triage Notes</p>
+                    <p className="text-gray-900 dark:text-white whitespace-pre-wrap text-sm">{referral.triage_notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Patient Information */}
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2 mb-4">
@@ -669,7 +701,7 @@ export const ReferralView = () => {
 
           {/* Transit Information (Watcher Details) */}
           {referral.transit_info && (
-            <div className="p-6">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2 mb-4">
                 <User className="w-5 h-5 text-orange-600" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Watcher & Transit Information</h3>
@@ -717,8 +749,79 @@ export const ReferralView = () => {
                   </div>
                 )}
               </div>
+              {referral.transit_info.remarks && (
+                <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg">
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-1">Transit Remarks</p>
+                  <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{referral.transit_info.remarks}</p>
+                </div>
+              )}
             </div>
           )}
+
+          {/* Remarks Tab */}
+          {(() => {
+            const hasRemarks =
+              referral.triage_notes ||
+              referral.triage_remarks ||
+              referral.triage_verification_notes ||
+              referral.delay_reason ||
+              (referral.transit_info?.remarks) ||
+              (referral.status_history && referral.status_history.some((h: any) => h.notes));
+            if (!hasRemarks) return null;
+            return (
+              <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-2 mb-4">
+                  <MessageSquare className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Remarks</h3>
+                </div>
+                <div className="space-y-3">
+                  {referral.triage_notes && (
+                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-lg">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400 mb-1">Triage Notes</p>
+                      <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{referral.triage_notes}</p>
+                    </div>
+                  )}
+                  {referral.triage_remarks && (
+                    <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700/50 rounded-lg">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-400 mb-1">Triage Remarks (Department Assignment)</p>
+                      <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{referral.triage_remarks}</p>
+                    </div>
+                  )}
+                  {referral.triage_verification_notes && (
+                    <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700/50 rounded-lg">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-orange-600 dark:text-orange-400 mb-1">Triage Verification Notes</p>
+                      <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{referral.triage_verification_notes}</p>
+                    </div>
+                  )}
+                  {referral.transit_info?.remarks && (
+                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-1">Transit Remarks (from Referrer)</p>
+                      <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{referral.transit_info.remarks}</p>
+                    </div>
+                  )}
+                  {referral.delay_reason && (
+                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-lg">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400 mb-1">Delay Reason</p>
+                      <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{referral.delay_reason}</p>
+                    </div>
+                  )}
+                  {referral.status_history && referral.status_history.filter((h: any) => h.notes).map((h: any) => (
+                    <div key={h.id} className="p-4 bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-600 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="w-3 h-3 text-gray-500" />
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          {h.old_status?.replace(/_/g, ' ')} → {h.new_status?.replace(/_/g, ' ')}
+                          {h.changed_by_name && ` · ${h.changed_by_name}`}
+                          {h.changed_at && ` · ${new Date(h.changed_at).toLocaleString()}`}
+                        </p>
+                      </div>
+                      <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{h.notes}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

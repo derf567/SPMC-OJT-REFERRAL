@@ -189,6 +189,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
     triage_verified_by_name = serializers.SerializerMethodField()
     department_acceptances = DepartmentAcceptanceSerializer(many=True, read_only=True)
     acceptance_summary = serializers.SerializerMethodField()
+    transit_info = TransitInfoSerializer(read_only=True)
     
     def get_specialty_needed_name(self, obj):
         return obj.specialty_needed.name if obj.specialty_needed else None
@@ -257,7 +258,10 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'triage_verified_by_name', 'triage_verified_at', 'triage_verification_notes',
             
             # Delay notification tracking
-            'delay_notified_at', 'delay_reason'
+            'delay_notified_at', 'delay_reason',
+
+            # Transit info (includes remarks)
+            'transit_info',
         ]
 
 class ReferralDetailSerializer(serializers.ModelSerializer):

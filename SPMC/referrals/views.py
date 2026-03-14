@@ -694,20 +694,23 @@ class ReferralViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def fill_transit_info(self, request, pk=None):
-        """Fill in-transit form for dispositioned referral"""
+        """Fill or update in-transit form for dispositioned or in_transit referral"""
         referral = self.get_object()
         
-        # Check if referral is dispositioned
-        if referral.status != 'dispositioned':
+        # Check if referral is dispositioned or in_transit (allow editing)
+        if referral.status not in ['dispositioned', 'in_transit']:
             return Response({
-                'error': 'Can only fill transit info for dispositioned referrals'
+                'error': 'Can only fill or edit transit info for dispositioned or in-transit referrals'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check if user is the referrer
+        # Check if user is the referrer or has permission to edit
         if referral.created_by != request.user:
-            return Response({
-                'error': 'Only the referrer can fill transit information'
-            }, status=status.HTTP_403_FORBIDDEN)
+            # Allow EDCC/Triage users to edit transit info
+            if not (hasattr(request.user, 'profile') and 
+                   (request.user.profile.can_triage_referrals or request.user.profile.is_edcc_personnel)):
+                return Response({
+                    'error': 'Only the referrer or authorized personnel can fill/edit transit information'
+                }, status=status.HTTP_403_FORBIDDEN)
         
         # Get transit info data
         watcher_name = request.data.get('watcher_name')
@@ -746,21 +749,24 @@ class ReferralViewSet(viewsets.ModelViewSet):
             }
         )
         
-        # Update referral status to in_transit
-        referral.status = 'in_transit'
-        referral.save()
+        # Update referral status to in_transit only if it was dispositioned
+        old_status = referral.status
+        if referral.status == 'dispositioned':
+            referral.status = 'in_transit'
+            referral.save()
+            
+            # Create status history
+            ReferralStatusHistory.objects.create(
+                referral=referral,
+                old_status=old_status,
+                new_status='in_transit',
+                changed_by=request.user,
+                notes='Transit information filled by referrer'
+            )
         
-        # Create status history
-        ReferralStatusHistory.objects.create(
-            referral=referral,
-            old_status='dispositioned',
-            new_status='in_transit',
-            changed_by=request.user,
-            notes='Transit information filled by referrer'
-        )
-        
+        action_message = 'created' if created else 'updated'
         return Response({
-            'message': 'Transit information saved successfully',
+            'message': f'Transit information {action_message} successfully',
             'referral_status': referral.status
         })
     
