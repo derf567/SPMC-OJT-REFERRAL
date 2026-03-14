@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ReferrerDashboardLayout } from "@/components/layout/ReferrerDashboardLayout";
 import { TransferActionDropdown } from "@/components/ui/TransferActionDropdown";
 import { TransitFormDialog } from "@/components/ui/TransitFormDialog";
-import { referralsAPI } from "@/lib/api";
+import { referralsAPI, departmentsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -45,9 +45,16 @@ const ReferrerDashboard = () => {
   });
   const [recentReferrals, setRecentReferrals] = useState<any[]>([]);
   const [allReferrals, setAllReferrals] = useState<any[]>([]);
+  const [recentStatusFilter, setRecentStatusFilter] = useState<string>('all');
+  const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedReferral, setSelectedReferral] = useState<any>(null);
+  const [contactDetailsModalOpen, setContactDetailsModalOpen] = useState(false);
+  const [contactDetailsReferral, setContactDetailsReferral] = useState<any>(null);
+  const [contactDetailsFocusCode, setContactDetailsFocusCode] = useState<string | null>(null);
+  const [transitTemplateDetailsModalOpen, setTransitTemplateDetailsModalOpen] = useState(false);
+  const [transitTemplateDetailsReferral, setTransitTemplateDetailsReferral] = useState<any>(null);
   const [transitDecisionModalOpen, setTransitDecisionModalOpen] = useState(false);
   const [transitDecisionReferral, setTransitDecisionReferral] = useState<any>(null);
   const [transitFormModalOpen, setTransitFormModalOpen] = useState(false);
@@ -70,9 +77,16 @@ const ReferrerDashboard = () => {
       try {
         setLoading(true);
         
-        // Fetch my submitted referrals (for referrers)
-        const response = await referralsAPI.getMySubmittedReferrals();
+        // Fetch my submitted referrals and department contacts
+        const [response, deptResponse] = await Promise.all([
+          referralsAPI.getMySubmittedReferrals(),
+          departmentsAPI.getAll(),
+        ]);
         const referrals = response.results || response;
+        const deptRows = deptResponse.results || deptResponse || [];
+        if (Array.isArray(deptRows)) {
+          setDepartments(deptRows);
+        }
         
         if (Array.isArray(referrals)) {
           setAllReferrals(referrals);
@@ -117,6 +131,54 @@ const ReferrerDashboard = () => {
       return () => clearInterval(interval);
     }
   }, [user]);
+
+  const getDepartmentDetails = (code?: string) => {
+    if (!code) return null;
+    return departments.find((dept: any) => dept.code === code);
+  };
+
+  const getDepartmentDisplay = (code?: string) => {
+    if (!code) return "N/A";
+    const department = getDepartmentDetails(code);
+    if (department?.name) return department.name;
+    return code.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
+
+  const getDepartmentContactText = (code?: string) => {
+    if (!code) return "Contact unavailable";
+    const department = getDepartmentDetails(code);
+    return department?.contact_number || "Contact unavailable";
+  };
+
+  const getMainServiceCode = (referral: any) => {
+    if (referral.main_service_code) return referral.main_service_code;
+    if (Array.isArray(referral.assigned_departments) && referral.assigned_departments.length > 0) {
+      return referral.assigned_departments[0];
+    }
+    return undefined;
+  };
+
+  const getCoManageCodes = (referral: any) => {
+    const assigned = Array.isArray(referral.assigned_departments) ? referral.assigned_departments : [];
+    const mainServiceCode = getMainServiceCode(referral);
+    return assigned.filter((code: string) => code !== mainServiceCode);
+  };
+
+  const openContactDetailsModal = (referral: any, focusCode?: string) => {
+    setContactDetailsReferral(referral);
+    setContactDetailsFocusCode(focusCode || null);
+    setContactDetailsModalOpen(true);
+  };
+
+  const openTransitTemplateDetailsModal = (referral: any) => {
+    setTransitTemplateDetailsReferral(referral);
+    setTransitTemplateDetailsModalOpen(true);
+  };
+
+  const formatTelLink = (value?: string) => {
+    if (!value) return "";
+    return value.replace(/[^\d+]/g, "");
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -186,6 +248,20 @@ const ReferrerDashboard = () => {
     if (previous === 0) return current > 0 ? 100 : 0;
     return Math.round(((current - previous) / previous) * 100);
   };
+
+  const statusFilterOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'waiting_acceptance', label: 'Waiting Acceptance' },
+    { value: 'dispositioned', label: 'Dispositioned' },
+    { value: 'in_transit', label: 'In Transit' },
+    { value: 'urgent', label: 'Urgent' },
+    { value: 'schedule_opd', label: 'Schedule OPD' },
+  ];
+
+  const filteredRecentReferrals = recentStatusFilter === 'all'
+    ? recentReferrals
+    : recentReferrals.filter((referral) => referral.status === recentStatusFilter);
 
   const openTimelineModal = (referral: any) => {
     setSelectedReferral(referral);
@@ -361,56 +437,120 @@ const ReferrerDashboard = () => {
         </div>
       </div>
 
-      {/* Dispositioned - In Transit Form Needed - Individual banners for each referral */}
-      {recentReferrals.filter(r => r.status === 'dispositioned').map((referral) => (
-        <div key={referral.id} className="bg-green-100 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-600 rounded-lg p-4 mb-4 animate-pulse">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex-shrink-0">
-              <CheckCircle className="w-6 h-6 text-green-600 animate-bounce" />
+      {/* Waiting Acceptance/In Transit - single containers, multiple data rows */}
+      {recentReferrals.some(r => r.status === 'waiting_acceptance' || r.status === 'in_transit') && (
+        <div className="mb-4 space-y-3 animate-pulse">
+          <div className="bg-white dark:bg-green-900/20 border-2 border-green-400 dark:border-green-600 rounded-lg p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="w-6 h-6 text-green-600 animate-bounce flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-green-800 dark:text-green-200">
+                  Referrals For Department Contact / Transit
+                </h3>
+                <p className="text-green-700 dark:text-green-300 mt-1 text-sm">
+                  {recentReferrals.filter(r => r.status === 'waiting_acceptance' || r.status === 'in_transit').length} referral(s) currently active for coordination.
+                </p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-semibold text-green-800 dark:text-green-200">
-                ✅ {referral.patient_full_name} - Fill In-Transit Form
-              </h3>
-              <p className="text-green-700 dark:text-green-300 mt-1 text-sm">
-                Referral ID: {referral.referral_id} • Accepted by departments. Please fill out the In-Transit form to proceed with patient transport.
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-green-300 dark:border-green-700 bg-green-50 dark:bg-gray-900/40 p-3 shadow-sm">
+              <h4 className="font-semibold text-green-800 dark:text-green-200 flex items-center gap-2">
+                <PhoneCall className="w-4 h-4" />
+                Contact Main Service and Co-Manage
+              </h4>
+              <div className="mt-2 space-y-2">
+                {recentReferrals.filter(r => r.status === 'waiting_acceptance' || r.status === 'in_transit').map((referral) => (
+                  <div key={`contact-${referral.id}`} className="rounded-lg border border-green-200 dark:border-green-700 bg-white dark:bg-gray-800/40 p-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <p className="text-sm font-semibold text-green-900 dark:text-green-100">{referral.patient_full_name}</p>
+                      <p className="text-xs text-green-700 dark:text-green-300">ID: {referral.referral_id}</p>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {(() => {
+                        const mainServiceCode = getMainServiceCode(referral);
+                        if (!mainServiceCode) {
+                          return (
+                            <p className="text-xs text-green-700 dark:text-green-300">Main Service: Not assigned</p>
+                          );
+                        }
+                        const mainContact = getDepartmentContactText(mainServiceCode);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => openContactDetailsModal(referral, mainServiceCode)}
+                            className="inline-flex items-center gap-1 rounded-md border border-green-300 dark:border-green-600 bg-white dark:bg-green-900/30 px-2 py-1 hover:bg-green-50 dark:hover:bg-green-800/40 transition-colors"
+                            title={`View full details for ${getDepartmentDisplay(mainServiceCode)}`}
+                          >
+                            <span className="text-[10px] uppercase tracking-wide text-green-700 dark:text-green-300 font-semibold">Main</span>
+                            <span className="text-xs font-semibold text-green-900 dark:text-green-100">{getDepartmentDisplay(mainServiceCode)}</span>
+                            <span className="text-[11px] text-green-700 dark:text-green-300">{mainContact}</span>
+                          </button>
+                        );
+                      })()}
+
+                      {getCoManageCodes(referral).length > 0 ? (
+                        getCoManageCodes(referral).map((code: string) => {
+                          const coContact = getDepartmentContactText(code);
+                          return (
+                            <button
+                              type="button"
+                              key={`co-manage-${referral.id}-${code}`}
+                              onClick={() => openContactDetailsModal(referral, code)}
+                              className="inline-flex items-center gap-1 rounded-md border border-green-200 dark:border-green-700 bg-white dark:bg-gray-800/50 px-2 py-1 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                              title={`View full details for ${getDepartmentDisplay(code)}`}
+                            >
+                              <span className="text-[10px] uppercase tracking-wide text-green-700 dark:text-green-300 font-semibold">Co</span>
+                              <span className="text-xs font-semibold text-green-900 dark:text-green-100">{getDepartmentDisplay(code)}</span>
+                              <span className="text-[11px] text-green-700 dark:text-green-300">{coContact}</span>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <p className="text-xs text-green-700 dark:text-green-300">Co-Manage: None</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-green-700 dark:text-green-300 mt-2">
+                Please contact the assigned department(s) before transport.
               </p>
             </div>
-            <div className="flex-shrink-0 flex gap-2">
-              <TransferActionDropdown
-                referralId={referral.id || ''}
-                patientName={referral.patient_full_name || ''}
-                hasDelayNotification={!!referral.delay_notified_at}
-                onFillForm={() => {
-                  setTransitFormReferral(referral);
-                  setTransitFormModalOpen(true);
-                }}
-                onDelaySuccess={() => {
-                  // Refresh the dashboard data
-                  const fetchDashboardData = async () => {
-                    try {
-                      const response = await referralsAPI.getMySubmittedReferrals();
-                      const referrals = response.results || response;
-                      if (Array.isArray(referrals)) {
-                        setAllReferrals(referrals);
-                        const sortedReferrals = referrals
-                          .filter(r => r.status !== 'completed' && r.status !== 'uncoordinated')
-                          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                          .slice(0, 5);
-                        setRecentReferrals(sortedReferrals);
-                      }
-                    } catch (error) {
-                      console.error('Error refreshing dashboard:', error);
-                    }
-                  };
-                  fetchDashboardData();
-                }}
-              />
+
+            <div className="rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 p-3 shadow-sm">
+              <h4 className="font-semibold text-orange-800 dark:text-orange-200 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Fill Up Transit Template
+              </h4>
+              <p className="text-sm text-orange-700 dark:text-orange-300 mt-2">
+                Transit template actions per referral.
+              </p>
+              <div className="mt-3 space-y-2">
+                {recentReferrals.filter(r => r.status === 'waiting_acceptance' || r.status === 'in_transit').map((referral) => (
+                  <button
+                    key={`transit-${referral.id}`}
+                    type="button"
+                    onClick={() => openTransitTemplateDetailsModal(referral)}
+                    className="w-full rounded-lg border border-orange-300 dark:border-orange-600 bg-orange-50 dark:bg-orange-900/30 p-3 text-left hover:bg-orange-100 dark:hover:bg-orange-800/40 transition-colors"
+                  >
+                    <p className="text-xs uppercase tracking-wide font-semibold text-orange-700 dark:text-orange-300">
+                      {referral.patient_full_name}
+                    </p>
+                    <p className="text-sm font-semibold text-orange-900 dark:text-orange-100 mt-1">
+                      Referral ID: {referral.referral_id}
+                    </p>
+                    <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
+                      View complete details and fill-up actions
+                    </p>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      ))}
-
+      )}
       {/* Emergent Notification */}
       {recentReferrals.some(r => r.triage_decision === 'emergent' && r.status === 'in_transit') && (
         <div className="bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg p-4 mb-6">
@@ -474,13 +614,31 @@ const ReferrerDashboard = () => {
               View All →
             </Link>
           </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {statusFilterOptions.map((option) => (
+              <button
+                key={`recent-filter-${option.value}`}
+                type="button"
+                onClick={() => setRecentStatusFilter(option.value)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  recentStatusFilter === option.value
+                    ? 'bg-green-600 text-white border-green-600'
+                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-green-500 hover:text-green-700 dark:hover:text-green-300'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
         
         <div className="p-6">
-          {recentReferrals.length === 0 ? (
+          {filteredRecentReferrals.length === 0 ? (
             <div className="text-center py-8">
               <Archive className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">No referrals submitted yet</p>
+              <p className="text-gray-500 dark:text-gray-400">
+                {recentReferrals.length === 0 ? 'No referrals submitted yet' : 'No referrals match this status'}
+              </p>
               <Link to="/referral">
                 <button className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
                   Submit Your First Referral
@@ -489,7 +647,7 @@ const ReferrerDashboard = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {recentReferrals.map((referral) => (
+              {filteredRecentReferrals.map((referral) => (
                 <div key={referral.id} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
@@ -1075,6 +1233,217 @@ const ReferrerDashboard = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Contact Details Modal */}
+      <Dialog open={contactDetailsModalOpen} onOpenChange={setContactDetailsModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PhoneCall className="w-5 h-5 text-green-600" />
+              Department Contact Details
+            </DialogTitle>
+            <DialogDescription>
+              Complete Main Service and Co-Manage contact information for referral coordination.
+            </DialogDescription>
+          </DialogHeader>
+
+          {contactDetailsReferral && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  <span className="font-semibold">Referral ID:</span> {contactDetailsReferral.referral_id}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  <span className="font-semibold">Patient:</span> {contactDetailsReferral.patient_full_name}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  <span className="font-semibold">Chief Complaint:</span> {contactDetailsReferral.chief_complaint || "N/A"}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {(() => {
+                  const mainServiceCode = getMainServiceCode(contactDetailsReferral);
+                  const coManageCodes = getCoManageCodes(contactDetailsReferral);
+                  const rows = [
+                    ...(mainServiceCode
+                      ? [{ role: "Main Service", code: mainServiceCode }]
+                      : []),
+                    ...coManageCodes.map((code: string) => ({ role: "Co-Manage", code })),
+                  ];
+
+                  if (rows.length === 0) {
+                    return (
+                      <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-200">
+                        No assigned department details are available yet.
+                      </div>
+                    );
+                  }
+
+                  return rows.map((item) => {
+                    const contact = getDepartmentContactText(item.code);
+                    const tel = formatTelLink(contact);
+                    const isFocused = contactDetailsFocusCode === item.code;
+                    return (
+                      <div
+                        key={`${contactDetailsReferral.id}-${item.role}-${item.code}`}
+                        className={`rounded-lg border p-3 ${isFocused
+                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40"
+                        }`}
+                      >
+                        <p className="text-xs uppercase tracking-wide font-semibold text-gray-500 dark:text-gray-400">{item.role}</p>
+                        <p className="text-base font-semibold text-gray-900 dark:text-white mt-1">{getDepartmentDisplay(item.code)}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Code: {item.code}</p>
+                        <p className="text-sm text-gray-700 dark:text-gray-200 mt-2">Contact: {contact}</p>
+                        {tel && (
+                          <a
+                            href={`tel:${tel}`}
+                            className="inline-flex items-center mt-2 text-sm font-medium text-green-700 dark:text-green-300 hover:underline"
+                          >
+                            Call this department
+                          </a>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">Remarks</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                  {contactDetailsReferral.triage_remarks || "No EDCC/EDMA assignment remarks provided."}
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Transit Template Details Modal */}
+      <Dialog open={transitTemplateDetailsModalOpen} onOpenChange={setTransitTemplateDetailsModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-green-600" />
+              Transit Template Details
+            </DialogTitle>
+            <DialogDescription>
+              Complete details and actions for the referral transit template.
+            </DialogDescription>
+          </DialogHeader>
+
+          {transitTemplateDetailsReferral && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      <span className="font-semibold">Referral ID:</span> {transitTemplateDetailsReferral.referral_id}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                      <span className="font-semibold">Patient:</span> {transitTemplateDetailsReferral.patient_full_name}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                      <span className="font-semibold">Chief Complaint:</span> {transitTemplateDetailsReferral.chief_complaint || "N/A"}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                      <span className="font-semibold">Triage Decision:</span> {transitTemplateDetailsReferral.triage_decision || "N/A"}
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    <TransferActionDropdown
+                      referralId={transitTemplateDetailsReferral.id || ''}
+                      patientName={transitTemplateDetailsReferral.patient_full_name || ''}
+                      hasDelayNotification={!!transitTemplateDetailsReferral.delay_notified_at}
+                      onFillForm={() => {
+                        setTransitTemplateDetailsModalOpen(false);
+                        setTransitFormReferral(transitTemplateDetailsReferral);
+                        setTransitFormModalOpen(true);
+                      }}
+                      onDelaySuccess={() => {
+                        // Refresh the dashboard data
+                        const fetchDashboardData = async () => {
+                          try {
+                            const response = await referralsAPI.getMySubmittedReferrals();
+                            const referrals = response.results || response;
+                            if (Array.isArray(referrals)) {
+                              setAllReferrals(referrals);
+                              const sortedReferrals = referrals
+                                .filter(r => r.status !== 'completed' && r.status !== 'uncoordinated')
+                                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                                .slice(0, 5);
+                              setRecentReferrals(sortedReferrals);
+                            }
+                          } catch (error) {
+                            console.error('Error refreshing dashboard:', error);
+                          }
+                        };
+                        fetchDashboardData();
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {(() => {
+                  const mainServiceCode = getMainServiceCode(transitTemplateDetailsReferral);
+                  const coManageCodes = getCoManageCodes(transitTemplateDetailsReferral);
+                  const rows = [
+                    ...(mainServiceCode
+                      ? [{ role: "Main Service", code: mainServiceCode }]
+                      : []),
+                    ...coManageCodes.map((code: string) => ({ role: "Co-Manage", code })),
+                  ];
+
+                  if (rows.length === 0) {
+                    return (
+                      <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-200">
+                        No assigned department details are available yet.
+                      </div>
+                    );
+                  }
+
+                  return rows.map((item) => {
+                    const contact = getDepartmentContactText(item.code);
+                    const tel = formatTelLink(contact);
+                    return (
+                      <div
+                        key={`${transitTemplateDetailsReferral.id}-${item.role}-${item.code}`}
+                        className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3"
+                      >
+                        <p className="text-xs uppercase tracking-wide font-semibold text-gray-500 dark:text-gray-400">{item.role}</p>
+                        <p className="text-base font-semibold text-gray-900 dark:text-white mt-1">{getDepartmentDisplay(item.code)}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Code: {item.code}</p>
+                        <p className="text-sm text-gray-700 dark:text-gray-200 mt-2">Contact: {contact}</p>
+                        {tel && (
+                          <a
+                            href={`tel:${tel}`}
+                            className="inline-flex items-center mt-2 text-sm font-medium text-green-700 dark:text-green-300 hover:underline"
+                          >
+                            Call this department
+                          </a>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">Remarks</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                  {transitTemplateDetailsReferral.triage_remarks || transitTemplateDetailsReferral.triage_notes || "No remarks provided."}
+                </p>
+              </div>
+
+              
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Transit Decision Modal */}
       <Dialog open={transitDecisionModalOpen} onOpenChange={setTransitDecisionModalOpen}>
         <DialogContent className="max-w-md">
@@ -1177,3 +1546,5 @@ const ReferrerDashboard = () => {
 };
 
 export default ReferrerDashboard;
+
+

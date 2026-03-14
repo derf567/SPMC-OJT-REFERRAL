@@ -40,6 +40,7 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
   const [liveNotifications, setLiveNotifications] = useState<NotificationData[]>([]);
   const [dropdownNotifications, setDropdownNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const seenAssignmentNotificationIdsRef = useRef<Set<string>>(new Set());
   
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -82,7 +83,7 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
   useEffect(() => {
     const fetchMyReferralsCount = async () => {
       try {
-        const response = await referralsAPI.getMyReferrals();
+        const response = await referralsAPI.getMySubmittedReferrals();
         let departmentsResponse: any[] = [];
         try {
           const deptResult = await departmentsAPI.getAll();
@@ -127,6 +128,37 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
             .map((dept, index) => `${index === 0 ? "Contact" : "or"} ${dept.name}: ${dept.contact_number}`)
             .join(" ");
         };
+
+        const getAssignedDepartmentContactMessage = (ref: any) => {
+          const departmentCodes = Array.isArray(ref.assigned_departments) ? ref.assigned_departments : [];
+          if (departmentCodes.length === 0) {
+            return "Please wait for department contact details.";
+          }
+
+          const mainServiceCode = (ref.main_service_code as string | undefined) || departmentCodes[0];
+          const coManageCodes = departmentCodes.filter((code: string) => code !== mainServiceCode);
+
+          const formatDepartmentContact = (code: string) => {
+            const dept = departmentMap.get(code);
+            if (!dept) return formatReadableDepartment(code);
+            if (!dept.contact_number) return `${dept.name} (contact number unavailable)`;
+            return `${dept.name} (${dept.contact_number})`;
+          };
+
+          const formatReadableDepartment = (code: string) =>
+            code
+              .split('_')
+              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ');
+
+          const mainServiceText = `Main Service: ${formatDepartmentContact(mainServiceCode)}`;
+          const coManageText =
+            coManageCodes.length > 0
+              ? `Co-Manage: ${coManageCodes.map((code: string) => formatDepartmentContact(code)).join(", ")}`
+              : "Co-Manage: None";
+
+          return `${mainServiceText}. ${coManageText}. Please contact these assigned department(s) for next steps.`;
+        };
         
         // Count active referrals (not completed or cancelled)
         const activeReferrals = Array.isArray(referrals) 
@@ -148,6 +180,10 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
                 notifType = 'info';
                 title = 'Referral Submitted';
                 message = `Your referral for ${patientName} is pending review`;
+              } else if (ref.status === 'waiting_acceptance' && Array.isArray(ref.assigned_departments) && ref.assigned_departments.length > 0) {
+                notifType = 'info';
+                title = 'Departments Assigned';
+                message = `${patientName} has been assigned. ${getAssignedDepartmentContactMessage(ref)}`;
               } else if (ref.status === 'waiting') {
                 notifType = 'info';
                 title = 'Referral Accepted';
@@ -186,6 +222,36 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
         
         // Count unread (active referrals)
         setUnreadCount(Math.min(activeReferrals.length, 99));
+
+        // Trigger live notification when EDCC/EDMA assigns Main Service/Co-Manage
+        if (Array.isArray(referrals)) {
+          const assignmentNotifs: NotificationData[] = referrals
+            .filter((ref: any) =>
+              ref.status === 'waiting_acceptance' &&
+              Array.isArray(ref.assigned_departments) &&
+              ref.assigned_departments.length > 0
+            )
+            .map((ref: any) => ({
+              id: `referrer_assignment_${ref.id}_${ref.updated_at || ref.created_at}`,
+              type: 'referral_transferred',
+              message: `${ref.patient_name || ref.patient_full_name || 'Patient'} has assigned departments. ${getAssignedDepartmentContactMessage(ref)}`,
+              referralId: ref.referral_id,
+              timestamp: ref.updated_at || ref.created_at,
+            }));
+
+          if (assignmentNotifs.length > 0) {
+            setLiveNotifications((prev) => {
+              const next = [...prev];
+              assignmentNotifs.forEach((notif) => {
+                if (!seenAssignmentNotificationIdsRef.current.has(notif.id)) {
+                  seenAssignmentNotificationIdsRef.current.add(notif.id);
+                  next.push(notif);
+                }
+              });
+              return next;
+            });
+          }
+        }
       } catch (error) {
         console.error('Error fetching my referrals count:', error);
         setMyReferralsCount(0);
