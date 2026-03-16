@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Check, AlertCircle, Edit, XCircle, UserPlus, Loader2 } from "lucide-react";
+import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Check, AlertCircle, Edit, XCircle, UserPlus, Loader2, MoreVertical, Download } from "lucide-react";
 import { referralsAPI, departmentsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import jsPDF from "jspdf";
 
 // Define the referral data structure from API
 interface ReferralData {
@@ -543,8 +544,180 @@ export const ReferralTable = () => {
   const [cancelling, setCancelling] = useState(false);
   const [showAssignDepartmentsDialog, setShowAssignDepartmentsDialog] = useState(false);
   const [selectedReferralForAssign, setSelectedReferralForAssign] = useState<ReferralData | null>(null);
+  const [openKebabId, setOpenKebabId] = useState<string | null>(null);
+  const kebabRef = useRef<HTMLDivElement | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Close kebab menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (kebabRef.current && !kebabRef.current.contains(e.target as Node)) {
+        setOpenKebabId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const downloadPatientPDF = (referral: ReferralData) => {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();   // 210
+    const pageH = doc.internal.pageSize.getHeight();  // 297
+    const margin = 10;
+    const colGap = 6;
+    const colW = (pageW - margin * 2 - colGap) / 2;  // ~87mm each
+    const labelW = 30;
+    const valueW = colW - labelW - 2;
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+    const val = (v: any) => (v != null && v !== "" ? String(v) : "N/A");
+
+    // Render a section header; returns new y
+    const sectionHeader = (title: string, x: number, y: number) => {
+      doc.setFillColor(30, 64, 175);
+      doc.rect(x, y, colW, 5, "F");
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(255);
+      doc.text(title.toUpperCase(), x + 2, y + 3.5);
+      doc.setTextColor(0);
+      return y + 7;
+    };
+
+    // Render a label+value row; returns new y
+    const row = (label: string, value: any, x: number, y: number) => {
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${label}:`, x, y);
+      doc.setFont("helvetica", "normal");
+      const lines = doc.splitTextToSize(val(value), valueW);
+      // cap at 2 lines to stay compact
+      const capped = lines.slice(0, 2);
+      if (lines.length > 2) capped[1] = capped[1].slice(0, -3) + "...";
+      doc.text(capped, x + labelW, y);
+      return y + capped.length * 3.8 + 1;
+    };
+
+    // ── Page border ───────────────────────────────────────────────────────────
+    doc.setDrawColor(30, 64, 175);
+    doc.setLineWidth(0.5);
+    doc.rect(margin - 2, margin - 2, pageW - (margin - 2) * 2, pageH - (margin - 2) * 2);
+
+    // ── Title ─────────────────────────────────────────────────────────────────
+    let y = margin + 4;
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 64, 175);
+    doc.text("SPMC Patient Referral Information", pageW / 2, y, { align: "center" });
+    y += 5;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100);
+    doc.text(`Generated: ${new Date().toLocaleString()}   |   Referral ID: ${referral.referral_id}`, pageW / 2, y, { align: "center" });
+    y += 3;
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageW - margin, y);
+    y += 4;
+
+    // ── Two-column layout ─────────────────────────────────────────────────────
+    const leftX = margin;
+    const rightX = margin + colW + colGap;
+
+    // LEFT COLUMN
+    let ly = y;
+    ly = sectionHeader("Referral Details", leftX, ly);
+    ly = row("Referral ID",   referral.referral_id, leftX, ly);
+    ly = row("Status",        referral.status?.replace(/_/g, " ").toUpperCase(), leftX, ly);
+    ly = row("Priority",      referral.priority, leftX, ly);
+    ly = row("Date Created",  referral.created_at ? new Date(referral.created_at).toLocaleString() : null, leftX, ly);
+    ly += 2;
+
+    ly = sectionHeader("Patient Information", leftX, ly);
+    ly = row("Full Name",     referral.patient_full_name, leftX, ly);
+    ly = row("Age / Gender",  `${val(referral.age)} yrs / ${val(referral.gender)}`, leftX, ly);
+    ly = row("Birthday",      referral.birthday, leftX, ly);
+    ly = row("HRN",           referral.hrn, leftX, ly);
+    ly = row("Address",       referral.current_address, leftX, ly);
+    ly = row("Category",      referral.patient_category?.replace(/_/g, " "), leftX, ly);
+    ly += 2;
+
+    ly = sectionHeader("Vital Signs", leftX, ly);
+    ly = row("Blood Pressure", referral.bp, leftX, ly);
+    ly = row("Heart Rate",    referral.hr ? `${referral.hr} bpm` : null, leftX, ly);
+    ly = row("Resp. Rate",    referral.rr ? `${referral.rr} breaths/min` : null, leftX, ly);
+    ly = row("Temperature",   referral.temp ? `${referral.temp} °C` : null, leftX, ly);
+    ly = row("O2 Saturation", referral.o2_sat ? `${referral.o2_sat}%` : null, leftX, ly);
+    ly = row("GCS Score",     referral.gcs_score, leftX, ly);
+    ly = row("O2 Support",    referral.o2_support, leftX, ly);
+    ly = row("Admission",     referral.admission_status?.replace(/_/g, " "), leftX, ly);
+    ly = row("RT-PCR",        referral.rtpcr_result, leftX, ly);
+    ly += 2;
+
+    ly = sectionHeader("Referring Facility", leftX, ly);
+    ly = row("Hospital",      referral.referring_hospital_name, leftX, ly);
+    ly = row("Referrer",      referral.referrer_name, leftX, ly);
+    ly = row("Profession",    referral.referrer_profession, leftX, ly);
+    ly = row("Cellphone",     referral.referrer_cellphone, leftX, ly);
+    ly = row("Transport",     referral.mode_of_transportation, leftX, ly);
+    ly = row("Specialty",     referral.specialty_needed_name, leftX, ly);
+
+    // RIGHT COLUMN
+    let ry = y;
+    ry = sectionHeader("Clinical Information", rightX, ry);
+    ry = row("Chief Complaint",   referral.chief_complaint, rightX, ry);
+    ry = row("Working Impression",referral.working_impression, rightX, ry);
+    ry += 2;
+
+    ry = sectionHeader("Pertinent History", rightX, ry);
+    // Allow up to 4 lines for longer text fields
+    doc.setFontSize(6.5);
+    doc.setFont("helvetica", "bold");
+    doc.text("History:", rightX, ry);
+    doc.setFont("helvetica", "normal");
+    const histLines = doc.splitTextToSize(val(referral.pertinent_history), colW - 2).slice(0, 4);
+    doc.text(histLines, rightX, ry + 4);
+    ry += histLines.length * 3.8 + 6;
+
+    ry = sectionHeader("Physical Exam", rightX, ry);
+    doc.setFontSize(6.5);
+    doc.setFont("helvetica", "bold");
+    doc.text("Findings:", rightX, ry);
+    doc.setFont("helvetica", "normal");
+    const examLines = doc.splitTextToSize(val(referral.pertinent_physical_exam), colW - 2).slice(0, 4);
+    doc.text(examLines, rightX, ry + 4);
+    ry += examLines.length * 3.8 + 6;
+
+    ry = sectionHeader("Management Done", rightX, ry);
+    doc.setFontSize(6.5);
+    doc.setFont("helvetica", "bold");
+    doc.text("Management:", rightX, ry);
+    doc.setFont("helvetica", "normal");
+    const mgmtLines = doc.splitTextToSize(val(referral.management_done), colW - 2).slice(0, 4);
+    doc.text(mgmtLines, rightX, ry + 4);
+    ry += mgmtLines.length * 3.8 + 6;
+
+    ry = sectionHeader("Reason for Referral", rightX, ry);
+    doc.setFontSize(6.5);
+    doc.setFont("helvetica", "bold");
+    doc.text("Reason:", rightX, ry);
+    doc.setFont("helvetica", "normal");
+    const reasonLines = doc.splitTextToSize(val(referral.reason_for_referral), colW - 2).slice(0, 5);
+    doc.text(reasonLines, rightX, ry + 4);
+    ry += reasonLines.length * 3.8 + 6;
+
+    // ── Footer ────────────────────────────────────────────
+    const footerY = pageH - margin;
+    doc.setDrawColor(200);
+    doc.line(margin, footerY - 4, pageW - margin, footerY - 4);
+    doc.setFontSize(6);
+    doc.setTextColor(150);
+    doc.text("Southern Philippines Medical Center — Confidential Patient Record", pageW / 2, footerY, { align: "center" });
+
+    doc.save(`referral-${referral.referral_id}-${referral.patient_full_name.replace(/\s+/g, "_")}.pdf`);
+    setOpenKebabId(null);
+  };
   
   // Referral Requests page is exclusively for unassigned/new requests.
   const getReferralRequestsQueue = (allReferrals: any[]) =>
@@ -1411,6 +1584,29 @@ export const ReferralTable = () => {
                             <XCircle className="w-4 h-4" />
                           </Button>
                         )}
+                        {/* Kebab menu */}
+                        <div className="relative" ref={openKebabId === (referral.id || referral.referral_id) ? kebabRef : null}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                            onClick={() => setOpenKebabId(openKebabId === (referral.id || referral.referral_id) ? null : (referral.id || referral.referral_id))}
+                            title="More options"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                          {openKebabId === (referral.id || referral.referral_id) && (
+                            <div className="absolute right-0 top-8 z-50 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1">
+                              <button
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                onClick={() => downloadPatientPDF(referral)}
+                              >
+                                <Download className="w-4 h-4" />
+                                Download Patient Info
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
