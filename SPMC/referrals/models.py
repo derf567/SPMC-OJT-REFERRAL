@@ -35,6 +35,9 @@ class UserProfile(models.Model):
     hospital_district = models.CharField(max_length=100, blank=True, null=True)
     hospital_doh_level = models.CharField(max_length=50, blank=True, null=True)
     contact_numbers = models.JSONField(default=list, blank=True)
+    is_referrer_suspended = models.BooleanField(default=False)
+    referrer_suspended_until = models.DateTimeField(blank=True, null=True)
+    referrer_suspension_reason = models.TextField(blank=True, null=True)
     
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.get_role_display()}"
@@ -42,7 +45,13 @@ class UserProfile(models.Model):
     @property
     def can_create_referrals(self):
         """Only external users (referrers) can create referrals"""
-        return self.role == 'referrer'
+        if self.role != 'referrer':
+            return False
+        if not self.is_referrer_suspended:
+            return True
+        if self.referrer_suspended_until and self.referrer_suspended_until <= timezone.now():
+            return True
+        return False
     
     @property
     def can_view_referrals(self):
@@ -190,6 +199,12 @@ class Referral(models.Model):
         ('urgent', 'Urgent'),
         ('schedule_opd', 'Schedule for OPD'),
     ]
+
+    FRAUD_RISK_LEVEL_CHOICES = [
+        ('low', 'Low Possibility'),
+        ('medium', 'Medium Possibility'),
+        ('high', 'High Possibility'),
+    ]
     
     DEPARTMENT_CHOICES = [
         ('emergency', 'Emergency Department'),
@@ -335,6 +350,25 @@ class Referral(models.Model):
     # Delay notification tracking
     delay_notified_at = models.DateTimeField(null=True, blank=True, help_text="When triage/EDCC was notified of transfer delay")
     delay_reason = models.TextField(blank=True, null=True, help_text="Reason for transfer delay")
+
+    # Fraud/spam risk assessment (rule-based, non-AI)
+    fraud_risk_score = models.IntegerField(default=0, help_text="Rule-based fraud/spam risk score (0-100)")
+    fraud_risk_level = models.CharField(
+        max_length=10,
+        choices=FRAUD_RISK_LEVEL_CHOICES,
+        default='low',
+        help_text="Low/Medium/High possibility that referral is spam/fraud",
+    )
+    fraud_risk_flags = models.JSONField(default=list, blank=True, help_text="Triggered fraud/spam detection rules")
+    fraud_requires_manual_review = models.BooleanField(
+        default=False,
+        help_text="Whether referral should be manually reviewed by EDCC/EDMA due to fraud risk",
+    )
+    fraud_last_evaluated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When fraud/spam risk was last evaluated",
+    )
     
     class Meta:
         ordering = ['-created_at']
@@ -452,6 +486,35 @@ class ReferralStatusHistory(models.Model):
     
     def __str__(self):
         return f"{self.referral.referral_id}: {self.old_status} → {self.new_status}"
+
+class ReferralFraudAuditLog(models.Model):
+    """Audit log for automatic fraud scoring and manual review actions."""
+
+    ACTION_CHOICES = [
+        ('auto_evaluated', 'Auto Evaluated'),
+        ('mark_safe', 'Mark Safe'),
+        ('keep_flagged', 'Keep Flagged'),
+        ('suspend_referrer', 'Suspend Referrer'),
+    ]
+
+    referral = models.ForeignKey(Referral, on_delete=models.CASCADE, related_name='fraud_audit_logs')
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    previous_risk_level = models.CharField(max_length=10, blank=True, null=True)
+    new_risk_level = models.CharField(max_length=10, blank=True, null=True)
+    previous_requires_manual_review = models.BooleanField(default=False)
+    new_requires_manual_review = models.BooleanField(default=False)
+    risk_score = models.IntegerField(default=0)
+    flags_snapshot = models.JSONField(default=list, blank=True)
+    notes = models.TextField(blank=True, null=True)
+    acted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.referral.referral_id} - {self.action}"
+
 
 class ReferralDocument(models.Model):
     """Store uploaded documents for referrals"""

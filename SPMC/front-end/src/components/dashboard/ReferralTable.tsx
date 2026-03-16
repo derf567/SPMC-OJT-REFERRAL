@@ -73,6 +73,7 @@ interface ReferralData {
   hospital_location?: string;
   hospital_contact_numbers?: string[];
   contact_numbers?: string[];
+  vital_signs_date?: string;
   vital_signs_time?: string;
 }
 

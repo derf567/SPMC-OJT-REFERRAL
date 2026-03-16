@@ -421,6 +421,23 @@ export const referralsAPI = {
     return apiRequest(`/referrals/triage_referrals/${queryString}`);
   },
 
+  // Fraud review panel data (EDCC/EDMA)
+  getFraudFlags: async (id: string) => {
+    return apiRequest(`/referrals/${id}/fraud_flags/`);
+  },
+
+  // Fraud review actions (mark_safe, keep_flagged, suspend_referrer)
+  reviewFraud: async (id: string, action: 'mark_safe' | 'keep_flagged' | 'suspend_referrer', notes?: string, suspensionDays?: number) => {
+    return apiRequest(`/referrals/${id}/review_fraud/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        action,
+        notes: notes || '',
+        suspension_days: suspensionDays || 7,
+      }),
+    });
+  },
+
   // Accept referral with triage decision (Triage user action)
   acceptWithTriageDecision: async (id: string, triageDecision: string, assignedDepartments: string[], triageNotes?: string, scheduledDate?: string, scheduledTime?: string) => {
     const requestBody: any = {

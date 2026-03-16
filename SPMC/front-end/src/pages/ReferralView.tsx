@@ -16,7 +16,6 @@ import {
   Truck,
   XCircle,
   Download,
-  Phone,
   MessageSquare,
   Clock
 } from "lucide-react";
@@ -34,6 +33,9 @@ export const ReferralView = () => {
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [fraudNotes, setFraudNotes] = useState('');
+  const [suspensionDays, setSuspensionDays] = useState(7);
+  const [fraudActionLoading, setFraudActionLoading] = useState(false);
 
   const loadReferral = async () => {
     if (!id) return;
@@ -86,6 +88,30 @@ export const ReferralView = () => {
       });
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleFraudReviewAction = async (action: 'mark_safe' | 'keep_flagged' | 'suspend_referrer') => {
+    if (!id) return;
+
+    try {
+      setFraudActionLoading(true);
+      await referralsAPI.reviewFraud(id, action, fraudNotes, suspensionDays);
+      toast({
+        title: "Success",
+        description: "Fraud review action applied.",
+      });
+      setFraudNotes('');
+      await loadReferral();
+    } catch (error: any) {
+      console.error('Error applying fraud review action:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to apply fraud review action.",
+        variant: "destructive",
+      });
+    } finally {
+      setFraudActionLoading(false);
     }
   };
 
@@ -322,6 +348,12 @@ export const ReferralView = () => {
   const canCancel = referral.status !== 'cancelled' && referral.status !== 'completed';
   // EDCC and EDMA can download PDF
   const canDownloadPDF = isEDCCorTriage;
+  const riskBadgeClass =
+    referral.fraud_risk_level === 'high'
+      ? 'bg-red-100 text-red-800 border-red-300'
+      : referral.fraud_risk_level === 'medium'
+      ? 'bg-amber-100 text-amber-800 border-amber-300'
+      : 'bg-emerald-100 text-emerald-800 border-emerald-300';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -457,6 +489,117 @@ export const ReferralView = () => {
                     <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">Triage Notes</p>
                     <p className="text-gray-900 dark:text-white whitespace-pre-wrap text-sm">{referral.triage_notes}</p>
                   </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Fraud Flags Panel (EDCC/EDMA only) */}
+          {isEDCCorTriage && (
+            <div className="mx-6 mt-4 rounded-lg border-2 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-300 uppercase tracking-wide">Fraud Flags Panel</p>
+                  <p className="text-xs text-red-600 dark:text-red-400">Rule-based spam/fraud screening for EDCC/EDMA review</p>
+                </div>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${riskBadgeClass}`}>
+                  {(referral.fraud_risk_level || 'low').toUpperCase()} POSSIBILITY
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                <div className="bg-white/70 dark:bg-gray-800/50 rounded p-3">
+                  <p className="text-xs text-gray-500">Risk Score</p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-white">{referral.fraud_risk_score ?? 0}/100</p>
+                </div>
+                <div className="bg-white/70 dark:bg-gray-800/50 rounded p-3">
+                  <p className="text-xs text-gray-500">Manual Review</p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-white">{referral.fraud_requires_manual_review ? 'Required' : 'Not Required'}</p>
+                </div>
+                <div className="bg-white/70 dark:bg-gray-800/50 rounded p-3">
+                  <p className="text-xs text-gray-500">Last Evaluated</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {referral.fraud_last_evaluated_at ? new Date(referral.fraud_last_evaluated_at).toLocaleString() : 'Not yet evaluated'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300 mb-2">Triggered Flags</p>
+                {referral.fraud_risk_flags?.length ? (
+                  <div className="space-y-2">
+                    {referral.fraud_risk_flags.map((flag: any, idx: number) => (
+                      <div key={idx} className="p-3 rounded border border-red-200 dark:border-red-700 bg-white/70 dark:bg-gray-800/40">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{flag.code?.replace(/_/g, ' ') || 'flag'}</p>
+                        <p className="text-sm text-gray-700 dark:text-gray-200">{flag.message || 'Triggered by fraud rule.'}</p>
+                        <p className="text-xs text-red-600 dark:text-red-300 mt-1">+{flag.points || 0} points</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-700 dark:text-gray-200">No fraud flags triggered for this referral.</p>
+                )}
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300 mb-2">
+                  Review Notes
+                </label>
+                <textarea
+                  value={fraudNotes}
+                  onChange={(e) => setFraudNotes(e.target.value)}
+                  placeholder="Add notes for your manual review decision..."
+                  className="w-full px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-800 dark:text-white resize-none"
+                  rows={3}
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300 mb-2">
+                  Suspension Days
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={suspensionDays}
+                  onChange={(e) => setSuspensionDays(Number(e.target.value || 1))}
+                  className="w-32 px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-800 dark:text-white"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button disabled={fraudActionLoading} onClick={() => handleFraudReviewAction('mark_safe')} className="bg-emerald-600 hover:bg-emerald-700">
+                  Mark Safe
+                </Button>
+                <Button disabled={fraudActionLoading} onClick={() => handleFraudReviewAction('keep_flagged')} className="bg-amber-600 hover:bg-amber-700">
+                  Keep Flagged
+                </Button>
+                <Button disabled={fraudActionLoading} onClick={() => handleFraudReviewAction('suspend_referrer')} className="bg-red-600 hover:bg-red-700">
+                  Suspend Referrer
+                </Button>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300 mb-2">Audit Trail</p>
+                {referral.fraud_audit_logs?.length ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {referral.fraud_audit_logs.map((log: any) => (
+                      <div key={log.id} className="p-3 rounded border border-red-200 dark:border-red-700 bg-white/70 dark:bg-gray-800/40">
+                        <p className="text-xs font-semibold uppercase text-red-700 dark:text-red-300">
+                          {log.action?.replace(/_/g, ' ')} · {log.acted_by_name || 'System'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {log.created_at ? new Date(log.created_at).toLocaleString() : ''}
+                        </p>
+                        <p className="text-sm text-gray-900 dark:text-white">
+                          Risk: {(log.previous_risk_level || 'n/a').toUpperCase()} → {(log.new_risk_level || 'n/a').toUpperCase()} ({log.risk_score ?? 0}/100)
+                        </p>
+                        {log.notes && <p className="text-sm text-gray-700 dark:text-gray-200 mt-1">{log.notes}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-700 dark:text-gray-200">No fraud review logs yet.</p>
                 )}
               </div>
             </div>

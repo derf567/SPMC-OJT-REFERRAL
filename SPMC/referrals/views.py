@@ -7,14 +7,16 @@ from django.db.models import Q, Count, Max
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
+from datetime import timedelta
 from .models import (
     ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory,
-    Department, DepartmentAcceptance
+    Department, DepartmentAcceptance, ReferralFraudAuditLog
 )
 from .serializers import (
     ReferringHospitalSerializer, SpecialtySerializer, ReferralListSerializer,
     ReferralDetailSerializer, ReferralCreateSerializer, ReferralUpdateSerializer,
-    StatusUpdateSerializer, TransitInfoSerializer, DepartmentSerializer, DepartmentAcceptanceSerializer
+    StatusUpdateSerializer, TransitInfoSerializer, DepartmentSerializer, DepartmentAcceptanceSerializer,
+    ReferralFraudAuditLogSerializer
 )
 from .models import ReferrerAccount
 from .serializers import ReferrerAccountSerializer, ReferrerRegistrationSerializer
@@ -68,7 +70,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
     queryset = Referral.objects.select_related(
         'specialty_needed', 'referring_hospital', 'created_by', 'assigned_to',
         'transferred_by', 'triaged_by', 'triage_verified_by'
-    ).prefetch_related('transit_info', 'status_history', 'documents', 'department_acceptances')
+    ).prefetch_related('transit_info', 'status_history', 'documents', 'department_acceptances', 'fraud_audit_logs')
     filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
     search_fields = [
         'referral_id', 'patient_full_name', 'hrn', 'chief_complaint',
@@ -76,7 +78,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
     ]
     filterset_fields = [
         'status', 'priority', 'is_urgent', 'gender', 'patient_category',
-        'admission_status', 'rtpcr_result', 'specialty_needed', 'referring_hospital'
+        'admission_status', 'rtpcr_result', 'specialty_needed', 'referring_hospital',
+        'fraud_risk_level', 'fraud_requires_manual_review'
     ]
     ordering_fields = ['created_at', 'updated_at', 'patient_full_name', 'age']
     ordering = ['-created_at']
@@ -149,6 +152,15 @@ class ReferralViewSet(viewsets.ModelViewSet):
                     )
         
         return queryset
+
+    def _can_manage_fraud_review(self, user):
+        if not user.is_authenticated:
+            return False
+        if user.is_staff or user.is_superuser:
+            return True
+        if not hasattr(user, 'profile'):
+            return False
+        return user.profile.role in ['edcc_personnel', 'call_triage', 'admin']
     
     def update(self, request, *args, **kwargs):
         """Override update to check if referral can be edited"""
@@ -1745,6 +1757,125 @@ class ReferralViewSet(viewsets.ModelViewSet):
             })
         
         return Response(result)
+
+    @action(detail=True, methods=['get'])
+    def fraud_flags(self, request, pk=None):
+        """Get fraud risk flags and audit entries for EDCC/EDMA review."""
+        referral = self.get_object()
+
+        if not self._can_manage_fraud_review(request.user):
+            return Response({
+                'error': 'You do not have permission to view fraud review details.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        audit_qs = referral.fraud_audit_logs.select_related('acted_by').all()[:20]
+        audit_data = ReferralFraudAuditLogSerializer(audit_qs, many=True).data
+
+        return Response({
+            'referral_id': referral.referral_id,
+            'risk_score': referral.fraud_risk_score,
+            'risk_level': referral.fraud_risk_level,
+            'requires_manual_review': referral.fraud_requires_manual_review,
+            'flags': referral.fraud_risk_flags or [],
+            'last_evaluated_at': referral.fraud_last_evaluated_at,
+            'audit_trail': audit_data,
+        })
+
+    @action(detail=True, methods=['post'])
+    def review_fraud(self, request, pk=None):
+        """Manual fraud review actions: mark_safe, keep_flagged, suspend_referrer."""
+        referral = self.get_object()
+
+        if not self._can_manage_fraud_review(request.user):
+            return Response({
+                'error': 'You do not have permission to perform fraud review actions.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        review_action = (request.data.get('action') or '').strip().lower()
+        notes = (request.data.get('notes') or '').strip()
+        try:
+            suspension_days = int(request.data.get('suspension_days') or 7)
+        except (TypeError, ValueError):
+            return Response({
+                'error': 'suspension_days must be a valid integer.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if review_action not in ['mark_safe', 'keep_flagged', 'suspend_referrer']:
+            return Response({
+                'error': "Invalid action. Use 'mark_safe', 'keep_flagged', or 'suspend_referrer'."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        previous_risk_level = referral.fraud_risk_level
+        previous_manual_review = referral.fraud_requires_manual_review
+        action_note = notes
+
+        if review_action == 'mark_safe':
+            referral.fraud_requires_manual_review = False
+            referral.fraud_risk_level = 'low'
+            referral.fraud_risk_score = min(referral.fraud_risk_score, 15)
+            action_note = notes or 'Marked safe by reviewer.'
+
+        elif review_action == 'keep_flagged':
+            referral.fraud_requires_manual_review = True
+            if referral.fraud_risk_level == 'low':
+                referral.fraud_risk_level = 'medium'
+            action_note = notes or 'Fraud/spam flag retained after manual review.'
+
+        elif review_action == 'suspend_referrer':
+            creator_profile = getattr(referral.created_by, 'profile', None)
+            if not creator_profile or creator_profile.role != 'referrer':
+                return Response({
+                    'error': 'Referral creator is not a referrer account and cannot be suspended.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            creator_profile.is_referrer_suspended = True
+            creator_profile.referrer_suspended_until = timezone.now() + timedelta(days=max(1, suspension_days))
+            creator_profile.referrer_suspension_reason = notes or 'Suspended due to fraud/spam review action.'
+            creator_profile.save(update_fields=[
+                'is_referrer_suspended',
+                'referrer_suspended_until',
+                'referrer_suspension_reason',
+            ])
+            referral.fraud_requires_manual_review = True
+            referral.fraud_risk_level = 'high'
+            referral.fraud_risk_score = max(referral.fraud_risk_score, 80)
+            action_note = notes or f'Referrer suspended for {max(1, suspension_days)} day(s).'
+
+        referral.fraud_last_evaluated_at = timezone.now()
+        referral.save(update_fields=[
+            'fraud_risk_score',
+            'fraud_risk_level',
+            'fraud_requires_manual_review',
+            'fraud_last_evaluated_at',
+        ])
+
+        ReferralFraudAuditLog.objects.create(
+            referral=referral,
+            action=review_action,
+            previous_risk_level=previous_risk_level,
+            new_risk_level=referral.fraud_risk_level,
+            previous_requires_manual_review=previous_manual_review,
+            new_requires_manual_review=referral.fraud_requires_manual_review,
+            risk_score=referral.fraud_risk_score,
+            flags_snapshot=referral.fraud_risk_flags or [],
+            notes=action_note,
+            acted_by=request.user,
+        )
+
+        ReferralStatusHistory.objects.create(
+            referral=referral,
+            old_status=referral.status,
+            new_status=referral.status,
+            changed_by=request.user,
+            notes=f"Fraud review action '{review_action}' performed. {action_note}",
+        )
+
+        return Response({
+            'message': 'Fraud review action applied successfully.',
+            'action': review_action,
+            'risk_level': referral.fraud_risk_level,
+            'risk_score': referral.fraud_risk_score,
+            'requires_manual_review': referral.fraud_requires_manual_review,
+        })
 
     @action(detail=True, methods=['post'])
     def delay_transfer(self, request, pk=None):

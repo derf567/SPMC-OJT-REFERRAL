@@ -1,9 +1,12 @@
 from rest_framework import serializers
+from django.utils import timezone
 from .models import (
     ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory, 
     ReferralDocument, ReferrerAccount, ReferrerDocument, Department, DepartmentAcceptance,
+    ReferralFraudAuditLog,
     UserProfile
 )
+from .fraud_detection import evaluate_referral_fraud_risk
 
 class ReferringHospitalSerializer(serializers.ModelSerializer):
     class Meta:
@@ -46,6 +49,18 @@ class ReferralStatusHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ReferralStatusHistory
         fields = '__all__'
+
+
+class ReferralFraudAuditLogSerializer(serializers.ModelSerializer):
+    acted_by_name = serializers.SerializerMethodField()
+
+    def get_acted_by_name(self, obj):
+        return obj.acted_by.get_full_name() if obj.acted_by else None
+
+    class Meta:
+        model = ReferralFraudAuditLog
+        fields = '__all__'
+
 
 class ReferralDocumentSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.SerializerMethodField()
@@ -260,6 +275,10 @@ class ReferralListSerializer(serializers.ModelSerializer):
             # Delay notification tracking
             'delay_notified_at', 'delay_reason',
 
+            # Fraud/spam risk classification
+            'fraud_risk_score', 'fraud_risk_level', 'fraud_risk_flags',
+            'fraud_requires_manual_review', 'fraud_last_evaluated_at',
+
             # Transit info (includes remarks)
             'transit_info',
         ]
@@ -277,6 +296,7 @@ class ReferralDetailSerializer(serializers.ModelSerializer):
     
     transit_info = TransitInfoSerializer(read_only=True)
     status_history = ReferralStatusHistorySerializer(many=True, read_only=True)
+    fraud_audit_logs = ReferralFraudAuditLogSerializer(many=True, read_only=True)
     documents = ReferralDocumentSerializer(many=True, read_only=True)
     department_acceptances = DepartmentAcceptanceSerializer(many=True, read_only=True)
     acceptance_summary = serializers.SerializerMethodField()
@@ -334,7 +354,11 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Referral
-        exclude = ['referral_id', 'created_by', 'created_at', 'updated_at']
+        exclude = [
+            'referral_id', 'created_by', 'created_at', 'updated_at',
+            'fraud_risk_score', 'fraud_risk_level', 'fraud_risk_flags',
+            'fraud_requires_manual_review', 'fraud_last_evaluated_at',
+        ]
         extra_kwargs = {
             'referring_hospital': {'required': False}  # Make it optional since we can use hospital_name instead
         }
@@ -376,6 +400,14 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
         # Set the created_by from the request user if authenticated, otherwise use a default
         request = self.context.get('request')
         if request and request.user.is_authenticated:
+            if hasattr(request.user, 'profile') and request.user.profile.role == 'referrer':
+                profile = request.user.profile
+                if profile.is_referrer_suspended:
+                    if not profile.referrer_suspended_until or profile.referrer_suspended_until > timezone.now():
+                        raise serializers.ValidationError({
+                            'detail': 'Your referrer account is suspended from creating referrals.',
+                            'reason': profile.referrer_suspension_reason or 'No reason provided.',
+                        })
             validated_data['created_by'] = request.user
         else:
             # For anonymous submissions, create or get a system user
@@ -402,6 +434,12 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
         # Create transit info if provided
         if transit_info_data:
             TransitInfo.objects.create(referral=referral, **transit_info_data)
+
+        evaluate_referral_fraud_risk(
+            referral,
+            request=request,
+            acted_by=request.user if request and request.user.is_authenticated else None,
+        )
         
         return referral
 
@@ -419,7 +457,7 @@ class ReferralUpdateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Referral
-        exclude = ['referral_id', 'created_by', 'created_at']
+        exclude = ['referral_id', 'created_by', 'created_at', 'fraud_last_evaluated_at']
     
     def update(self, instance, validated_data):
         transit_info_data = validated_data.pop('transit_info', None)
@@ -440,6 +478,13 @@ class ReferralUpdateSerializer(serializers.ModelSerializer):
             else:
                 # Create new transit info
                 TransitInfo.objects.create(referral=instance, **transit_info_data)
+
+        request = self.context.get('request')
+        evaluate_referral_fraud_risk(
+            instance,
+            request=request,
+            acted_by=request.user if request and request.user.is_authenticated else None,
+        )
         
         return instance
 

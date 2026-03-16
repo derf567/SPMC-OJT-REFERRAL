@@ -27,6 +27,7 @@ import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AccountApproval from "./pages/admin/AccountApproval";
 import DepartmentSettings from "./pages/admin/DepartmentSettings";
+import FraudMonitor from "./pages/FraudMonitor";
 
 const queryClient = new QueryClient();
 
@@ -160,6 +161,11 @@ const App = () => (
             <Route path="/incoming" element={
               <ProtectedRoute>
                 <IncomingReferrals />
+              </ProtectedRoute>
+            } />
+            <Route path="/fraud-monitor" element={
+              <ProtectedRoute>
+                <FraudMonitor />
               </ProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
