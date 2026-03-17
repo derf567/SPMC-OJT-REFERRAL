@@ -84,6 +84,7 @@ interface ReferralFormData {
   referrerProfession: string;
   referrerProfessionOther: string;
   referrerCellphone: string;
+  referrerContactNumbers: string[];
   modeOfTransportation: string;
   modeOfTransportationOther: string;
   
@@ -137,6 +138,7 @@ const initialFormData: ReferralFormData = {
   referrerProfession: "",
   referrerProfessionOther: "",
   referrerCellphone: "",
+  referrerContactNumbers: [],
   modeOfTransportation: "",
   modeOfTransportationOther: "",
   
@@ -167,6 +169,7 @@ const ExternalReferral = () => {
   const [loadingCities, setLoadingCities] = useState(false);
   
   // Contact number input states - removed all contact input states
+  const [referrerContactInput, setReferrerContactInput] = useState("");
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -341,6 +344,7 @@ const ExternalReferral = () => {
             referrerProfession: referralData.referrer_profession || '',
             referrerProfessionOther: referralData.referrer_profession_other || '',
             referrerCellphone: referralData.referrer_cellphone || '',
+            referrerContactNumbers: referralData.referrer_contact_numbers || [],
             modeOfTransportation: (() => {
               const transportMode = referralData.mode_of_transportation || '';
               const validOptions = ['ambulance', 'private_vehicle', 'patient_transport_vehicle', 'air_ambulance'];
@@ -779,8 +783,8 @@ const ExternalReferral = () => {
         referrer_name: formData.referrerName,
         referrer_profession: formData.referrerProfession,
         referrer_profession_other: formData.referrerProfession === "others" ? formData.referrerProfessionOther : null,
-        referrer_cellphone: formData.referrerCellphone || null,
-        referrer_contact_numbers: [],
+        referrer_cellphone: formData.referrerCellphone || formData.referrerContactNumbers[0] || '',
+        referrer_contact_numbers: formData.referrerContactNumbers,
         patient_watcher_name: null,
         patient_watcher_contact_numbers: [],
         contact_numbers: [],
@@ -1761,6 +1765,65 @@ const ExternalReferral = () => {
               </div>
 
               {/* Row 2: Profession of Referrer - Mode of Transportation */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Referrer Contact Numbers
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="tel"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
+                      placeholder="e.g. 09171234567"
+                      value={referrerContactInput}
+                      onChange={(e) => setReferrerContactInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const num = referrerContactInput.trim();
+                          if (num && !formData.referrerContactNumbers.includes(num)) {
+                            updateFormData('referrerContactNumbers', [...formData.referrerContactNumbers, num]);
+                          }
+                          setReferrerContactInput('');
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const num = referrerContactInput.trim();
+                        if (num && !formData.referrerContactNumbers.includes(num)) {
+                          updateFormData('referrerContactNumbers', [...formData.referrerContactNumbers, num]);
+                        }
+                        setReferrerContactInput('');
+                      }}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {formData.referrerContactNumbers.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.referrerContactNumbers.map((num, idx) => (
+                        <span key={idx} className="flex items-center gap-1 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 text-sm px-2 py-1 rounded-full">
+                          <Phone className="w-3 h-3" />
+                          {num}
+                          <button
+                            type="button"
+                            onClick={() => updateFormData('referrerContactNumbers', formData.referrerContactNumbers.filter((_, i) => i !== idx))}
+                            className="ml-1 text-blue-500 hover:text-red-500 font-bold leading-none"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Press Enter or click Add to include multiple numbers</p>
+                </div>
+              </div>
+
+              {/* Row 3: Profession of Referrer - Mode of Transportation */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
