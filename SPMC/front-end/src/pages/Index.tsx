@@ -357,8 +357,8 @@ const Index = () => {
               <span className="text-xs text-gray-400">{formatDate(referral.created_at)}</span>
               <button
                 onClick={(e) => openTimelineModal(e, referral)}
-                className="ml-auto text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline"
-                title="View timeline"
+                className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
+                title="Timeline"
               >
                 <Clock className="w-3 h-3" />
                 Timeline

@@ -514,13 +514,14 @@ const Outpatient = () => {
                         <td className="p-4">
                           <div className="flex items-center gap-2">
                             <Button 
-                              variant="ghost" 
+                              variant="outline" 
                               size="sm" 
-                              className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                              className="h-8 gap-1.5 border-slate-300 bg-white/70 px-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-700/60"
                               onClick={() => setSelectedOutpatient(outpatient)}
-                              title="View Details"
+                              title="Details"
                             >
-                              <Eye className="w-4 h-4" />
+                              <Eye className="h-3.5 w-3.5" />
+                              Details
                             </Button>
                             {!showCompleted && user?.permissions?.can_triage_referrals && (
                               <Button 

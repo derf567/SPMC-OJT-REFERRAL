@@ -26,6 +26,7 @@ import {
   LucideIcon,
   ClipboardList,
   ShieldAlert,
+  Truck,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -61,7 +62,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Referral Requests", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
     { name: "Endorsement & Transit", href: "/endorsement-transit", icon: ClipboardList },
-    { name: "Patient Arrival", href: "/triage", icon: ClipboardList },
+    { name: "Patient Arrival", href: "/triage", icon: Truck },
     { name: "Fraud Monitor", href: "/fraud-monitor", icon: ShieldAlert },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
     { name: "Archived Referrals", href: "/patients", icon: Users },

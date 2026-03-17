@@ -345,10 +345,12 @@ const DoctorDashboard = () => {
                           <Button
                             variant="outline"
                             size="sm"
+                            className="h-8 gap-1.5 border-slate-300 bg-white/70 px-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-700/60"
                             onClick={() => navigate(`/referral/view/${referral.id}`)}
+                            title="Details"
                           >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View
+                            <Eye className="h-3.5 w-3.5" />
+                            Details
                           </Button>
                           {canDecide && (
                             <>
@@ -356,7 +358,7 @@ const DoctorDashboard = () => {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleDecision(referral, 'accept')}
-                                className="text-green-600 border-green-600 hover:bg-green-50"
+                                className="h-8 rounded-md border-emerald-500/50 bg-emerald-500/15 px-3 text-emerald-300 hover:border-emerald-400 hover:bg-emerald-500/25"
                               >
                                 <CheckCircle className="w-4 h-4 mr-1" />
                                 Accept
@@ -365,7 +367,7 @@ const DoctorDashboard = () => {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleDecision(referral, 'reject')}
-                                className="text-red-600 border-red-600 hover:bg-red-50"
+                                className="h-8 rounded-md border-rose-500/50 bg-rose-500/15 px-3 text-rose-300 hover:border-rose-400 hover:bg-rose-500/25"
                               >
                                 <XCircle className="w-4 h-4 mr-1" />
                                 Reject

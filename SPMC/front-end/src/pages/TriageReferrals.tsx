@@ -368,25 +368,27 @@ const PatientArrivalPage = () => {
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
                           <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-slate-300 hover:bg-slate-700/40 hover:text-slate-100"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5 border-blue-200 bg-blue-50 px-2 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
                             onClick={() => openTimeline(referral)}
                             title="Timeline"
                             aria-label="Timeline"
                           >
-                            <Clock className="h-4 w-4" />
+                            <Clock className="h-3.5 w-3.5" />
+                            Timeline
                           </Button>
 
                           <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-slate-300 hover:bg-slate-700/40 hover:text-slate-100"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5 border-slate-300 bg-white/70 px-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-700/60"
                             onClick={() => openDetails(referral)}
-                            title="View details"
-                            aria-label="View details"
+                            title="Details"
+                            aria-label="Details"
                           >
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-3.5 w-3.5" />
+                            Details
                           </Button>
 
                           <Button
@@ -406,7 +408,7 @@ const PatientArrivalPage = () => {
                             disabled={submitting}
                             onClick={() => handleMarkComplete(referral)}
                           >
-                            COMPLETE
+                            Complete
                           </Button>
 
                           <Button
@@ -418,7 +420,7 @@ const PatientArrivalPage = () => {
                               setCancelOpen(true);
                             }}
                           >
-                            CANCELLED
+                            Cancel
                           </Button>
                         </div>
                       </td>
@@ -632,7 +634,7 @@ const PatientArrivalPage = () => {
               </Button>
               <Button className="bg-red-600 text-white hover:bg-red-700" onClick={handleCancelInTransit} disabled={submitting}>
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Confirm Cancelled
+                Confirm Cancel
               </Button>
             </div>
           </div>

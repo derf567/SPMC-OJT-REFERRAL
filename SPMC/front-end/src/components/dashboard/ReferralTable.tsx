@@ -1473,14 +1473,16 @@ export const ReferralTable = () => {
                         <Badge className={getStatusColor(referral.status)}>
                           {referral.status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                         </Badge>
-                        <button
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => openTimelineModal(referral)}
-                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline whitespace-nowrap"
-                          title="View referral timeline"
+                          className="h-7 gap-1.5 border-blue-200 bg-blue-50 px-2 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35 whitespace-nowrap"
+                          title="Timeline"
                         >
-                          <Clock className="w-3 h-3" />
+                          <Clock className="h-3.5 w-3.5" />
                           Timeline
-                        </button>
+                        </Button>
                       </div>
                     </td>
                     <td className="p-4 text-gray-500 dark:text-gray-400 text-sm">
@@ -1495,12 +1497,14 @@ export const ReferralTable = () => {
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <Button 
-                          variant="ghost" 
+                          variant="outline" 
                           size="sm" 
-                          className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                          className="h-8 gap-1.5 border-slate-300 bg-white/70 px-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-700/60"
                           onClick={() => setSelectedReferral(referral)}
+                          title="Details"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="h-3.5 w-3.5" />
+                          Details
                         </Button>
                         {/* Edit button for EDCC/Triage users */}
                         {(user?.role === 'edcc_personnel' || user?.role === 'call_triage' || user?.permissions?.can_triage_referrals) && (

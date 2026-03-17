@@ -8,6 +8,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   FileText,
   Clock,
+  Eye,
   CheckCircle,
   AlertTriangle,
   Plus,
@@ -455,24 +456,24 @@ const ReferrerDashboard = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <div className="rounded-lg border border-green-300 dark:border-green-700 bg-green-50 dark:bg-gray-900/40 p-3 shadow-sm">
-              <h4 className="font-semibold text-green-800 dark:text-green-200 flex items-center gap-2">
+            <div className="rounded-lg border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 p-3 shadow-sm">
+              <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 flex items-center gap-2">
                 <PhoneCall className="w-4 h-4" />
                 Contact Main Service and Co-Manage
               </h4>
               <div className="mt-2 space-y-2">
                 {recentReferrals.filter(r => r.status === 'waiting_acceptance' || r.status === 'in_transit').map((referral) => (
-                  <div key={`contact-${referral.id}`} className="rounded-lg border border-green-200 dark:border-green-700 bg-white dark:bg-gray-800/40 p-2.5">
+                  <div key={`contact-${referral.id}`} className="rounded-lg border border-yellow-200 dark:border-yellow-700 bg-white dark:bg-gray-800/40 p-2.5">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                      <p className="text-sm font-semibold text-green-900 dark:text-green-100">{referral.patient_full_name}</p>
-                      <p className="text-xs text-green-700 dark:text-green-300">ID: {referral.referral_id}</p>
+                      <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-100">{referral.patient_full_name}</p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300">ID: {referral.referral_id}</p>
                     </div>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {(() => {
                         const mainServiceCode = getMainServiceCode(referral);
                         if (!mainServiceCode) {
                           return (
-                            <p className="text-xs text-green-700 dark:text-green-300">Main Service: Not assigned</p>
+                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Main Service: Not assigned</p>
                           );
                         }
                         const mainContact = getDepartmentContactText(mainServiceCode);
@@ -480,12 +481,12 @@ const ReferrerDashboard = () => {
                           <button
                             type="button"
                             onClick={() => openContactDetailsModal(referral, mainServiceCode)}
-                            className="inline-flex items-center gap-1 rounded-md border border-green-300 dark:border-green-600 bg-white dark:bg-green-900/30 px-2 py-1 hover:bg-green-50 dark:hover:bg-green-800/40 transition-colors"
+                            className="inline-flex items-center gap-1 rounded-md border border-yellow-300 dark:border-yellow-600 bg-white dark:bg-yellow-900/30 px-2 py-1 hover:bg-yellow-50 dark:hover:bg-yellow-800/40 transition-colors"
                             title={`View full details for ${getDepartmentDisplay(mainServiceCode)}`}
                           >
-                            <span className="text-[10px] uppercase tracking-wide text-green-700 dark:text-green-300 font-semibold">Main</span>
-                            <span className="text-xs font-semibold text-green-900 dark:text-green-100">{getDepartmentDisplay(mainServiceCode)}</span>
-                            <span className="text-[11px] text-green-700 dark:text-green-300">{mainContact}</span>
+                            <span className="text-[10px] uppercase tracking-wide text-yellow-700 dark:text-yellow-300 font-semibold">Main</span>
+                            <span className="text-xs font-semibold text-yellow-900 dark:text-yellow-100">{getDepartmentDisplay(mainServiceCode)}</span>
+                            <span className="text-[11px] text-yellow-700 dark:text-yellow-300">{mainContact}</span>
                           </button>
                         );
                       })()}
@@ -498,23 +499,23 @@ const ReferrerDashboard = () => {
                               type="button"
                               key={`co-manage-${referral.id}-${code}`}
                               onClick={() => openContactDetailsModal(referral, code)}
-                              className="inline-flex items-center gap-1 rounded-md border border-green-200 dark:border-green-700 bg-white dark:bg-gray-800/50 px-2 py-1 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                              className="inline-flex items-center gap-1 rounded-md border border-yellow-200 dark:border-yellow-700 bg-white dark:bg-gray-800/50 px-2 py-1 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors"
                               title={`View full details for ${getDepartmentDisplay(code)}`}
                             >
-                              <span className="text-[10px] uppercase tracking-wide text-green-700 dark:text-green-300 font-semibold">Co</span>
-                              <span className="text-xs font-semibold text-green-900 dark:text-green-100">{getDepartmentDisplay(code)}</span>
-                              <span className="text-[11px] text-green-700 dark:text-green-300">{coContact}</span>
+                              <span className="text-[10px] uppercase tracking-wide text-yellow-700 dark:text-yellow-300 font-semibold">Co</span>
+                              <span className="text-xs font-semibold text-yellow-900 dark:text-yellow-100">{getDepartmentDisplay(code)}</span>
+                              <span className="text-[11px] text-yellow-700 dark:text-yellow-300">{coContact}</span>
                             </button>
                           );
                         })
                       ) : (
-                        <p className="text-xs text-green-700 dark:text-green-300">Co-Manage: None</p>
+                        <p className="text-xs text-yellow-700 dark:text-yellow-300">Co-Manage: None</p>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-green-700 dark:text-green-300 mt-2">
+              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-2">
                 Please contact the assigned department(s) before transport.
               </p>
             </div>
@@ -709,8 +710,8 @@ const ReferrerDashboard = () => {
                     )}
                     <button
                       onClick={() => openTimelineModal(referral)}
-                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline whitespace-nowrap"
-                      title="View referral timeline"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35 whitespace-nowrap"
+                      title="Timeline"
                     >
                       <Clock className="w-3 h-3" />
                       Timeline
@@ -904,14 +905,18 @@ const ReferrerDashboard = () => {
               {/* Show View button for all referrals */}
               <Link
                 to={`/referral/view/${referral.id}`}
-                className="text-green-600 hover:text-green-800 dark:text-green-400 text-xs underline font-medium"
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white/70 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-700/60"
+                title="Details"
               >
-                👁️ View
+                <Eye className="w-3 h-3" />
+                Details
               </Link>
               <button
                 onClick={() => openTimelineModal(referral)}
-                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 text-xs underline"
+                className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
+                title="Timeline"
               >
+                <Clock className="w-3 h-3" />
                 Timeline
               </button>
             </div>
@@ -1059,11 +1064,11 @@ const ReferrerDashboard = () => {
                               )}
                               <button
                                 onClick={() => openTimelineModal(referral)}
-                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center gap-1 underline"
-                                title="View referral timeline"
+                                className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
+                                title="Timeline"
                               >
                                 <Clock className="w-3 h-3" />
-                                View Timeline
+                                Timeline
                               </button>
                             </div>
                           </div>

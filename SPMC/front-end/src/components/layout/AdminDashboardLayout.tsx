@@ -430,7 +430,7 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
                         className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600"
                       >
                         <LogOut className="w-4 h-4" />
-                        Logout
+                        Sign Out
                       </button>
                     </div>
                   )}
