@@ -304,6 +304,16 @@ const ReferrerDashboard = () => {
   };
 
   const getTimelineSteps = (referral: any) => {
+    const getLatestDate = (...dates: Array<string | undefined | null>) => {
+      const validDates = dates
+        .filter((date): date is string => Boolean(date))
+        .map((date) => ({ raw: date, ts: new Date(date).getTime() }))
+        .filter((entry) => !Number.isNaN(entry.ts))
+        .sort((a, b) => b.ts - a.ts);
+
+      return validDates.length > 0 ? validDates[0].raw : null;
+    };
+
     const isCancelled = referral.status === 'cancelled';
     const isScheduleOPD = referral.status === 'schedule_opd' || referral.triage_decision === 'schedule_opd';
     
@@ -350,7 +360,7 @@ const ReferrerDashboard = () => {
         completed: isCancelled
           ? false
           : (isScheduleOPD ? dispositionFinalized : (dispositionFinalized || mainServiceAccepted || inTransit || isCompleted)),
-        date: referral.triaged_at || referral.transferred_at,
+        date: getLatestDate(referral.triaged_at, referral.transferred_at),
         user: referral.triaged_by_user || referral.transferred_by_user || 'EDCC/EDMA',
         action: referral.triage_decision 
           ? `Assigned ${referral.triage_decision.replace('_', ' ').toUpperCase()} priority with Main Service` 
@@ -439,7 +449,7 @@ const ReferrerDashboard = () => {
       </div>
 
       {/* Waiting Acceptance/In Transit - single containers, multiple data rows */}
-      {recentReferrals.some(r => r.status === 'waiting_acceptance' || r.status === 'in_transit') && (
+      {recentReferrals.some(r => r.status === 'waiting_acceptance' || r.status === 'in_transit' || r.status === 'dispositioned') && (
         <div className="mb-4 space-y-3 animate-pulse">
           <div className="bg-white dark:bg-green-900/20 border-2 border-green-400 dark:border-green-600 rounded-lg p-4 shadow-sm">
             <div className="flex items-start gap-3">
@@ -520,6 +530,7 @@ const ReferrerDashboard = () => {
               </p>
             </div>
 
+            {recentReferrals.some(r => r.status === 'dispositioned') && (
             <div className="rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 p-3 shadow-sm">
               <h4 className="font-semibold text-orange-800 dark:text-orange-200 flex items-center gap-2">
                 <FileText className="w-4 h-4" />
@@ -529,7 +540,7 @@ const ReferrerDashboard = () => {
                 Transit template actions per referral.
               </p>
               <div className="mt-3 space-y-2">
-                {recentReferrals.filter(r => r.status === 'waiting_acceptance' || r.status === 'in_transit').map((referral) => (
+                {recentReferrals.filter(r => r.status === 'dispositioned').map((referral) => (
                   <button
                     key={`transit-${referral.id}`}
                     type="button"
@@ -549,6 +560,7 @@ const ReferrerDashboard = () => {
                 ))}
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -849,12 +861,39 @@ const ReferrerDashboard = () => {
               <h4 className="font-semibold text-gray-900 dark:text-white text-sm truncate">
                 {referral.patient_full_name}
               </h4>
-              {/* Show dispositioned badge with glow effect */}
+              {/* Show dispositioned actions dropdown */}
               {referral.status === 'dispositioned' && (
-                <span className="bg-green-600 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1 animate-pulse shadow-lg shadow-green-500/50 flex-shrink-0">
-                  <CheckCircle className="w-3 h-3" />
-                  Fill Form
-                </span>
+                <div className="flex-shrink-0">
+                  <TransferActionDropdown
+                    referralId={referral.id || ''}
+                    patientName={referral.patient_full_name || ''}
+                    triggerLabel="Fill Form"
+                    hasDelayNotification={!!referral.delay_notified_at}
+                    onFillForm={() => {
+                      setTransitFormReferral(referral);
+                      setTransitFormModalOpen(true);
+                    }}
+                    onDelaySuccess={() => {
+                      const fetchDashboardData = async () => {
+                        try {
+                          const response = await referralsAPI.getMySubmittedReferrals();
+                          const referrals = response.results || response;
+                          if (Array.isArray(referrals)) {
+                            setAllReferrals(referrals);
+                            const sortedReferrals = referrals
+                              .filter(r => r.status !== 'completed' && r.status !== 'uncoordinated')
+                              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                              .slice(0, 5);
+                            setRecentReferrals(sortedReferrals);
+                          }
+                        } catch (error) {
+                          console.error('Error refreshing dashboard:', error);
+                        }
+                      };
+                      fetchDashboardData();
+                    }}
+                  />
+                </div>
               )}
               {/* Show emergent badge if marked as emergent */}
               {referral.triage_decision === 'emergent' && referral.status === 'in_transit' && (

@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ReferrerDashboardLayout } from "@/components/layout/ReferrerDashboardLayout";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Search,
   Calendar,
+  Clock,
   MapPin,
   FileText,
   AlertTriangle,
@@ -86,6 +89,7 @@ const getDepartmentDisplay = (departmentCode?: string) => {
 };
 
 const Patients = () => {
+  const navigate = useNavigate();
   const [referrals, setReferrals] = useState<ArchivedReferral[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +99,8 @@ const Patients = () => {
     completed: 0,
     uncoordinated: 0
   });
+  const [timelineModalOpen, setTimelineModalOpen] = useState(false);
+  const [selectedReferralForTimeline, setSelectedReferralForTimeline] = useState<any>(null);
   const { user } = useAuth();
 
   // Determine which layout to use
@@ -145,6 +151,59 @@ const Patients = () => {
     referral.referral_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     referral.chief_complaint.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getTimelineSteps = (referral: any) => {
+    const getLatestDate = (...dates: Array<string | undefined | null>) => {
+      const validDates = dates
+        .filter((date): date is string => Boolean(date))
+        .map((date) => ({ raw: date, ts: new Date(date).getTime() }))
+        .filter((entry) => !Number.isNaN(entry.ts))
+        .sort((a, b) => b.ts - a.ts);
+
+      return validDates.length > 0 ? validDates[0].raw : null;
+    };
+
+    const status = referral?.status;
+    const isCancelled = status === "cancelled" || status === "uncoordinated";
+    const isCompleted = status === "completed";
+    const isInTransit = status === "in_transit" || isCompleted;
+    const dispositionFinalized =
+      !!referral?.triage_decision ||
+      !!referral?.triaged_at ||
+      !!referral?.assigned_department ||
+      (Array.isArray(referral?.assigned_departments) && referral.assigned_departments.length > 0);
+
+    return [
+      {
+        title: "Referral Submitted",
+        description: "Referral created by the referrer",
+        completed: true,
+        date: referral?.created_at || null,
+      },
+      {
+        title: "Triage and Assignment",
+        description: "EDCC/EDMA triage and department assignment",
+        completed: isCancelled ? false : dispositionFinalized,
+        date: dispositionFinalized
+          ? getLatestDate(referral?.triaged_at, referral?.transferred_at, referral?.updated_at)
+          : null,
+      },
+      {
+        title: "Transit Coordination",
+        description: "Transfer in progress or ongoing coordination",
+        completed: isCancelled ? false : isInTransit,
+        date: isInTransit ? referral?.updated_at : null,
+      },
+      {
+        title: isCancelled ? "Referral Cancelled" : "Referral Completed",
+        description: isCancelled
+          ? "Referral was not coordinated or was cancelled"
+          : "Referral process completed",
+        completed: isCompleted || isCancelled,
+        date: (isCompleted || isCancelled) ? referral?.updated_at : null,
+      },
+    ];
+  };
 
   if (loading) {
     return (
@@ -250,7 +309,17 @@ const Patients = () => {
                 {filteredReferrals.map((referral) => (
                   <div 
                     key={referral.id} 
-                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/referral/view/${referral.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigate(`/referral/view/${referral.id}`);
+                      }
+                    }}
+                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                    title="Open full referral details"
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -292,6 +361,18 @@ const Patients = () => {
                           <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(referral.status)}`}>
                             {getStatusDisplay(referral.status)}
                           </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedReferralForTimeline(referral);
+                              setTimelineModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/35"
+                            title="Timeline"
+                          >
+                            <Clock className="w-3 h-3" />
+                            Timeline
+                          </button>
                           {(referral.status === 'cancelled' || referral.status === 'uncoordinated') && referral.cancellation_reason && (
                             <span className="text-xs text-gray-500 dark:text-gray-400 italic">
                               Reason: {referral.cancellation_reason}
@@ -307,6 +388,61 @@ const Patients = () => {
           </div>
         </div>
       </div>
+
+      <Dialog open={timelineModalOpen} onOpenChange={setTimelineModalOpen}>
+        <DialogContent className="max-w-2xl bg-gray-900 border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-white">Referral Timeline</DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Track the current progress of this referral.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedReferralForTimeline && (
+            <div className="space-y-4">
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-2">
+                  {selectedReferralForTimeline.patient_full_name}
+                </h3>
+                <p className="text-sm text-gray-400">
+                  ID: {selectedReferralForTimeline.referral_id}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {getTimelineSteps(selectedReferralForTimeline).map((step, index, steps) => {
+                  const isCompleted = step.completed;
+                  const isLast = index === steps.length - 1;
+
+                  return (
+                    <div key={step.title} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-5 h-5 rounded-full border-2 ${isCompleted ? 'bg-green-500 border-green-500' : 'bg-gray-700 border-gray-600'}`} />
+                        {!isLast && (
+                          <div className={`w-0.5 h-8 ${isCompleted ? 'bg-green-500' : 'bg-gray-700'}`} />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-2">
+                        <h4 className={`font-semibold ${isCompleted ? 'text-white' : 'text-gray-500'}`}>
+                          {step.title}
+                        </h4>
+                        <p className={`text-sm ${isCompleted ? 'text-gray-300' : 'text-gray-500'}`}>
+                          {step.description}
+                        </p>
+                        {step.date && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(step.date).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

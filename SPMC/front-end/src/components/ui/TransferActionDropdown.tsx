@@ -17,6 +17,7 @@ interface TransferActionDropdownProps {
   onFillForm: () => void;
   onDelaySuccess: () => void;
   hasDelayNotification?: boolean; // New prop to check if delay already submitted
+  triggerLabel?: string;
 }
 
 export function TransferActionDropdown({
@@ -25,6 +26,7 @@ export function TransferActionDropdown({
   onFillForm,
   onDelaySuccess,
   hasDelayNotification = false, // Default to false
+  triggerLabel = "Actions",
 }: TransferActionDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [delayModalOpen, setDelayModalOpen] = useState(false);
@@ -58,9 +60,9 @@ export function TransferActionDropdown({
       <div className="relative inline-block">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors"
         >
-          Actions
+          {triggerLabel}
           <ChevronDown className="w-4 h-4" />
         </button>
 

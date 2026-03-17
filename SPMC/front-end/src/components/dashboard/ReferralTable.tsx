@@ -968,6 +968,16 @@ export const ReferralTable = () => {
   };
 
   const getTimelineSteps = (referral: ReferralData) => {
+    const getLatestDate = (...dates: Array<string | undefined | null>) => {
+      const validDates = dates
+        .filter((date): date is string => Boolean(date))
+        .map((date) => ({ raw: date, ts: new Date(date).getTime() }))
+        .filter((entry) => !Number.isNaN(entry.ts))
+        .sort((a, b) => b.ts - a.ts);
+
+      return validDates.length > 0 ? validDates[0].raw : null;
+    };
+
     const isCancelled = referral.status === 'cancelled';
     const isScheduleOPD = referral.status === 'schedule_opd' || referral.triage_decision === 'schedule_opd';
     
@@ -1014,7 +1024,7 @@ export const ReferralTable = () => {
         completed: isCancelled
           ? false
           : (isScheduleOPD ? dispositionFinalized : (dispositionFinalized || mainServiceAccepted || inTransit || isCompleted)),
-        date: referral.triaged_at || referral.transferred_at,
+        date: getLatestDate(referral.triaged_at, referral.transferred_at),
         user: referral.triaged_by_user || referral.transferred_by_user || 'EDCC/EDMA',
         action: referral.triage_decision 
           ? `Assigned ${referral.triage_decision.replace('_', ' ').toUpperCase()} priority with Main Service` 
