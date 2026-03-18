@@ -921,6 +921,7 @@ const TriageReferrals = () => {
                             )}
                           </div>
                         </div>
+                      </td>
                     </tr>
                   )})}
                 </tbody>
