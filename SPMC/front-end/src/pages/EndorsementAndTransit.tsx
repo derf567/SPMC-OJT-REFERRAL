@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Search, Eye, Send, XCircle, Clock, FileText, CheckCircle, MapPin, X, Bell } from "lucide-react";
+import { Loader2, RefreshCw, Search, Eye, Send, XCircle, Clock, FileText, CheckCircle, MapPin, X, Bell, MoreVertical, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import jsPDF from "jspdf";
 
 type SectionKey = "endorsements" | "transit";
 type EndorsementStatusFilter =
@@ -131,6 +132,108 @@ const TriageReferrals = () => {
   const [cancelReferralOpen, setCancelReferralOpen] = useState(false);
   const [cancelReferralReason, setCancelReferralReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [openKebabId, setOpenKebabId] = useState<string | null>(null);
+  const kebabRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (kebabRef.current && !kebabRef.current.contains(e.target as Node)) {
+        setOpenKebabId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const downloadPatientPDF = (referral: Referral, statusLabel: string) => {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 10;
+    const colGap = 6;
+    const colW = (pageW - margin * 2 - colGap) / 2;
+    const labelW = 30;
+    const valueW = colW - labelW - 2;
+    const val = (v: any) => (v != null && v !== "" ? String(v) : "N/A");
+    const sectionHeader = (title: string, x: number, y: number) => {
+      doc.setFillColor(30, 64, 175);
+      doc.rect(x, y, colW, 5, "F");
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(255);
+      doc.text(title.toUpperCase(), x + 2, y + 3.5);
+      doc.setTextColor(0);
+      return y + 7;
+    };
+    const row = (label: string, value: any, x: number, y: number) => {
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${label}:`, x, y);
+      doc.setFont("helvetica", "normal");
+      const lines = doc.splitTextToSize(val(value), valueW);
+      const capped = lines.slice(0, 2);
+      if (lines.length > 2) capped[1] = capped[1].slice(0, -3) + "...";
+      doc.text(capped, x + labelW, y);
+      return y + capped.length * 3.8 + 1;
+    };
+    doc.setDrawColor(30, 64, 175);
+    doc.setLineWidth(0.5);
+    doc.rect(margin - 2, margin - 2, pageW - (margin - 2) * 2, pageH - (margin - 2) * 2);
+    let y = margin + 4;
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 64, 175);
+    doc.text("SPMC Patient Referral Information", pageW / 2, y, { align: "center" });
+    y += 5;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100);
+    doc.text(`Generated: ${new Date().toLocaleString()}   |   Referral ID: ${referral.referral_id}`, pageW / 2, y, { align: "center" });
+    y += 3;
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageW - margin, y);
+    y += 4;
+    const leftX = margin;
+    const rightX = margin + colW + colGap;
+    let ly = y;
+    ly = sectionHeader("Referral Details", leftX, ly);
+    ly = row("Referral ID", referral.referral_id, leftX, ly);
+    ly = row("Status", statusLabel, leftX, ly);
+    ly = row("Date Created", referral.created_at ? new Date(referral.created_at).toLocaleString() : null, leftX, ly);
+    ly += 2;
+    ly = sectionHeader("Patient Information", leftX, ly);
+    ly = row("Full Name", referral.patient_full_name, leftX, ly);
+    ly = row("Age / Gender", `${val(referral.age)} yrs / ${val(referral.gender)}`, leftX, ly);
+    ly = row("Chief Complaint", referral.chief_complaint, leftX, ly);
+    ly = row("Specialty", referral.specialty_needed_name, leftX, ly);
+    ly += 2;
+    ly = sectionHeader("Referring Facility", leftX, ly);
+    ly = row("Hospital", referral.referring_hospital_name, leftX, ly);
+    let ry = y;
+    ry = sectionHeader("Transit Information", rightX, ry);
+    if (referral.transit_info) {
+      ry = row("Watcher", referral.transit_info.watcher_name, rightX, ry);
+      ry = row("Relation", referral.transit_info.relation_to_patient, rightX, ry);
+      ry = row("Contact", referral.transit_info.contact_number, rightX, ry);
+      if (referral.transit_info.escort_nurse) ry = row("Escort Nurse", referral.transit_info.escort_nurse, rightX, ry);
+      if (referral.transit_info.driver) ry = row("Driver", referral.transit_info.driver, rightX, ry);
+    } else {
+      ry = row("Transit Info", "N/A", rightX, ry);
+    }
+    ry += 2;
+    ry = sectionHeader("Triage Details", rightX, ry);
+    ry = row("Triage Decision", referral.triage_decision?.replace(/_/g, " "), rightX, ry);
+    ry = row("Main Service", referral.main_service_code?.replace(/_/g, " "), rightX, ry);
+    const footerY = pageH - margin;
+    doc.setDrawColor(200);
+    doc.line(margin, footerY - 4, pageW - margin, footerY - 4);
+    doc.setFontSize(6);
+    doc.setTextColor(150);
+    doc.text("Southern Philippines Medical Center — Confidential Patient Record", pageW / 2, footerY, { align: "center" });
+    doc.save(`referral-${referral.referral_id}-${referral.patient_full_name.replace(/\s+/g, "_")}.pdf`);
+    setOpenKebabId(null);
+  };
 
   const canSendTransitTemplate = Boolean(
     user?.permissions?.can_triage_referrals || user?.permissions?.can_transfer_referrals,
@@ -776,8 +879,48 @@ const TriageReferrals = () => {
                               <X className="h-4 w-4" />
                             </Button>
                           )}
+
+                          {/* Kebab menu */}
+                          <div className="relative" ref={openKebabId === referral.referral_id ? kebabRef : null}>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenKebabId(openKebabId === referral.referral_id ? null : referral.referral_id);
+                              }}
+                              title="More options"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                            {openKebabId === referral.referral_id && (
+                              <div className="absolute right-0 top-9 z-50 min-w-[160px] rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                <button
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                                  onClick={() => {
+                                    const statusLabel = (() => {
+                                      const ds = getDisplayStatus(referral, activeSection);
+                                      const labels: Record<string, string> = {
+                                        waiting_acceptance: "Waiting Acceptance",
+                                        awaiting_triage_verification: "Ready for Transit Template",
+                                        dispositioned: "Disposition Finalized",
+                                        in_transit: "In Transit",
+                                        delayed: "Delayed",
+                                        awaiting_transit_template_submission: "Awaiting Transit Template",
+                                      };
+                                      return labels[ds] || ds.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                                    })();
+                                    downloadPatientPDF(referral, statusLabel);
+                                  }}
+                                >
+                                  <Download className="h-4 w-4" />
+                                  Download Patient Info
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </td>
                     </tr>
                   )})}
                 </tbody>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,7 @@ import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
+import jsPDF from "jspdf";
 import { 
   Calendar, 
   Clock, 
@@ -17,7 +18,9 @@ import {
   Eye,
   X,
   CheckCircle2,
-  ArrowLeft
+  ArrowLeft,
+  MoreVertical,
+  Download
 } from "lucide-react";
 
 interface OutpatientData {
@@ -197,9 +200,103 @@ const Outpatient = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOutpatient, setSelectedOutpatient] = useState<OutpatientData | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [openKebabId, setOpenKebabId] = useState<string | null>(null);
+  const kebabRef = useRef<HTMLDivElement | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (kebabRef.current && !kebabRef.current.contains(e.target as Node)) {
+        setOpenKebabId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const downloadPatientPDF = (outpatient: OutpatientData) => {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 10;
+    const colGap = 6;
+    const colW = (pageW - margin * 2 - colGap) / 2;
+    const labelW = 30;
+    const valueW = colW - labelW - 2;
+    const val = (v: any) => (v != null && v !== "" ? String(v) : "N/A");
+    const sectionHeader = (title: string, x: number, y: number) => {
+      doc.setFillColor(30, 64, 175);
+      doc.rect(x, y, colW, 5, "F");
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(255);
+      doc.text(title.toUpperCase(), x + 2, y + 3.5);
+      doc.setTextColor(0);
+      return y + 7;
+    };
+    const row = (label: string, value: any, x: number, y: number) => {
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${label}:`, x, y);
+      doc.setFont("helvetica", "normal");
+      const lines = doc.splitTextToSize(val(value), valueW);
+      const capped = lines.slice(0, 2);
+      if (lines.length > 2) capped[1] = capped[1].slice(0, -3) + "...";
+      doc.text(capped, x + labelW, y);
+      return y + capped.length * 3.8 + 1;
+    };
+    doc.setDrawColor(30, 64, 175);
+    doc.setLineWidth(0.5);
+    doc.rect(margin - 2, margin - 2, pageW - (margin - 2) * 2, pageH - (margin - 2) * 2);
+    let y = margin + 4;
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 64, 175);
+    doc.text("SPMC Patient Referral Information", pageW / 2, y, { align: "center" });
+    y += 5;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100);
+    doc.text(`Generated: ${new Date().toLocaleString()}   |   Referral ID: ${outpatient.referral_id}`, pageW / 2, y, { align: "center" });
+    y += 3;
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageW - margin, y);
+    y += 4;
+    const leftX = margin;
+    const rightX = margin + colW + colGap;
+    let ly = y;
+    ly = sectionHeader("Referral Details", leftX, ly);
+    ly = row("Referral ID", outpatient.referral_id, leftX, ly);
+    ly = row("Status", showCompleted ? "Completed" : "Scheduled OPD", leftX, ly);
+    ly = row("Date Created", outpatient.created_at ? new Date(outpatient.created_at).toLocaleString() : null, leftX, ly);
+    ly += 2;
+    ly = sectionHeader("Patient Information", leftX, ly);
+    ly = row("Full Name", outpatient.patient_full_name, leftX, ly);
+    ly = row("Age / Gender", `${val(outpatient.age)} yrs / ${val(outpatient.gender)}`, leftX, ly);
+    ly = row("Address", outpatient.current_address, leftX, ly);
+    ly = row("Specialty", outpatient.specialty_needed_name, leftX, ly);
+    ly += 2;
+    ly = sectionHeader("Referring Facility", leftX, ly);
+    ly = row("Hospital", outpatient.referring_hospital_name, leftX, ly);
+    ly = row("Referrer", outpatient.referrer_name, leftX, ly);
+    ly = row("Contact", outpatient.referrer_cellphone, leftX, ly);
+    let ry = y;
+    ry = sectionHeader("Appointment Details", rightX, ry);
+    ry = row("Scheduled Date", outpatient.scheduled_date ? new Date(outpatient.scheduled_date).toLocaleDateString() : null, rightX, ry);
+    ry = row("Scheduled Time", outpatient.scheduled_time, rightX, ry);
+    if (outpatient.triage_notes) ry = row("Triage Notes", outpatient.triage_notes, rightX, ry);
+    const footerY = pageH - margin;
+    doc.setDrawColor(200);
+    doc.line(margin, footerY - 4, pageW - margin, footerY - 4);
+    doc.setFontSize(6);
+    doc.setTextColor(150);
+    doc.text("Southern Philippines Medical Center — Confidential Patient Record", pageW / 2, footerY, { align: "center" });
+    doc.save(`referral-${outpatient.referral_id}-${outpatient.patient_full_name.replace(/\s+/g, "_")}.pdf`);
+    setOpenKebabId(null);
+  };
 
   // Mark appointment as completed
   const handleMarkAsCompleted = async (outpatient: OutpatientData) => {
@@ -544,6 +641,33 @@ const Outpatient = () => {
                                 ✅ Completed
                               </Badge>
                             )}
+
+                            {/* Kebab menu */}
+                            <div className="relative" ref={openKebabId === outpatient.id ? kebabRef : null}>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenKebabId(openKebabId === outpatient.id ? null : outpatient.id);
+                                }}
+                                title="More options"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                              {openKebabId === outpatient.id && (
+                                <div className="absolute right-0 top-9 z-50 min-w-[160px] rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                  <button
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                                    onClick={() => downloadPatientPDF(outpatient)}
+                                  >
+                                    <Download className="h-4 w-4" />
+                                    Download Patient Info
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
