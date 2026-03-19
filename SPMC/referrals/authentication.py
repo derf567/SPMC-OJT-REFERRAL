@@ -55,6 +55,10 @@ def login_view(request):
             
             # Get or create user profile
             profile, created = UserProfile.objects.get_or_create(user=user)
+            # Auto-activate legacy inactive referrer accounts when they log in.
+            if profile.role == 'referrer' and not user.is_active:
+                user.is_active = True
+                user.save(update_fields=['is_active'])
             role_payload = _get_unified_role_payload(profile)
             
             return Response({
@@ -68,6 +72,7 @@ def login_view(request):
                     'last_name': user.last_name,
                     'full_name': user.get_full_name(),
                     'is_staff': user.is_staff,
+                    'is_superuser': user.is_superuser,
                     'role': role_payload['role'],
                     'role_display': role_payload['role_display'],
                     'edcc_edma_indicator': role_payload['edcc_edma_indicator'],
@@ -80,6 +85,7 @@ def login_view(request):
                         'is_view_only': profile.is_view_only,
                         'is_doctor': profile.is_doctor,
                         'can_view_department_referrals': profile.can_view_department_referrals,
+                        'is_referrer': profile.role == 'referrer',
                         'edcc_edma_indicator': role_payload['edcc_edma_indicator'],
                     },
                     # Hospital information for referrers
@@ -97,6 +103,70 @@ def login_view(request):
                 }
             })
         else:
+            # Auto-activate legacy inactive referrer accounts on first successful login.
+            legacy_referrer = User.objects.filter(
+                username=username,
+                is_active=False,
+                profile__role='referrer'
+            ).first()
+            if legacy_referrer and legacy_referrer.check_password(password):
+                legacy_referrer.is_active = True
+                legacy_referrer.save(update_fields=['is_active'])
+                login(request, legacy_referrer)
+                token, _ = Token.objects.get_or_create(user=legacy_referrer)
+                profile, _ = UserProfile.objects.get_or_create(user=legacy_referrer)
+                role_payload = _get_unified_role_payload(profile)
+                return Response({
+                    'success': True,
+                    'token': token.key,
+                    'user': {
+                        'id': legacy_referrer.id,
+                        'username': legacy_referrer.username,
+                        'email': legacy_referrer.email,
+                        'first_name': legacy_referrer.first_name,
+                        'last_name': legacy_referrer.last_name,
+                        'full_name': legacy_referrer.get_full_name(),
+                        'is_staff': legacy_referrer.is_staff,
+                        'is_superuser': legacy_referrer.is_superuser,
+                        'role': role_payload['role'],
+                        'role_display': role_payload['role_display'],
+                        'edcc_edma_indicator': role_payload['edcc_edma_indicator'],
+                        'department': profile.department,
+                        'permissions': {
+                            'can_view_referrals': profile.can_view_referrals,
+                            'can_triage_referrals': profile.can_triage_referrals,
+                            'can_transfer_referrals': profile.can_transfer_referrals,
+                            'is_admin_user': profile.is_admin_user,
+                            'is_view_only': profile.is_view_only,
+                            'is_doctor': profile.is_doctor,
+                            'can_view_department_referrals': profile.can_view_department_referrals,
+                            'is_referrer': profile.role == 'referrer',
+                            'edcc_edma_indicator': role_payload['edcc_edma_indicator'],
+                        },
+                        'hospital_name': profile.hospital_name if profile.role == 'referrer' else None,
+                        'hospital_location': profile.hospital_location if profile.role == 'referrer' else None,
+                        'hospital_doh_level': profile.hospital_doh_level if profile.role == 'referrer' else None,
+                        'hospital_region': profile.hospital_region if profile.role == 'referrer' else None,
+                        'hospital_province': profile.hospital_province if profile.role == 'referrer' else None,
+                        'hospital_city': profile.hospital_city if profile.role == 'referrer' else None,
+                        'hospital_barangay': profile.hospital_barangay if profile.role == 'referrer' else None,
+                        'hospital_street': profile.hospital_street if profile.role == 'referrer' else None,
+                        'hospital_district': profile.hospital_district if profile.role == 'referrer' else None,
+                        'contact_numbers': profile.contact_numbers if profile.role == 'referrer' else [],
+                        'is_inside_davao': profile.is_inside_davao if profile.role == 'referrer' else None,
+                    }
+                })
+
+            # Surface a clearer login message when a doctor account is pending approval.
+            pending_doctor = User.objects.filter(
+                username=username,
+                is_active=False,
+                profile__role='doctor'
+            ).exists()
+            if pending_doctor:
+                return Response({
+                    'error': 'Your doctor account is pending admin approval. Please wait for approval before logging in.'
+                }, status=status.HTTP_401_UNAUTHORIZED)
             return Response({
                 'error': 'Invalid credentials'
             }, status=status.HTTP_401_UNAUTHORIZED)
@@ -408,6 +478,7 @@ def user_profile(request):
                     'can_triage_referrals': profile.can_triage_referrals,
                     'can_transfer_referrals': profile.can_transfer_referrals,
                     'is_admin_user': profile.is_admin_user,
+                    'is_referrer': profile.role == 'referrer',
                     'is_doctor': profile.is_doctor,
                     'can_view_department_referrals': profile.can_view_department_referrals,
                     'edcc_edma_indicator': role_payload['edcc_edma_indicator'],
@@ -569,6 +640,8 @@ def pending_doctors_view(request):
                 'role': 'doctor',
                 'department': profile.department or '',
                 'department_display': department_display,
+                'spmc_id': profile.spmc_id or '',
+                'spmc_id_file': request.build_absolute_uri(profile.spmc_id_file.url) if profile.spmc_id_file else None,
                 'created_at': doctor.date_joined.isoformat(),
                 'is_active': doctor.is_active,
                 'approval_status': 'approved' if doctor.is_active else 'pending',

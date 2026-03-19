@@ -4,10 +4,11 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: ReactNode;
+  requireAdmin?: boolean;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin = false }) => {
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -22,6 +23,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (requireAdmin) {
+    const isAdmin = !!(user?.is_staff || user?.is_superuser || user?.permissions?.is_admin_user);
+    if (!isAdmin) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   return <>{children}</>;

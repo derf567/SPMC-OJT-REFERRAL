@@ -7,6 +7,7 @@ import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
 import { NotificationContainer } from "@/components/ui/NotificationContainer";
 import { SoundToggle } from "@/components/ui/SoundToggle";
 import { checkAccountApprovals, NotificationData } from "@/lib/notificationService";
+import { adminAPI } from "@/lib/api";
 import {
   Home,
   UserCheck,
@@ -34,7 +35,6 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
   });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
-  const [pendingApprovals] = useState(0);
   const [liveNotifications, setLiveNotifications] = useState<NotificationData[]>([]);
   const [pendingAccounts, setPendingAccounts] = useState<any[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
@@ -44,7 +44,7 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
 
   const navigation = [
     { name: "Dashboard", href: "/admin/dashboard", icon: Home },
-    { name: "Account Approval", href: "/admin/approvals", icon: UserCheck, badge: pendingApprovals > 0 ? pendingApprovals.toString() : undefined },
+    { name: "Account Approval", href: "/admin/approvals", icon: UserCheck, badge: pendingCount > 0 ? pendingCount.toString() : undefined },
     { name: "Department Settings", href: "/admin/departments", icon: Users },
     { name: "Reports", href: "/admin/reports", icon: BarChart3 },
   ];
@@ -139,22 +139,12 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
 
   const fetchPendingAccounts = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      if (!token) return;
-
-      const response = await fetch('/api/referrers/?approval_status=pending', {
-        headers: {
-          'Authorization': `Token ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const pending = data.results || data;
-        setPendingAccounts(Array.isArray(pending) ? pending : []);
-        setPendingCount(Array.isArray(pending) ? pending.length : 0);
-      }
+      const doctors = await adminAPI.getPendingDoctors();
+      const pendingDoctors = Array.isArray(doctors)
+        ? doctors.filter((doctor: any) => doctor.approval_status === "pending")
+        : [];
+      setPendingAccounts(pendingDoctors);
+      setPendingCount(pendingDoctors.length);
     } catch (error) {
       console.error('Error fetching pending accounts:', error);
     }
@@ -323,7 +313,7 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
                       <div className="p-3 border-b border-gray-200 dark:border-gray-700">
                         <h3 className="text-sm font-semibold">Pending Approvals</h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {pendingCount} account{pendingCount !== 1 ? 's' : ''} waiting for review
+                          {pendingCount} doctor account{pendingCount !== 1 ? 's' : ''} waiting for review
                         </p>
                       </div>
                       
@@ -334,10 +324,7 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
                           </div>
                         ) : (
                           pendingAccounts.map((account) => {
-                            const fullName = `${account.first_name} ${account.last_name}`;
-                            const accountType = account.referrer_type === 'doctor' ? 'Doctor' : 
-                                               account.referrer_type === 'hospital_employee' ? 'Hospital Employee' : 
-                                               'Referrer';
+                            const fullName = account.full_name || `${account.first_name} ${account.last_name}`;
                             
                             return (
                               <button
@@ -362,10 +349,10 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
                                       {fullName}
                                     </p>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                                      {accountType}
+                                      Doctor
                                     </p>
                                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                      {account.user.email}
+                                      {account.email}
                                     </p>
                                   </div>
                                 </div>

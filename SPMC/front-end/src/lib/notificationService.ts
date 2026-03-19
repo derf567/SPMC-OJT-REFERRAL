@@ -269,7 +269,7 @@ export const checkAccountApprovals = async (
       return;
     }
 
-    const response = await fetch('/api/referrers/?approval_status=pending', {
+    const response = await fetch('/api/admin/pending-doctors/', {
       headers: {
         'Authorization': `Token ${token}`,
         'Content-Type': 'application/json',
@@ -282,7 +282,10 @@ export const checkAccountApprovals = async (
     }
 
     const data = await response.json();
-    const pendingApprovals = data.results || data;
+    const approvals = data.results || data;
+    const pendingApprovals = Array.isArray(approvals)
+      ? approvals.filter((account: any) => account.approval_status === 'pending')
+      : [];
 
     console.log(`📋 Found ${pendingApprovals.length} pending approval(s)`);
 
@@ -298,14 +301,10 @@ export const checkAccountApprovals = async (
         if (shouldNotify) {
           console.log('🟣 New account registration detected:', approval.user?.username || approval.first_name);
           
-          const accountType = approval.referrer_type === 'doctor' ? 'Doctor' : 
-                             approval.referrer_type === 'hospital_employee' ? 'Hospital Employee' : 
-                             'Referrer';
-          
           const notification: NotificationData = {
             id: `account_approval_${approval.id}_${approval.created_at}`,
             type: 'account_approval',
-            message: `New ${accountType} registration: ${approval.first_name} ${approval.last_name}`,
+            message: `New doctor registration: ${approval.full_name || `${approval.first_name} ${approval.last_name}`}`,
             timestamp: approval.created_at,
             isAccountNotification: true,
           };

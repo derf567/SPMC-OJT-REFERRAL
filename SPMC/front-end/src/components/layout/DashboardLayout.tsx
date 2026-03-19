@@ -267,7 +267,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   };
 
   const handleAccountApprovalClick = () => {
-    navigate('/admin/account-approval');
+    navigate('/admin/approvals');
   };
 
   const closeReferralModal = () => {
@@ -307,6 +307,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     }
     return user?.username?.substring(0, 2).toUpperCase() || 'U';
   };
+
+  const userNameFallback = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.username || 'User';
+  const subtitleFallbackForRole = ['doctor', 'department_user', 'view_only'].includes(user?.role || '')
+    ? userNameFallback
+    : 'User';
 
   return (
     <div className={cn("min-h-screen", isDarkMode ? "dark" : "")}>
@@ -504,7 +509,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       <p className={cn(
                         "text-xs leading-tight transition-colors duration-300",
                         isDarkMode ? "text-gray-400" : "text-gray-500"
-                      )}>{user?.edcc_edma_indicator || user?.permissions?.edcc_edma_indicator || 'User'}</p>
+                      )}>{user?.edcc_edma_indicator || user?.permissions?.edcc_edma_indicator || subtitleFallbackForRole}</p>
                     </div>
                     <ChevronDown className="w-4 h-4 flex-shrink-0" />
                   </Button>

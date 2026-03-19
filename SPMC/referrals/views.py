@@ -1932,6 +1932,14 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['first_name', 'last_name', 'user__username']
 
+    def _is_admin_user(self, user):
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_staff or user.is_superuser:
+            return True
+        profile = getattr(user, 'profile', None)
+        return bool(profile and profile.role == 'admin')
+
     def get_permissions(self):
         # Allow anyone to create/register; other actions require authentication
         if self.action == 'create':
@@ -2003,12 +2011,14 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def pending_accounts(self, request):
         """Get all referrer accounts (for admin approval)"""
-        # Check if user is admin
-        if not request.user.is_staff and not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+        if not self._is_admin_user(request.user):
             return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
         
-        # Get all referrer accounts with user profiles
-        referrers = ReferrerAccount.objects.select_related('user').prefetch_related('specialties', 'affiliate_hospitals').all()
+        # Referrers are now active on registration; keep endpoint for compatibility and
+        # return only legacy inactive accounts if any still exist.
+        referrers = ReferrerAccount.objects.select_related('user').prefetch_related(
+            'specialties', 'affiliate_hospitals'
+        ).filter(user__is_active=False)
         
         data = []
         for referrer in referrers:
@@ -2042,8 +2052,7 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def approve(self, request, pk=None):
         """Approve a referrer account"""
-        # Check if user is admin
-        if not request.user.is_staff and not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+        if not self._is_admin_user(request.user):
             return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
         
         referrer = self.get_object()
@@ -2055,8 +2064,7 @@ class ReferrerAccountViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def reject(self, request, pk=None):
         """Reject a referrer account"""
-        # Check if user is admin
-        if not request.user.is_staff and not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+        if not self._is_admin_user(request.user):
             return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
         
         referrer = self.get_object()
@@ -2093,10 +2101,17 @@ def admin_dashboard_stats(request):
     pending_referrers = ReferrerAccount.objects.filter(user__is_active=False).count()
     approved_referrers = ReferrerAccount.objects.filter(user__is_active=True).count()
     
+    # Doctor approval statistics
+    total_doctors = User.objects.filter(profile__role='doctor').count()
+    pending_doctors = User.objects.filter(profile__role='doctor', is_active=False).count()
+
     # User statistics
     total_users = User.objects.count()
     total_hospitals = ReferringHospital.objects.count()
     total_specialties = Specialty.objects.count()
+    seven_days_ago = timezone.now() - timedelta(days=7)
+    recent_referrals = Referral.objects.filter(created_at__gte=seven_days_ago).count()
+    recent_registrations = User.objects.filter(date_joined__gte=seven_days_ago).count()
     
     return Response({
         'total_referrals': total_referrals,
@@ -2106,9 +2121,13 @@ def admin_dashboard_stats(request):
         'total_referrers': total_referrers,
         'pending_referrers': pending_referrers,
         'approved_referrers': approved_referrers,
+        'total_doctors': total_doctors,
+        'pending_doctors': pending_doctors,
         'total_users': total_users,
         'total_hospitals': total_hospitals,
         'total_specialties': total_specialties,
+        'recent_referrals': recent_referrals,
+        'recent_registrations': recent_registrations,
     })
 
 
