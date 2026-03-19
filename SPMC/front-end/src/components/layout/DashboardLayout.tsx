@@ -67,7 +67,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { name: "Patient Arrival", href: "/triage", icon: Truck },
     { name: "Fraud Monitor", href: "/fraud-monitor", icon: ShieldAlert },
     { name: "Outpatient", href: "/outpatient", icon: Calendar },
-    { name: "Archived Referrals", href: "/patients", icon: Users },
+      { name: "Archived Referrals", href: "/patients", icon: Users },
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
@@ -504,7 +504,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       <p className={cn(
                         "text-xs leading-tight transition-colors duration-300",
                         isDarkMode ? "text-gray-400" : "text-gray-500"
-                      )}>User</p>
+                      )}>{user?.edcc_edma_indicator || user?.permissions?.edcc_edma_indicator || 'User'}</p>
                     </div>
                     <ChevronDown className="w-4 h-4 flex-shrink-0" />
                   </Button>

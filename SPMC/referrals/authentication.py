@@ -10,6 +10,29 @@ from django.utils.decorators import method_decorator
 from .models import UserProfile
 import json
 
+def _get_unified_role_payload(profile):
+    """Unify EDCC/EDMA auth role while preserving a clear indicator."""
+    if profile.role == 'edcc_edma':
+        indicator = profile.edcc_edma_indicator or 'EDCC'
+        return {
+            'role': 'edcc_edma',
+            'role_display': 'EDCC/EDMA',
+            'edcc_edma_indicator': indicator,
+        }
+    # Backward-compat safety if an unmigrated profile still exists.
+    if profile.role in ['edcc_personnel', 'call_triage']:
+        indicator = 'EDCC' if profile.role == 'edcc_personnel' else 'EDMA'
+        return {
+            'role': 'edcc_edma',
+            'role_display': 'EDCC/EDMA',
+            'edcc_edma_indicator': indicator,
+        }
+    return {
+        'role': profile.role,
+        'role_display': profile.get_role_display(),
+        'edcc_edma_indicator': '',
+    }
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
@@ -32,6 +55,7 @@ def login_view(request):
             
             # Get or create user profile
             profile, created = UserProfile.objects.get_or_create(user=user)
+            role_payload = _get_unified_role_payload(profile)
             
             return Response({
                 'success': True,
@@ -44,8 +68,9 @@ def login_view(request):
                     'last_name': user.last_name,
                     'full_name': user.get_full_name(),
                     'is_staff': user.is_staff,
-                    'role': profile.role,
-                    'role_display': profile.get_role_display(),
+                    'role': role_payload['role'],
+                    'role_display': role_payload['role_display'],
+                    'edcc_edma_indicator': role_payload['edcc_edma_indicator'],
                     'department': profile.department,
                     'permissions': {
                         'can_view_referrals': profile.can_view_referrals,
@@ -55,6 +80,7 @@ def login_view(request):
                         'is_view_only': profile.is_view_only,
                         'is_doctor': profile.is_doctor,
                         'can_view_department_referrals': profile.can_view_department_referrals,
+                        'edcc_edma_indicator': role_payload['edcc_edma_indicator'],
                     },
                     # Hospital information for referrers
                     'hospital_name': profile.hospital_name if profile.role == 'referrer' else None,
@@ -184,16 +210,27 @@ def comprehensive_register_view(request):
         username = data.get('username')
         email = data.get('email', '')
         password = data.get('password')
-        first_name = data.get('first_name')
+        first_name = (data.get('first_name') or '').strip()
         middle_name = data.get('middle_name', '')
-        last_name = data.get('last_name')
+        last_name = (data.get('last_name') or '').strip()
         referrer_type = data.get('referrer_type', 'doctor')
+        hospital_name = (data.get('hospital_name') or '').strip()
         
         # Validation
-        if not all([username, password, first_name, last_name]):
-            return Response({
-                'error': 'Username, password, first name, and last name are required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        if referrer_type == 'hospital_account':
+            if not all([username, password, hospital_name]):
+                return Response({
+                    'error': 'Username, password, and hospital name are required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            effective_first_name = hospital_name
+            effective_last_name = 'Hospital'
+        else:
+            if not all([username, password, first_name, last_name]):
+                return Response({
+                    'error': 'Username, password, first name, and last name are required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            effective_first_name = first_name
+            effective_last_name = last_name
         
         # Check if username already exists
         if User.objects.filter(username=username).exists():
@@ -212,16 +249,31 @@ def comprehensive_register_view(request):
             username=username,
             email=email,
             password=password,
-            first_name=first_name,
-            last_name=last_name
+            first_name=effective_first_name,
+            last_name=effective_last_name
         )
         
+        contact_numbers_raw = data.get('contact_numbers', [])
+        if isinstance(contact_numbers_raw, str):
+            try:
+                contact_numbers = json.loads(contact_numbers_raw)
+            except Exception:
+                contact_numbers = []
+        else:
+            contact_numbers = contact_numbers_raw or []
+        contact_numbers = [str(num).strip() for num in contact_numbers if str(num).strip()]
+
+        provided_cellphone = (data.get('cellphone', '') or '').strip()
+        primary_contact = provided_cellphone or (contact_numbers[0] if contact_numbers else '')
+        if primary_contact and primary_contact not in contact_numbers:
+            contact_numbers.insert(0, primary_contact)
+
         # Create user profile for referrer
         profile = UserProfile.objects.create(
             user=user,
             role='referrer',
             profession=referrer_type.replace('_', ' ').title(),
-            cellphone=data.get('cellphone', ''),
+            cellphone=primary_contact,
             hospital_name=data.get('hospital_name', ''),
             hospital_location=data.get('address', ''),
             is_inside_davao=data.get('is_inside_davao_city', 'true').lower() == 'true',
@@ -232,15 +284,15 @@ def comprehensive_register_view(request):
             hospital_barangay=data.get('barangay', ''),
             hospital_street=data.get('complete_address', ''),
             hospital_doh_level=data.get('hospital_doh_level', ''),
-            contact_numbers=json.loads(data.get('contact_numbers', '[]')) if isinstance(data.get('contact_numbers'), str) else data.get('contact_numbers', []),
+            contact_numbers=contact_numbers,
         )
         
         # Create comprehensive referrer account
         referrer_account = ReferrerAccount.objects.create(
             user=user,
-            first_name=first_name,
+            first_name=effective_first_name,
             middle_name=middle_name,
-            last_name=last_name,
+            last_name=effective_last_name,
             referrer_type=referrer_type,
             age=int(data.get('age', 0)) if data.get('age') else None,
             gender=data.get('gender', ''),
@@ -336,6 +388,7 @@ def user_profile(request):
     """Get current user profile"""
     if request.user.is_authenticated:
         profile, created = UserProfile.objects.get_or_create(user=request.user)
+        role_payload = _get_unified_role_payload(profile)
         
         return Response({
             'user': {
@@ -346,8 +399,9 @@ def user_profile(request):
                 'last_name': request.user.last_name,
                 'full_name': request.user.get_full_name(),
                 'is_staff': request.user.is_staff,
-                'role': profile.role,
-                'role_display': profile.get_role_display(),
+                'role': role_payload['role'],
+                'role_display': role_payload['role_display'],
+                'edcc_edma_indicator': role_payload['edcc_edma_indicator'],
                 'department': profile.department,
                 'permissions': {
                     'can_view_referrals': profile.can_view_referrals,
@@ -356,6 +410,7 @@ def user_profile(request):
                     'is_admin_user': profile.is_admin_user,
                     'is_doctor': profile.is_doctor,
                     'can_view_department_referrals': profile.can_view_department_referrals,
+                    'edcc_edma_indicator': role_payload['edcc_edma_indicator'],
                 },
                 # Hospital information for referrers
                 'hospital_name': profile.hospital_name,
@@ -438,21 +493,15 @@ def register_doctor_view(request):
             specialties_list = []
         
         # Create user profile for doctor
+        spmc_id_upload = files.get('spmc_id_file')
         profile = UserProfile.objects.create(
             user=user,
             role='doctor',
             department=department,
             profession='Doctor',
+            spmc_id=spmc_id,
+            spmc_id_file=spmc_id_upload,
         )
-        
-        # Handle SPMC ID file upload
-        if 'spmc_id_file' in files:
-            # You can save this to a DoctorDocument model or similar
-            # For now, we'll just note that it was uploaded
-            spmc_id_file = files['spmc_id_file']
-            # TODO: Save file to appropriate location
-            # For now, just log it
-            print(f"SPMC ID file uploaded: {spmc_id_file.name}")
         
         return Response({
             'success': True,

@@ -6,20 +6,31 @@ from django.core.exceptions import ValidationError
 class UserProfile(models.Model):
     """Extended user profile with roles"""
     ROLE_CHOICES = [
-        ('edcc_personnel', 'EDCC Personnel'),
-        ('call_triage', 'EDMA/EDHO (Call Triage)'),  # EDMA = Emergency Department Medical Authority
+        ('edcc_edma', 'EDCC/EDMA'),
         ('admin', 'Administrator'),
         ('doctor', 'Doctor'),
         ('referrer', 'Referrer'),
     ]
+    EDCC_EDMA_INDICATOR_CHOICES = [
+        ('EDCC', 'EDCC'),
+        ('EDMA', 'EDMA'),
+    ]
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='edcc_personnel')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='edcc_edma')
+    edcc_edma_indicator = models.CharField(
+        max_length=10,
+        choices=EDCC_EDMA_INDICATOR_CHOICES,
+        blank=True,
+        null=True
+    )
     department = models.CharField(max_length=100, blank=True, null=True)
     contact_number = models.CharField(max_length=20, blank=True, null=True)
     
     # Additional fields for referrers
     profession = models.CharField(max_length=100, blank=True, null=True)
+    spmc_id = models.CharField(max_length=100, blank=True, null=True)
+    spmc_id_file = models.FileField(upload_to='doctor_spmc_ids/', blank=True, null=True)
     cellphone = models.CharField(max_length=20, blank=True, null=True)
     hospital_name = models.CharField(max_length=200, blank=True, null=True)
     hospital_location = models.CharField(max_length=200, blank=True, null=True)
@@ -60,17 +71,16 @@ class UserProfile(models.Model):
     
     @property
     def can_triage_referrals(self):
-        """Both EDCC and EDMA (Call Triage) can decide on referral priority/status
+        """Both EDCC and EDMA can decide on referral priority/status
         
-        Note: EDMA (Emergency Department Medical Authority) is the primary triage authority.
-        EDCC is authorized to facilitate the process under EDMA's coordination.
+        Indicator field distinguishes EDCC vs EDMA identity.
         """
-        return self.role in ['call_triage', 'edcc_personnel']
+        return self.role == 'edcc_edma'
     
     @property
     def can_transfer_referrals(self):
-        """Both EDCC and Triage can transfer/forward referrals"""
-        return self.role in ['call_triage', 'edcc_personnel']
+        """Both EDCC and EDMA can transfer/forward referrals"""
+        return self.role == 'edcc_edma'
     
     @property
     def is_admin_user(self):

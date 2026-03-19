@@ -4,13 +4,12 @@ from django.db import models
 class UserProfile(models.Model):
     """Extended user profile with roles"""
     ROLE_CHOICES = [
-        ('edcc_personnel', 'EDCC Personnel'),
-        ('call_triage', 'EDMAR/EDHO (Call Triage)'),
+        ('edcc_edma', 'EDCC/EDMA'),
         ('admin', 'Administrator'),
     ]
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='edcc_personnel')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='edcc_edma')
     department = models.CharField(max_length=100, blank=True, null=True)
     contact_number = models.CharField(max_length=20, blank=True, null=True)
     
@@ -29,13 +28,13 @@ class UserProfile(models.Model):
     
     @property
     def can_triage_referrals(self):
-        """Only Call Triage can decide on referral priority/status"""
-        return self.role == 'call_triage'
+        """EDCC/EDMA can decide on referral priority/status"""
+        return self.role == 'edcc_edma'
     
     @property
     def can_transfer_referrals(self):
-        """EDCC Personnel can only transfer/forward referrals"""
-        return self.role == 'edcc_personnel'
+        """EDCC/EDMA can transfer/forward referrals"""
+        return self.role == 'edcc_edma'
     
     @property
     def is_admin_user(self):

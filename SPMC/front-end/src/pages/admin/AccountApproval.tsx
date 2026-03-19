@@ -535,9 +535,13 @@ const AccountApproval = () => {
                   <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Personal Information</h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">Full Name:</span>
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {selectedReferrer.referrer_type === 'hospital_account' ? 'Hospital Name:' : 'Full Name:'}
+                      </span>
                       <p className="font-medium text-gray-900 dark:text-white">
-                        {`${selectedReferrer.first_name} ${selectedReferrer.middle_name || ''} ${selectedReferrer.last_name}`}
+                        {selectedReferrer.referrer_type === 'hospital_account'
+                          ? (selectedReferrer.first_name || selectedReferrer.user.username)
+                          : `${selectedReferrer.first_name} ${selectedReferrer.middle_name || ''} ${selectedReferrer.last_name}`}
                       </p>
                     </div>
                     <div>

@@ -32,8 +32,8 @@ export const ReferralEdit = () => {
         const data = await referralsAPI.getById(id);
         
         // Check permissions based on user role or permissions
-        // Role values: 'edcc_personnel', 'call_triage', 'referrer', 'doctor', 'admin'
-        const isEDCCorTriage = user?.role === 'edcc_personnel' || user?.role === 'call_triage' || user?.permissions?.can_triage_referrals;
+        // Unified EDCC/EDMA access comes from permissions.
+        const isEDCCorTriage = !!user?.permissions?.can_triage_referrals;
         
         // Debug logging
         console.log('User:', user);
@@ -208,8 +208,8 @@ export const ReferralEdit = () => {
       });
       
       // Navigate based on user role
-      // Role values: 'edcc_personnel', 'call_triage', 'referrer'
-      if (user?.role === 'edcc_personnel' || user?.role === 'call_triage' || user?.permissions?.can_triage_referrals) {
+      // Unified EDCC/EDMA access comes from permissions.
+      if (user?.permissions?.can_triage_referrals) {
         // For EDCC/Triage, go back to Triage page
         navigate('/triage');
       } else {
@@ -242,8 +242,8 @@ export const ReferralEdit = () => {
   if (!referral) return null;
 
   // Check if user is EDCC or Triage
-  // Role values: 'edcc_personnel', 'call_triage'
-  const isEDCCorTriage = user?.role === 'edcc_personnel' || user?.role === 'call_triage' || user?.permissions?.can_triage_referrals;
+  // Unified EDCC/EDMA access comes from permissions.
+  const isEDCCorTriage = !!user?.permissions?.can_triage_referrals;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

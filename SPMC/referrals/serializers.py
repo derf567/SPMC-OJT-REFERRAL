@@ -100,9 +100,9 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
     username = serializers.CharField()
     email = serializers.EmailField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True)
-    first_name = serializers.CharField()
+    first_name = serializers.CharField(required=False, allow_blank=True)
     middle_name = serializers.CharField(required=False, allow_blank=True)
-    last_name = serializers.CharField()
+    last_name = serializers.CharField(required=False, allow_blank=True)
     referrer_type = serializers.ChoiceField(choices=ReferrerAccount.REFERRER_TYPE_CHOICES)
     specialties = serializers.ListField(child=serializers.IntegerField(), required=False)
     affiliate_hospitals = serializers.ListField(child=serializers.IntegerField(), required=False)
@@ -118,12 +118,46 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
     gender = serializers.ChoiceField(choices=ReferrerAccount.GENDER_CHOICES, required=False)
     documents = serializers.ListField(child=serializers.FileField(), required=False)
 
+    def validate(self, attrs):
+        referrer_type = attrs.get('referrer_type')
+        first_name = (attrs.get('first_name') or '').strip()
+        last_name = (attrs.get('last_name') or '').strip()
+        hospital_name = (attrs.get('hospital_name') or '').strip()
+
+        if referrer_type == 'hospital_account':
+            if not hospital_name:
+                raise serializers.ValidationError({
+                    'hospital_name': 'Hospital name is required for hospital accounts.'
+                })
+        else:
+            if not first_name:
+                raise serializers.ValidationError({
+                    'first_name': 'First name is required.'
+                })
+            if not last_name:
+                raise serializers.ValidationError({
+                    'last_name': 'Last name is required.'
+                })
+
+        return attrs
+
     def create(self, validated_data):
         from django.contrib.auth.models import User
 
         docs = validated_data.pop('documents', [])
         specialties = validated_data.pop('specialties', [])
         referrer_type = validated_data.get('referrer_type')
+        hospital_name = (validated_data.get('hospital_name') or '').strip()
+        first_name = (validated_data.get('first_name') or '').strip()
+        last_name = (validated_data.get('last_name') or '').strip()
+
+        if referrer_type == 'hospital_account':
+            effective_first_name = hospital_name
+            effective_last_name = 'Hospital'
+        else:
+            effective_first_name = first_name
+            effective_last_name = last_name
+
         if referrer_type == 'hospital_account':
             hospital_name = validated_data.pop('hospital_name', '')
             if hospital_name:
@@ -148,8 +182,8 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
         email = validated_data.pop('email', '')
 
         user = User.objects.create_user(username=username, password=password, email=email,
-                                        first_name=validated_data.get('first_name', ''),
-                                        last_name=validated_data.get('last_name', ''))
+                                        first_name=effective_first_name,
+                                        last_name=effective_last_name)
 
         # Create UserProfile with referrer role
         UserProfile.objects.create(
@@ -163,9 +197,9 @@ class ReferrerRegistrationSerializer(serializers.Serializer):
 
         referrer = ReferrerAccount.objects.create(
             user=user,
-            first_name=validated_data.get('first_name', ''),
+            first_name=effective_first_name,
             middle_name=validated_data.get('middle_name', ''),
-            last_name=validated_data.get('last_name', ''),
+            last_name=effective_last_name,
             referrer_type=referrer_type,
             position=validated_data.get('position', ''),
             age=age,

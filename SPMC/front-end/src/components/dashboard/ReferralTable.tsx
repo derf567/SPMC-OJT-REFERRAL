@@ -1517,7 +1517,7 @@ export const ReferralTable = () => {
                           Details
                         </Button>
                         {/* Edit button for EDCC/Triage users */}
-                        {(user?.role === 'edcc_personnel' || user?.role === 'call_triage' || user?.permissions?.can_triage_referrals) && (
+                        {user?.permissions?.can_triage_referrals && (
                           <Button 
                             variant="ghost" 
                             size="sm" 

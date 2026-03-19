@@ -341,7 +341,7 @@ export const ReferralView = () => {
 
   // Referrers can only edit pending referrals they created
   // EDCC and Triage can edit any referral
-  const isEDCCorTriage = user?.role === 'edcc_personnel' || user?.role === 'call_triage' || user?.permissions?.can_triage_referrals;
+  const isEDCCorTriage = !!user?.permissions?.can_triage_referrals;
   const canEdit = isEDCCorTriage || (referral.status === 'pending' && referral.created_by === user?.id);
   const canFillTransit = referral.status === 'dispositioned' && referral.created_by === user?.id;
   // Anyone can cancel except if already cancelled or completed

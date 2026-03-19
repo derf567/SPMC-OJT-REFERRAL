@@ -160,7 +160,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
             return True
         if not hasattr(user, 'profile'):
             return False
-        return user.profile.role in ['edcc_personnel', 'call_triage', 'admin']
+        return user.profile.can_triage_referrals or user.profile.role == 'admin'
     
     def update(self, request, *args, **kwargs):
         """Override update to check if referral can be edited"""
@@ -169,7 +169,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
         # Check if user is EDCC/Triage personnel
         try:
             profile = request.user.profile
-            is_edcc_or_triage = profile.role in ['edcc_personnel', 'call_triage'] or profile.can_triage_referrals
+            is_edcc_or_triage = profile.can_triage_referrals
         except:
             is_edcc_or_triage = False
         
@@ -196,7 +196,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
         # Check if user is EDCC/Triage personnel
         try:
             profile = request.user.profile
-            is_edcc_or_triage = profile.role in ['edcc_personnel', 'call_triage'] or profile.can_triage_referrals
+            is_edcc_or_triage = profile.can_triage_referrals
         except:
             is_edcc_or_triage = False
         
@@ -327,7 +327,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
         # Check permissions
         try:
             profile = request.user.profile
-            is_edcc_or_triage = profile.role in ['edcc_personnel', 'call_triage'] or profile.can_triage_referrals
+            is_edcc_or_triage = profile.can_triage_referrals
         except:
             is_edcc_or_triage = False
         
@@ -673,7 +673,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         # Check if user is triage/EDCC personnel
         user_profile = request.user.profile if hasattr(request.user, 'profile') else None
-        if not user_profile or user_profile.role not in ['edcc_personnel', 'call_triage']:
+        if not user_profile or not user_profile.can_triage_referrals:
             return Response({
                 'error': 'Only triage/EDCC personnel can approve referrals for transit'
             }, status=status.HTTP_403_FORBIDDEN)
@@ -718,8 +718,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
         # Check if user is the referrer or has permission to edit
         if referral.created_by != request.user:
             # Allow EDCC/Triage users to edit transit info
-            if not (hasattr(request.user, 'profile') and 
-                   (request.user.profile.can_triage_referrals or request.user.profile.is_edcc_personnel)):
+            if not (hasattr(request.user, 'profile') and request.user.profile.can_transfer_referrals):
                 return Response({
                     'error': 'Only the referrer or authorized personnel can fill/edit transit information'
                 }, status=status.HTTP_403_FORBIDDEN)

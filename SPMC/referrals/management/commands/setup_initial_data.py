@@ -69,7 +69,8 @@ class Command(BaseCommand):
                 'first_name': 'EDCC',
                 'last_name': 'Personnel',
                 'email': 'edcc@spmc.gov.ph',
-                'role': 'edcc_personnel',
+                'role': 'edcc_edma',
+                'edcc_edma_indicator': 'EDCC',
                 'department': 'Emergency Dispatch and Communication Center'
             },
             {
@@ -78,7 +79,8 @@ class Command(BaseCommand):
                 'first_name': 'EDMAR',
                 'last_name': 'Call Triage',
                 'email': 'triage@spmc.gov.ph',
-                'role': 'call_triage',
+                'role': 'edcc_edma',
+                'edcc_edma_indicator': 'EDMA',
                 'department': 'Emergency Department'
             },
             {
@@ -115,7 +117,8 @@ class Command(BaseCommand):
                 profile = UserProfile.objects.create(
                     user=user,
                     role=user_data['role'],
-                    department=user_data['department']
+                    department=user_data['department'],
+                    edcc_edma_indicator=user_data.get('edcc_edma_indicator')
                 )
                 
                 self.stdout.write(f'Created user: {username} ({profile.get_role_display()})')
@@ -125,7 +128,8 @@ class Command(BaseCommand):
                     user=user,
                     defaults={
                         'role': user_data['role'],
-                        'department': user_data['department']
+                        'department': user_data['department'],
+                        'edcc_edma_indicator': user_data.get('edcc_edma_indicator')
                     }
                 )
                 if created:

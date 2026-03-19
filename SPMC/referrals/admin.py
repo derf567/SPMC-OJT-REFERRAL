@@ -1,14 +1,103 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
+from django import forms
+from django.utils.html import format_html
 from .models import ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory, ReferralDocument, UserProfile
 
+HOSPITAL_REFERRER_HIDE_FIELDS = (
+    'department',
+    'contact_number',
+    'profession',
+)
+EDCC_EDMA_HIDE_FIELDS = (
+    'edcc_edma_indicator',
+    'spmc_id',
+    'spmc_id_file',
+)
+
+DOCTOR_HIDE_FIELDS = (
+    'contact_number',
+    'is_view_only',
+    'spmc_id',
+    'hospital_name',
+    'hospital_location',
+    'is_inside_davao',
+    'hospital_region',
+    'hospital_province',
+    'hospital_city',
+    'hospital_barangay',
+    'hospital_street',
+    'hospital_district',
+    'hospital_doh_level',
+    'is_referrer_suspended',
+    'referrer_suspended_until',
+    'referrer_suspension_reason',
+)
+
 # Inline UserProfile in User admin
+class CustomUserAdminForm(forms.ModelForm):
+    profile_role = forms.ChoiceField(
+        required=False,
+        label='Role',
+        choices=UserProfile.ROLE_CHOICES
+    )
+    edcc_edma_indicator_profile = forms.ChoiceField(
+        required=False,
+        label='EDCC/EDMA indicator',
+        choices=[('', '---------'), ('EDCC', 'EDCC'), ('EDMA', 'EDMA')]
+    )
+    spmc_id_file_profile = forms.FileField(required=False, label='SPMC ID file')
+
+    class Meta:
+        model = User
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        instance = kwargs.get('instance')
+        if instance is not None and hasattr(instance, 'profile'):
+            self.fields['profile_role'].initial = instance.profile.role or ''
+            self.fields['edcc_edma_indicator_profile'].initial = (
+                instance.profile.edcc_edma_indicator or ''
+            )
+
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
     can_delete = False
     verbose_name_plural = 'Profile'
+    exclude = ['cellphone']
     readonly_fields = ['display_contact_numbers_inline']
+
+    def get_fields(self, request, obj=None):
+        """
+        Hide department and contact_number only for hospital referrer accounts.
+        Keep these fields for department roles (e.g., doctor/admin).
+        """
+        fields = list(super().get_fields(request, obj))
+        is_hospital_referrer = (
+            obj is not None
+            and hasattr(obj, 'profile')
+            and obj.profile.role == 'referrer'
+            and bool(obj.profile.hospital_name)
+        )
+        is_doctor = (
+            obj is not None
+            and hasattr(obj, 'profile')
+            and obj.profile.role == 'doctor'
+        )
+        is_edcc_edma = (
+            obj is not None
+            and hasattr(obj, 'profile')
+            and obj.profile.role == 'edcc_edma'
+        )
+        if is_hospital_referrer:
+            fields = [f for f in fields if f not in HOSPITAL_REFERRER_HIDE_FIELDS]
+        if is_doctor:
+            fields = [f for f in fields if f not in DOCTOR_HIDE_FIELDS]
+        if is_edcc_edma:
+            fields = [f for f in fields if f not in EDCC_EDMA_HIDE_FIELDS]
+        return fields
     
     def display_contact_numbers_inline(self, obj):
         """Display contact numbers in inline form"""
@@ -19,9 +108,43 @@ class UserProfileInline(admin.StackedInline):
 
 # Extend UserAdmin to include profile
 class CustomUserAdmin(UserAdmin):
+    form = CustomUserAdminForm
     inlines = (UserProfileInline,)
-    list_display = ['username', 'email', 'first_name', 'last_name', 'get_role', 'get_department', 'is_active', 'is_staff']
+    list_display = ['username', 'email', 'display_name', 'get_role', 'get_department', 'is_active', 'is_staff']
     list_filter = ['is_active', 'is_staff', 'profile__role', 'profile__department']
+    readonly_fields = ['display_hospital_name', 'display_spmc_id', 'display_spmc_id_file']
+
+    def display_name(self, obj):
+        """Show hospital name for hospital referrers; otherwise full name."""
+        if hasattr(obj, 'profile') and obj.profile.role == 'referrer' and obj.profile.hospital_name:
+            return obj.profile.hospital_name
+        return obj.get_full_name() or '-'
+    display_name.short_description = 'Name'
+    display_name.admin_order_field = 'first_name'
+
+    def display_hospital_name(self, obj):
+        """Read-only helper shown in Personal info for hospital referrer accounts."""
+        if hasattr(obj, 'profile') and obj.profile.hospital_name:
+            return obj.profile.hospital_name
+        return '-'
+    display_hospital_name.short_description = 'Hospital name'
+
+    def display_spmc_id(self, obj):
+        """Read-only helper shown in Personal info for doctor accounts."""
+        if hasattr(obj, 'profile') and obj.profile.spmc_id:
+            return obj.profile.spmc_id
+        return '-'
+    display_spmc_id.short_description = 'SPMC ID number'
+
+    def display_spmc_id_file(self, obj):
+        """Read-only helper to open uploaded SPMC ID file for doctor accounts."""
+        if hasattr(obj, 'profile') and obj.profile.spmc_id_file:
+            return format_html(
+                '<a href="{}" target="_blank" rel="noopener noreferrer">View uploaded SPMC ID</a>',
+                obj.profile.spmc_id_file.url
+            )
+        return '-'
+    display_spmc_id_file.short_description = 'SPMC ID file'
     
     def get_role(self, obj):
         """Display user role from profile"""
@@ -39,15 +162,132 @@ class CustomUserAdmin(UserAdmin):
     get_department.short_description = 'Department'
     get_department.admin_order_field = 'profile__department'
 
+    def get_fieldsets(self, request, obj=None):
+        """
+        Hide first_name/last_name in admin form for hospital referrer accounts.
+        Keeps default UserAdmin fields for all other account types.
+        """
+        fieldsets = super().get_fieldsets(request, obj)
+
+        if not obj or not hasattr(obj, 'profile'):
+            return fieldsets
+
+        is_hospital_referrer = (
+            obj.profile.role == 'referrer' and bool(obj.profile.hospital_name)
+        )
+        is_doctor = obj.profile.role == 'doctor'
+        is_edcc_edma = obj.profile.role == 'edcc_edma'
+        if not is_hospital_referrer and not is_doctor and not is_edcc_edma:
+            return fieldsets
+
+        updated_fieldsets = []
+        for section_title, section_opts in fieldsets:
+            opts = dict(section_opts)
+            fields = opts.get('fields')
+            if section_title == 'Personal info' and fields:
+                filtered_fields = list(fields)
+                if is_hospital_referrer:
+                    filtered_fields = [
+                        field for field in filtered_fields if field not in ('first_name', 'last_name')
+                    ]
+                    if 'display_hospital_name' not in filtered_fields:
+                        filtered_fields.insert(0, 'display_hospital_name')
+                if is_doctor:
+                    if 'display_spmc_id' not in filtered_fields:
+                        filtered_fields.append('display_spmc_id')
+                    if 'spmc_id_file_profile' not in filtered_fields:
+                        filtered_fields.append('spmc_id_file_profile')
+                    if 'display_spmc_id_file' not in filtered_fields:
+                        filtered_fields.append('display_spmc_id_file')
+                if is_edcc_edma:
+                    if 'profile_role' not in filtered_fields:
+                        filtered_fields.append('profile_role')
+                    if 'edcc_edma_indicator_profile' not in filtered_fields:
+                        filtered_fields.append('edcc_edma_indicator_profile')
+                    if 'display_spmc_id' not in filtered_fields:
+                        filtered_fields.append('display_spmc_id')
+                    if 'spmc_id_file_profile' not in filtered_fields:
+                        filtered_fields.append('spmc_id_file_profile')
+                    if 'display_spmc_id_file' not in filtered_fields:
+                        filtered_fields.append('display_spmc_id_file')
+                if obj.profile.role == 'admin':
+                    if 'profile_role' not in filtered_fields:
+                        filtered_fields.append('profile_role')
+                opts['fields'] = tuple(filtered_fields)
+            updated_fieldsets.append((section_title, opts))
+
+        return tuple(updated_fieldsets)
+
+    def get_inline_instances(self, request, obj=None):
+        """
+        Hide the whole UserProfile inline section for EDCC/EDMA and admin users.
+        Their relevant fields are managed in Personal info.
+        """
+        inline_instances = super().get_inline_instances(request, obj)
+        if obj and hasattr(obj, 'profile') and obj.profile.role in ['edcc_edma', 'admin']:
+            return []
+        return inline_instances
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        role_value = form.cleaned_data.get('profile_role')
+        indicator_value = form.cleaned_data.get('edcc_edma_indicator_profile')
+        uploaded_file = form.cleaned_data.get('spmc_id_file_profile')
+        if hasattr(obj, 'profile'):
+            update_fields = []
+            if role_value and role_value != obj.profile.role:
+                obj.profile.role = role_value
+                update_fields.append('role')
+            if obj.profile.role == 'edcc_edma' and indicator_value is not None:
+                obj.profile.edcc_edma_indicator = indicator_value or None
+                update_fields.append('edcc_edma_indicator')
+            if obj.profile.role in ['doctor', 'edcc_edma'] and uploaded_file:
+                obj.profile.spmc_id_file = uploaded_file
+                update_fields.append('spmc_id_file')
+            if update_fields:
+                obj.profile.save(update_fields=update_fields)
+
 # Re-register UserAdmin
 admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'role', 'department', 'cellphone', 'display_contact_numbers']
+    list_display = ['user', 'role', 'department', 'display_contact_numbers']
     list_filter = ['role', 'department']
     search_fields = ['user__username', 'user__first_name', 'user__last_name']
+    exclude = ['cellphone']
+
+    def get_fields(self, request, obj=None):
+        """
+        Hide department and contact_number in direct UserProfile edit
+        only for hospital referrer profiles.
+        """
+        fields = list(super().get_fields(request, obj))
+        is_hospital_referrer = (
+            obj is not None
+            and obj.role == 'referrer'
+            and bool(obj.hospital_name)
+        )
+        is_doctor = (
+            obj is not None
+            and obj.role == 'doctor'
+        )
+        is_edcc_edma = (
+            obj is not None
+            and obj.role == 'edcc_edma'
+        )
+        is_admin_role = (
+            obj is not None
+            and obj.role == 'admin'
+        )
+        if is_edcc_edma or is_admin_role:
+            return ['user', 'role']
+        if is_hospital_referrer:
+            fields = [f for f in fields if f not in HOSPITAL_REFERRER_HIDE_FIELDS]
+        if is_doctor:
+            fields = [f for f in fields if f not in DOCTOR_HIDE_FIELDS]
+        return fields
     
     def display_contact_numbers(self, obj):
         """Display contact numbers as comma-separated list"""

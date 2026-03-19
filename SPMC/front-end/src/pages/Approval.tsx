@@ -312,9 +312,13 @@ const Approval = () => {
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Full Name</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {selectedAccount.referrer_type === 'hospital_account' ? 'Hospital Name' : 'Full Name'}
+                      </p>
                       <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedAccount.first_name} {selectedAccount.middle_name} {selectedAccount.last_name}
+                        {selectedAccount.referrer_type === 'hospital_account'
+                          ? (selectedAccount.first_name || selectedAccount.user.username)
+                          : `${selectedAccount.first_name} ${selectedAccount.middle_name} ${selectedAccount.last_name}`}
                       </p>
                     </div>
                     <div>

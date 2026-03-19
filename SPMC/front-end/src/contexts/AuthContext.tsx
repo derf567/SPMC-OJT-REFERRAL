@@ -12,6 +12,7 @@ interface User {
   is_superuser: boolean;
   role: string;
   role_display: string;
+  edcc_edma_indicator?: string;
   department: string;
   permissions: {
     can_view_referrals: boolean;
@@ -21,6 +22,7 @@ interface User {
     is_his_department: boolean;
     is_view_only: boolean;
     department: string;
+    edcc_edma_indicator?: string;
   };
   // Hospital account fields (for referrer users with hospital accounts)
   hospital_name?: string;

@@ -273,10 +273,7 @@ const Register = () => {
       fd.append('email', formData.email);
       fd.append('password', formData.password);
       
-      // For hospital accounts, use hospital name as first/last name
-      // This is required by comprehensive_register_view
-      fd.append('first_name', formData.hospitalName.split(' ')[0] || 'Hospital');
-      fd.append('last_name', formData.hospitalName.split(' ').slice(1).join(' ') || 'Account');
+      // Hospital account registration is username-based.
       fd.append('referrer_type', 'hospital_account');
       
       // Hospital information
