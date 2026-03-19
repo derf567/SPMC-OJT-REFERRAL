@@ -286,7 +286,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
             
             # Specialty and referrer info
             'specialty_needed_name', 'referring_hospital_name', 'referrer_name', 
-            'referrer_profession', 'referrer_profession_other', 'referrer_cellphone', 'referrer_contact_numbers', 'contact_numbers', 'mode_of_transportation',
+            'referrer_profession', 'referrer_profession_other', 'referrer_cellphone', 'referrer_contact_numbers', 'mode_of_transportation',
             
             # System fields
             'created_by_name', 'assigned_to_name', 'consent_secured',
@@ -400,12 +400,8 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         transit_info_data = validated_data.pop('transit_info', None)
         hospital_name = validated_data.pop('hospital_name', None)
-        hospital_contact_numbers = validated_data.pop('hospital_contact_numbers', None)
-        
-        # Map hospital_contact_numbers to contact_numbers
-        if hospital_contact_numbers:
-            validated_data['contact_numbers'] = hospital_contact_numbers
-        
+        validated_data.pop('hospital_contact_numbers', None)
+
         # Ensure referrer_contact_numbers is set (if provided in the request)
         # The field should already be in validated_data if sent from frontend
         
@@ -428,7 +424,6 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
         print(f"  hospital_district: {validated_data.get('hospital_district')}")
         print(f"  hospital_doh_level: {validated_data.get('hospital_doh_level')}")
         print(f"  referrer_contact_numbers: {validated_data.get('referrer_contact_numbers')}")
-        print(f"  contact_numbers (patient/watcher): {validated_data.get('contact_numbers')}")
         print("Transit info data:", transit_info_data)
         
         # Set the created_by from the request user if authenticated, otherwise use a default
@@ -463,7 +458,6 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
         print(f"  Saved hospital_barangay: {referral.hospital_barangay}")
         print(f"  Saved hospital_street: {referral.hospital_street}")
         print(f"  Saved referrer_contact_numbers: {referral.referrer_contact_numbers}")
-        print(f"  Saved contact_numbers: {referral.contact_numbers}")
         
         # Create transit info if provided
         if transit_info_data:

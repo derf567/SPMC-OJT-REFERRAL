@@ -254,7 +254,7 @@ class Referral(models.Model):
     
     gcs_score = models.CharField(max_length=50, verbose_name="GCS Score or AVPU")
     o2_support = models.CharField(max_length=100, verbose_name="O2 Support")
-    admission_status = models.CharField(max_length=30, choices=ADMISSION_STATUS_CHOICES)
+    admission_status = models.CharField(max_length=200)
     rtpcr_result = models.CharField(max_length=20, choices=RTPCR_CHOICES)
     working_impression = models.TextField()
     management_done = models.TextField()
@@ -299,7 +299,6 @@ class Referral(models.Model):
     referrer_profession_other = models.CharField(max_length=100, blank=True, null=True, help_text="Specify if profession is 'Others'")
     referrer_cellphone = models.CharField(max_length=20)
     referrer_contact_numbers = models.JSONField(default=list, blank=True, help_text="Referrer contact numbers (multiple)")
-    contact_numbers = models.JSONField(default=list, blank=True, help_text="Patient/Watcher contact numbers")
     mode_of_transportation = models.CharField(max_length=100)
     
     # Consent

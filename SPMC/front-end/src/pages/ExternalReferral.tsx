@@ -1743,8 +1743,8 @@ const ExternalReferral = () => {
 
             {/* Referrer Information */}
             <div className="space-y-6">
-              {/* Row 1: Name of Referrer */}
-              <div className="grid grid-cols-1 gap-6">
+              {/* Row 1: Name of Referrer | Referrer Contact Numbers */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Name of the Referrer <span className="text-red-500">*</span>
@@ -1762,10 +1762,7 @@ const ExternalReferral = () => {
                     onChange={(e) => updateFormData('referrerName', e.target.value)}
                   />
                 </div>
-              </div>
 
-              {/* Row 2: Profession of Referrer - Mode of Transportation */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Referrer Contact Numbers
@@ -1823,7 +1820,7 @@ const ExternalReferral = () => {
                 </div>
               </div>
 
-              {/* Row 3: Profession of Referrer - Mode of Transportation */}
+              {/* Row 2: Profession of Referrer - Mode of Transportation */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
