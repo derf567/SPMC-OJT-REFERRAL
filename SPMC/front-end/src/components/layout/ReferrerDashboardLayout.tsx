@@ -40,8 +40,10 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
   const [liveNotifications, setLiveNotifications] = useState<NotificationData[]>([]);
   const [dropdownNotifications, setDropdownNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Track if any modal/dialog is open to prevent auto-refresh from causing flickering
+  const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
   const seenAssignmentNotificationIdsRef = useRef<Set<string>>(new Set());
-  
+   
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
@@ -70,6 +72,7 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
       }
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
+        setIsAnyModalOpen(false);
       }
     };
 
@@ -261,10 +264,15 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
 
     if (user) {
       fetchMyReferralsCount();
-      const interval = setInterval(fetchMyReferralsCount, 30000);
+      // Refresh every 30 seconds, but skip if any modal is open to prevent flickering
+      const interval = setInterval(() => {
+        if (!isAnyModalOpen) {
+          fetchMyReferralsCount();
+        }
+      }, 30000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, isAnyModalOpen]);
 
   // Helper function to calculate time ago
   const getTimeAgo = (timestamp: string) => {
@@ -488,7 +496,11 @@ export const ReferrerDashboardLayout = ({ children }: ReferrerDashboardLayoutPro
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setShowNotifications(!showNotifications)}
+                    onClick={() => {
+                      const newState = !showNotifications;
+                      setShowNotifications(newState);
+                      setIsAnyModalOpen(newState);
+                    }}
                     className={cn(
                       "relative transition-colors duration-300",
                       isDarkMode 

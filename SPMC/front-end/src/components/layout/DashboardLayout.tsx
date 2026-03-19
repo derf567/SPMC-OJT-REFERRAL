@@ -54,7 +54,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [activeReferralsCount, setActiveReferralsCount] = useState(0);
   const [liveNotifications, setLiveNotifications] = useState<NotificationData[]>([]);
   const [selectedReferral, setSelectedReferral] = useState<any | null>(null);
-  
+  // Track if any modal/dialog is open to prevent auto-refresh from causing flickering
+  const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
+   
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
@@ -179,19 +181,25 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
     if (user) {
       fetchActiveReferralsCount();
-      // Refresh count every 30 seconds
-      const interval = setInterval(fetchActiveReferralsCount, 30000);
+      // Refresh count every 30 seconds, but skip if any modal is open to prevent flickering
+      const interval = setInterval(() => {
+        if (!isAnyModalOpen) {
+          fetchActiveReferralsCount();
+        }
+      }, 30000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, isAnyModalOpen]);
 
   // Load stored notifications on mount
   useEffect(() => {
-    const storedNotifications = getStoredNotifications();
-    if (storedNotifications.length > 0) {
-      setLiveNotifications(storedNotifications);
+    if (user?.permissions) {
+      const storedNotifications = getStoredNotifications(user.permissions);
+      if (storedNotifications.length > 0) {
+        setLiveNotifications(storedNotifications);
+      }
     }
-  }, []);
+  }, [user?.permissions]);
 
   // Start notification polling
   useEffect(() => {
@@ -230,9 +238,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       // Check immediately
       checkReferrerAccountStatus(true, handleNotification);
 
-      // Check every 30 seconds (increased from 10 to reduce flickering)
+      // Check every 30 seconds, but skip if any modal is open to reduce flickering
       const interval = setInterval(() => {
-        checkReferrerAccountStatus(true, handleNotification);
+        if (!isAnyModalOpen) {
+          checkReferrerAccountStatus(true, handleNotification);
+        }
       }, 30000); // Changed from 10000 to 30000
 
       return () => clearInterval(interval);
@@ -250,6 +260,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       // Don't navigate - just close the notification panel
       // The user can manually click "View Status" button on the Triage page if needed
       setShowNotificationPanel(false);
+      setIsAnyModalOpen(false);
     } catch (error) {
       console.error('Error handling notification click:', error);
     }
@@ -437,7 +448,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setShowNotificationPanel(!showNotificationPanel)}
+                    onClick={() => {
+                      const newState = !showNotificationPanel;
+                      setShowNotificationPanel(newState);
+                      setIsAnyModalOpen(newState);
+                    }}
                     className={cn(
                       "relative transition-colors duration-300",
                       isDarkMode 
@@ -456,9 +471,13 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   {/* Notification Panel */}
                   <NotificationPanel
                     isOpen={showNotificationPanel}
-                    onClose={() => setShowNotificationPanel(false)}
+                    onClose={() => {
+                      setShowNotificationPanel(false);
+                      setIsAnyModalOpen(false);
+                    }}
                     notifications={liveNotifications}
                     onNotificationClick={handleNotificationClick}
+                    userPermissions={user?.permissions}
                   />
                 </div>
 

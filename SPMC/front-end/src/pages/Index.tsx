@@ -75,6 +75,9 @@ const Index = () => {
   // Timeline modal state
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedReferralForTimeline, setSelectedReferralForTimeline] = useState<Referral | null>(null);
+  
+  // Track if any modal/dialog is open to prevent auto-refresh from causing flickering
+  const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -159,11 +162,15 @@ const Index = () => {
 
     if (user) {
       fetchDashboardData();
-      // Refresh every 2 minutes
-      const interval = setInterval(fetchDashboardData, 120000);
+      // Refresh every 2 minutes, but skip if any modal is open to prevent flickering
+      const interval = setInterval(() => {
+        if (!isAnyModalOpen) {
+          fetchDashboardData();
+        }
+      }, 120000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, isAnyModalOpen]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -583,7 +590,10 @@ const Index = () => {
       </div>
 
       {/* Timeline Modal */}
-      <Dialog open={timelineModalOpen} onOpenChange={setTimelineModalOpen}>
+      <Dialog open={timelineModalOpen} onOpenChange={(open) => {
+        setTimelineModalOpen(open);
+        setIsAnyModalOpen(open);
+      }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-gray-900 text-white border-gray-800">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-white">Referral Timeline</DialogTitle>

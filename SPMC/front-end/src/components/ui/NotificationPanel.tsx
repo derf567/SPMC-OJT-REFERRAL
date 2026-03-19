@@ -13,13 +13,15 @@ interface NotificationPanelProps {
   onClose: () => void;
   notifications: NotificationData[];
   onNotificationClick?: (referralId?: string, type?: string) => void;
+  userPermissions?: any;
 }
 
 export const NotificationPanel = ({
   isOpen,
   onClose,
   notifications,
-  onNotificationClick
+  onNotificationClick,
+  userPermissions
 }: NotificationPanelProps) => {
   const [displayedNotifications, setDisplayedNotifications] = useState<NotificationWithStatus[]>([]);
   const [selectedDateFilter, setSelectedDateFilter] = useState<string>('all');
@@ -29,7 +31,8 @@ export const NotificationPanel = ({
 
   useEffect(() => {
     // Load from both incoming notifications and stored notifications
-    const storedNotifications = getStoredNotifications();
+    // Pass userPermissions to filter stored notifications by role
+    const storedNotifications = getStoredNotifications(userPermissions);
     const allNotifications = [...notifications, ...storedNotifications];
     
     // Remove duplicates by ID
@@ -44,7 +47,7 @@ export const NotificationPanel = ({
       readAt: localStorage.getItem(`notification_read_at_${notif.id}`) || undefined
     }));
     setDisplayedNotifications(notificationsWithStatus);
-  }, [notifications]);
+  }, [notifications, userPermissions]);
 
   const getDateFilter = () => {
     const now = new Date();

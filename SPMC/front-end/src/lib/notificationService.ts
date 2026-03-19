@@ -17,10 +17,28 @@ let shownNotificationIds: Set<string> = new Set();
 // Persist notifications to localStorage
 const NOTIFICATIONS_STORAGE_KEY = 'spmc_notifications';
 
-export const getStoredNotifications = (): NotificationData[] => {
+export const getStoredNotifications = (userPermissions?: any): NotificationData[] => {
   try {
     const stored = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const allNotifications = stored ? JSON.parse(stored) : [];
+    
+    // Filter notifications based on user permissions
+    if (userPermissions) {
+      return allNotifications.filter((notif: NotificationData) => {
+        // Admin-only notifications
+        if (notif.type === 'account_approval') {
+          return userPermissions.is_admin_user === true;
+        }
+        // Referrer-only notifications
+        if (notif.type === 'account_approved' || notif.type === 'account_rejected') {
+          return userPermissions.is_referrer === true;
+        }
+        // All other notifications are visible to their respective users
+        return true;
+      });
+    }
+    
+    return allNotifications;
   } catch (error) {
     console.error('Error reading stored notifications:', error);
     return [];
