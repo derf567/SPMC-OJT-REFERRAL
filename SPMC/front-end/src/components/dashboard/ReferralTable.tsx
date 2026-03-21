@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { EditActionButton } from "@/components/ui/edit-action-button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Check, AlertCircle, Edit, XCircle, UserPlus, Loader2, MoreVertical, Download } from "lucide-react";
+import { Eye, X, Phone, Clock, MapPin, User, FileText, Activity, CheckCircle, Search, Check, AlertCircle, XCircle, UserPlus, Loader2, MoreVertical, Download } from "lucide-react";
 import { referralsAPI, departmentsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
@@ -1518,18 +1519,16 @@ export const ReferralTable = () => {
                         </Button>
                         {/* Edit button for EDCC/Triage users */}
                         {user?.permissions?.can_triage_referrals && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-purple-500 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/20"
+                          <EditActionButton
                             onClick={() => {
                               const editUrl = `/referral/edit/${referral.id}`;
                               window.location.href = editUrl;
                             }}
                             title="Edit Referral"
+                            aria-label="Edit Referral"
                           >
-                            <Edit className="w-4 h-4" />
-                          </Button>
+                            Edit
+                          </EditActionButton>
                         )}
                         {user?.permissions?.can_triage_referrals && referral.status === 'waiting' && (
                           <Button 

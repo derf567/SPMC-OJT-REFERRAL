@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { referralsAPI } from "@/lib/api";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Search, Eye, Clock, FileText, CheckCircle, MapPin, X, Edit, MoreVertical, Download } from "lucide-react";
+import { Loader2, RefreshCw, Search, Eye, Clock, FileText, CheckCircle, MapPin, X, MoreVertical, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EditActionButton } from "@/components/ui/edit-action-button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TransitFormDialog } from "@/components/ui/TransitFormDialog";
 import jsPDF from "jspdf";
@@ -536,16 +537,13 @@ const PatientArrivalPage = () => {
                             Details
                           </Button>
 
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-blue-400 hover:bg-blue-700/40 hover:text-blue-100"
+                          <EditActionButton
                             onClick={() => openEditTransit(referral)}
                             title="Edit transit form"
                             aria-label="Edit transit form"
                           >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                            Edit
+                          </EditActionButton>
 
                           <Button
                             size="sm"

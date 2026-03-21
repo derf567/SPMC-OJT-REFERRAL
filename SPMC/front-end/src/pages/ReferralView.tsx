@@ -4,6 +4,7 @@ import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
+import { EditActionButton } from "@/components/ui/edit-action-button";
 import { TransitFormDialog } from "@/components/ui/TransitFormDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { 
@@ -11,7 +12,6 @@ import {
   User, 
   Activity, 
   MapPin,
-  Edit,
   Building2,
   Truck,
   XCircle,
@@ -412,12 +412,9 @@ export const ReferralView = () => {
                 )}
 
                 {canEdit && (
-                  <Link to={`/referral/edit/${id}`}>
-                    <Button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
-                      <Edit className="w-4 h-4" />
-                      Edit Referral
-                    </Button>
-                  </Link>
+                  <EditActionButton asChild title="Edit Referral" aria-label="Edit Referral" className="h-10 px-4 py-2 text-sm">
+                    <Link to={`/referral/edit/${id}`}>Edit</Link>
+                  </EditActionButton>
                 )}
                 
                 {canFillTransit && (

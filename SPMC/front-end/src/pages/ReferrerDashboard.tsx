@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ReferrerDashboardLayout } from "@/components/layout/ReferrerDashboardLayout";
 import { TransferActionDropdown } from "@/components/ui/TransferActionDropdown";
 import { TransitFormDialog } from "@/components/ui/TransitFormDialog";
+import { EditActionButton } from "@/components/ui/edit-action-button";
 import { referralsAPI, departmentsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "react-router-dom";
@@ -934,12 +935,9 @@ const ReferrerDashboard = () => {
               )}
               {/* Show Edit button only if status is pending */}
               {referral.status === 'pending' && (
-                <Link 
-                  to={`/referral/edit/${referral.id}`}
-                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 text-xs underline font-medium"
-                >
-                  ✏️ Edit
-                </Link>
+                <EditActionButton asChild title="Edit Referral" aria-label="Edit Referral">
+                  <Link to={`/referral/edit/${referral.id}`}>Edit</Link>
+                </EditActionButton>
               )}
               {/* Show View button for all referrals */}
               <Link
