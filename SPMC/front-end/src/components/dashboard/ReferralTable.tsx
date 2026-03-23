@@ -256,7 +256,7 @@ const ReferralDetailModal = ({
                 <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.chief_complaint}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Working Impression</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Initial Impression</label>
                 <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.working_impression}</p>
               </div>
               {referral.pertinent_history && (
@@ -669,7 +669,7 @@ export const ReferralTable = () => {
     let ry = y;
     ry = sectionHeader("Clinical Information", rightX, ry);
     ry = row("Chief Complaint",   referral.chief_complaint, rightX, ry);
-    ry = row("Working Impression",referral.working_impression, rightX, ry);
+    ry = row("Initial Impression",referral.working_impression, rightX, ry);
     ry += 2;
 
     ry = sectionHeader("Pertinent History", rightX, ry);

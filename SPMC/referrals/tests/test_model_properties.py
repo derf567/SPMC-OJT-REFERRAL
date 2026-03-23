@@ -115,7 +115,7 @@ class ReferralModelPropertyTests(TestCase):
         self.assertIsNotNone(referral.temp)
         self.assertIsNotNone(referral.o2_sat)
         
-        # Verify working impression and management are captured
+        # Verify initial impression and management are captured
         self.assertIsNotNone(referral.working_impression)
         self.assertIsNotNone(referral.management_done)
         

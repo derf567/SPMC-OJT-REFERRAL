@@ -593,7 +593,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.chief_complaint}</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Working Impression</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Initial Impression</label>
                       <p className="text-sm text-gray-900 dark:text-white mt-1">{selectedReferral.working_impression}</p>
                     </div>
                   </div>

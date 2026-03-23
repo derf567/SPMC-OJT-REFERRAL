@@ -195,7 +195,7 @@ export const ReferralView = () => {
       
       const statusData = [
         ['Chief Complaint:', referral.chief_complaint],
-        ['Working Impression:', referral.working_impression],
+        ['Initial Impression:', referral.working_impression],
         ...(referral.pertinent_history ? [['Pertinent History:', referral.pertinent_history]] : []),
         ...(referral.pertinent_physical_exam ? [['Physical Examination:', referral.pertinent_physical_exam]] : []),
         ...(referral.management_done ? [['Management Done:', referral.management_done]] : [])
@@ -651,7 +651,7 @@ export const ReferralView = () => {
                 </div>
                 
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Working Impression</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Initial Impression</p>
                   <p className="font-medium text-gray-900 dark:text-white">{referral.working_impression}</p>
                 </div>
               </div>

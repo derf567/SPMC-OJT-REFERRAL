@@ -179,14 +179,30 @@ const ExternalReferral = () => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Load hospitals and specialties (always needed)
-        const [hospitalsData, specialtiesData] = await Promise.all([
+        // Load hospitals and specialties independently so one failure doesn't block the other
+        const [hospitalsResult, specialtiesResult] = await Promise.allSettled([
           externalReferralsAPI.getHospitals(),
           externalReferralsAPI.getSpecialties()
         ]);
-        
-        setHospitals(hospitalsData.results || hospitalsData);
-        setSpecialties(specialtiesData.results || specialtiesData);
+
+        if (hospitalsResult.status === 'fulfilled') {
+          const hospitalsData = hospitalsResult.value;
+          setHospitals(hospitalsData.results || hospitalsData);
+        } else {
+          console.error('Failed to load hospitals:', hospitalsResult.reason);
+        }
+
+        if (specialtiesResult.status === 'fulfilled') {
+          const specialtiesData = specialtiesResult.value;
+          setSpecialties(specialtiesData.results || specialtiesData);
+        } else {
+          console.error('Failed to load specialties:', specialtiesResult.reason);
+          toast({
+            title: "Warning",
+            description: "Could not load specialties. Please refresh the page.",
+            variant: "destructive",
+          });
+        }
 
         // Load referrer profile if user is authenticated and is a referrer
         if (user && user.role === 'referrer') {
@@ -241,11 +257,6 @@ const ExternalReferral = () => {
         }
       } catch (error) {
         console.error('Error loading initial data:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load form data. Please refresh the page.",
-          variant: "destructive",
-        });
       } finally {
         setLoading(false);
       }
@@ -1283,7 +1294,7 @@ const ExternalReferral = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Working Impression <span className="text-red-500">*</span>
+                  Initial Impression <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('workingImpression')}`}

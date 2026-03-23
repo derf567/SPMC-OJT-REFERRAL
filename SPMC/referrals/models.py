@@ -256,7 +256,7 @@ class Referral(models.Model):
     o2_support = models.CharField(max_length=100, verbose_name="O2 Support")
     admission_status = models.CharField(max_length=200)
     rtpcr_result = models.CharField(max_length=20, choices=RTPCR_CHOICES)
-    working_impression = models.TextField()
+    working_impression = models.TextField(verbose_name="Initial Impression")
     management_done = models.TextField()
     
     # Patient General Information

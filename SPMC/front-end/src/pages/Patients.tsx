@@ -210,7 +210,7 @@ const Patients = () => {
     let ry = y;
     ry = sectionHeader("Clinical Information", rightX, ry);
     ry = row("Chief Complaint",    r.chief_complaint, rightX, ry);
-    ry = row("Working Impression", r.working_impression, rightX, ry);
+    ry = row("Initial Impression", r.working_impression, rightX, ry);
     ry += 2;
     ry = sectionHeader("Pertinent History", rightX, ry);
     doc.setFontSize(6.5);

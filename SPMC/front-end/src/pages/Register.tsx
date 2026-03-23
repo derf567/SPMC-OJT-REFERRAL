@@ -156,6 +156,13 @@ const Register = () => {
     return fieldErrors.has(fieldName) ? 'border-red-500 border-2' : '';
   };
 
+  // Handler for contact number input - only allows numbers, spaces, hyphens, and plus sign
+  const handleContactNumberInput = (value: string) => {
+    // Only allow numbers, spaces, hyphens, parentheses, and plus sign for phone numbers
+    const filteredValue = value.replace(/[^0-9\s\-+()]/g, '');
+    setCurrentContactNumber(filteredValue);
+  };
+
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFiles(e.target.files);
     // Clear error when files are selected
@@ -617,7 +624,7 @@ const Register = () => {
                   <input
                     type="tel"
                     value={currentContactNumber}
-                    onChange={(e) => setCurrentContactNumber(e.target.value)}
+                    onChange={(e) => handleContactNumberInput(e.target.value)}
                     placeholder="e.g., 082-123-4567 or 0917-123-4567"
                     className={`flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${getFieldErrorClass('contactNumbers')}`}
                   />

@@ -57,6 +57,13 @@ export function TransitFormDialog({
   
   const [submitting, setSubmitting] = useState(false);
 
+  // Handler for contact number input - only allows numbers, spaces, hyphens, and plus sign
+  const handleContactNumberInput = (value: string) => {
+    // Only allow numbers, spaces, hyphens, parentheses, and plus sign for phone numbers
+    const filteredValue = value.replace(/[^0-9\s\-+()]/g, '');
+    setContactNumber(filteredValue);
+  };
+
   // Pre-fill form when editing
   useEffect(() => {
     if (existingData && isEditMode) {
@@ -196,7 +203,7 @@ export function TransitFormDialog({
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="09XXXXXXXXX"
                   value={contactNumber}
-                  onChange={(e) => setContactNumber(e.target.value)}
+                  onChange={(e) => handleContactNumberInput(e.target.value)}
                   required
                 />
               </div>
