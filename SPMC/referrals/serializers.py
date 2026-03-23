@@ -398,78 +398,93 @@ class ReferralCreateSerializer(serializers.ModelSerializer):
         }
     
     def create(self, validated_data):
-        transit_info_data = validated_data.pop('transit_info', None)
-        hospital_name = validated_data.pop('hospital_name', None)
-        validated_data.pop('hospital_contact_numbers', None)
+        try:
+            transit_info_data = validated_data.pop('transit_info', None)
+            hospital_name = validated_data.pop('hospital_name', None)
+            validated_data.pop('hospital_contact_numbers', None)
 
-        # Ensure referrer_contact_numbers is set (if provided in the request)
-        # The field should already be in validated_data if sent from frontend
-        
-        # If hospital_name is provided instead of referring_hospital ID, create/get the hospital
-        if hospital_name and 'referring_hospital' not in validated_data:
-            hospital, created = ReferringHospital.objects.get_or_create(
-                name=hospital_name,
-                defaults={'is_inside_davao_city': True}
-            )
-            validated_data['referring_hospital'] = hospital
-            print(f"Created/found hospital: {hospital.name} (ID: {hospital.id})")
-        
-        # Debug logging - show all hospital address fields
-        print("Creating referral with data:")
-        print(f"  hospital_region: {validated_data.get('hospital_region')}")
-        print(f"  hospital_province: {validated_data.get('hospital_province')}")
-        print(f"  hospital_city: {validated_data.get('hospital_city')}")
-        print(f"  hospital_barangay: {validated_data.get('hospital_barangay')}")
-        print(f"  hospital_street: {validated_data.get('hospital_street')}")
-        print(f"  hospital_district: {validated_data.get('hospital_district')}")
-        print(f"  hospital_doh_level: {validated_data.get('hospital_doh_level')}")
-        print(f"  referrer_contact_numbers: {validated_data.get('referrer_contact_numbers')}")
-        print("Transit info data:", transit_info_data)
-        
-        # Set the created_by from the request user if authenticated, otherwise use a default
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            if hasattr(request.user, 'profile') and request.user.profile.role == 'referrer':
-                profile = request.user.profile
-                if profile.is_referrer_suspended:
-                    if not profile.referrer_suspended_until or profile.referrer_suspended_until > timezone.now():
-                        raise serializers.ValidationError({
-                            'detail': 'Your referrer account is suspended from creating referrals.',
-                            'reason': profile.referrer_suspension_reason or 'No reason provided.',
-                        })
-            validated_data['created_by'] = request.user
-        else:
-            # For anonymous submissions, create or get a system user
-            from django.contrib.auth.models import User
-            system_user, created = User.objects.get_or_create(
-                username='external_system',
-                defaults={
-                    'first_name': 'External',
-                    'last_name': 'System',
-                    'email': 'external@spmc.gov.ph'
-                }
-            )
-            validated_data['created_by'] = system_user
-        
-        referral = Referral.objects.create(**validated_data)
-        
-        # Verify the data was saved
-        print(f"Referral created with ID: {referral.id}")
-        print(f"  Saved hospital_barangay: {referral.hospital_barangay}")
-        print(f"  Saved hospital_street: {referral.hospital_street}")
-        print(f"  Saved referrer_contact_numbers: {referral.referrer_contact_numbers}")
-        
-        # Create transit info if provided
-        if transit_info_data:
-            TransitInfo.objects.create(referral=referral, **transit_info_data)
+            # Ensure referrer_contact_numbers is set (if provided in the request)
+            # The field should already be in validated_data if sent from frontend
+            
+            # If hospital_name is provided instead of referring_hospital ID, create/get the hospital
+            if hospital_name and 'referring_hospital' not in validated_data:
+                hospital, created = ReferringHospital.objects.get_or_create(
+                    name=hospital_name,
+                    defaults={'is_inside_davao_city': True}
+                )
+                validated_data['referring_hospital'] = hospital
+                print(f"Created/found hospital: {hospital.name} (ID: {hospital.id})")
+            
+            # Debug logging - show all hospital address fields
+            print("Creating referral with data:")
+            print(f"  hospital_region: {validated_data.get('hospital_region')}")
+            print(f"  hospital_province: {validated_data.get('hospital_province')}")
+            print(f"  hospital_city: {validated_data.get('hospital_city')}")
+            print(f"  hospital_barangay: {validated_data.get('hospital_barangay')}")
+            print(f"  hospital_street: {validated_data.get('hospital_street')}")
+            print(f"  hospital_district: {validated_data.get('hospital_district')}")
+            print(f"  hospital_doh_level: {validated_data.get('hospital_doh_level')}")
+            print(f"  referrer_contact_numbers: {validated_data.get('referrer_contact_numbers')}")
+            print("Transit info data:", transit_info_data)
+            
+            # Set the created_by from the request user if authenticated, otherwise use a default
+            request = self.context.get('request')
+            if request and request.user.is_authenticated:
+                if hasattr(request.user, 'profile') and request.user.profile.role == 'referrer':
+                    profile = request.user.profile
+                    if profile.is_referrer_suspended:
+                        if not profile.referrer_suspended_until or profile.referrer_suspended_until > timezone.now():
+                            raise serializers.ValidationError({
+                                'detail': 'Your referrer account is suspended from creating referrals.',
+                                'reason': profile.referrer_suspension_reason or 'No reason provided.',
+                            })
+                validated_data['created_by'] = request.user
+            else:
+                # For anonymous submissions, create or get a system user
+                from django.contrib.auth.models import User
+                system_user, created = User.objects.get_or_create(
+                    username='external_system',
+                    defaults={
+                        'first_name': 'External',
+                        'last_name': 'System',
+                        'email': 'external@spmc.gov.ph'
+                    }
+                )
+                validated_data['created_by'] = system_user
+            
+            referral = Referral.objects.create(**validated_data)
+            
+            # Verify the data was saved
+            print(f"Referral created with ID: {referral.id}")
+            print(f"  Saved hospital_barangay: {referral.hospital_barangay}")
+            print(f"  Saved hospital_street: {referral.hospital_street}")
+            print(f"  Saved referrer_contact_numbers: {referral.referrer_contact_numbers}")
+            
+            # Create transit info if provided
+            if transit_info_data:
+                TransitInfo.objects.create(referral=referral, **transit_info_data)
 
-        evaluate_referral_fraud_risk(
-            referral,
-            request=request,
-            acted_by=request.user if request and request.user.is_authenticated else None,
-        )
-        
-        return referral
+            try:
+                evaluate_referral_fraud_risk(
+                    referral,
+                    request=request,
+                    acted_by=request.user if request and request.user.is_authenticated else None,
+                )
+            except Exception as fraud_error:
+                # Log fraud detection error but don't fail the referral creation
+                print(f"Warning: Fraud detection failed: {str(fraud_error)}")
+                import traceback
+                traceback.print_exc()
+            
+            return referral
+            
+        except Exception as e:
+            # Log the full error for debugging
+            print(f"Error creating referral: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Re-raise the exception so it's properly handled by DRF
+            raise
 
 class ReferralUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating referrals"""
