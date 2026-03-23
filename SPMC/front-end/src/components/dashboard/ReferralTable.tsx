@@ -63,6 +63,7 @@ interface ReferralData {
   birthday?: string;
   reason_for_referral?: string;
   referrer_profession?: string;
+  referrer_profession_other?: string;
   referrer_cellphone?: string;
   mode_of_transportation?: string;
   consent_secured?: boolean;
@@ -386,7 +387,11 @@ const ReferralDetailModal = ({
               {referral.referrer_profession && (
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Profession</label>
-                  <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.referrer_profession}</p>
+                  <p className="text-sm text-gray-900 dark:text-white mt-1">
+                    {referral.referrer_profession === 'others' && referral.referrer_profession_other
+                      ? referral.referrer_profession_other
+                      : referral.referrer_profession.replace(/_/g, ' ')}
+                  </p>
                 </div>
               )}
               {referral.mode_of_transportation && (
@@ -660,7 +665,11 @@ export const ReferralTable = () => {
     ly = sectionHeader("Referring Facility", leftX, ly);
     ly = row("Hospital",      referral.referring_hospital_name, leftX, ly);
     ly = row("Referrer",      referral.referrer_name, leftX, ly);
-    ly = row("Profession",    referral.referrer_profession, leftX, ly);
+    ly = row("Profession",    
+      referral.referrer_profession === 'others' && referral.referrer_profession_other
+        ? referral.referrer_profession_other
+        : referral.referrer_profession, 
+      leftX, ly);
     ly = row("Cellphone",     referral.referrer_cellphone, leftX, ly);
     ly = row("Transport",     referral.mode_of_transportation, leftX, ly);
     ly = row("Specialty",     referral.specialty_needed_name, leftX, ly);

@@ -37,6 +37,18 @@ export const ReferralView = () => {
   const [suspensionDays, setSuspensionDays] = useState(7);
   const [fraudActionLoading, setFraudActionLoading] = useState(false);
 
+  // Helper function to convert 24-hour time to 12-hour format
+  const formatTime12Hour = (time24: string) => {
+    if (!time24) return '';
+    
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
   const loadReferral = async () => {
     if (!id) return;
     
@@ -198,7 +210,7 @@ export const ReferralView = () => {
         ['Initial Impression:', referral.working_impression],
         ...(referral.pertinent_history ? [['Pertinent History:', referral.pertinent_history]] : []),
         ...(referral.pertinent_physical_exam ? [['Physical Examination:', referral.pertinent_physical_exam]] : []),
-        ...(referral.management_done ? [['Management Done:', referral.management_done]] : [])
+        ...(referral.management_done ? [['Treatment / Management Done:', referral.management_done]] : [])
       ];
 
       statusData.forEach(([label, value]) => {
@@ -216,6 +228,30 @@ export const ReferralView = () => {
       // Vital Signs
       if (referral.bp || referral.hr || referral.rr || referral.temp || referral.o2_sat) {
         addSection('Latest Vital Signs');
+
+        // Add date/time if available
+        if (referral.vital_signs_date || referral.vital_signs_time) {
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(37, 99, 235);
+          let dateTimeText = 'Date & Time Taken: ';
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(0, 0, 0);
+          if (referral.vital_signs_date) {
+            const date = new Date(referral.vital_signs_date);
+            dateTimeText += date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+          }
+          if (referral.vital_signs_time) {
+            // Convert to 12-hour format
+            const [hours, minutes] = referral.vital_signs_time.split(':');
+            const hour = parseInt(hours, 10);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = hour % 12 || 12;
+            dateTimeText += ` at ${hour12}:${minutes} ${ampm}`;
+          }
+          doc.text(dateTimeText, margin, yPos);
+          yPos += 5;
+        }
 
         const vitalSigns = [];
         if (referral.bp) vitalSigns.push(['Blood Pressure', referral.bp]);
@@ -262,11 +298,44 @@ export const ReferralView = () => {
         ['Facility Name:', referral.referring_hospital_name],
         ...(referral.hospital_doh_level ? [['DOH Level:', referral.hospital_doh_level]] : []),
         ['Referrer Name:', referral.referrer_name],
-        ...(referral.referrer_profession ? [['Profession:', referral.referrer_profession.replace(/_/g, ' ')]] : []),
+        ...(referral.referrer_profession ? [[
+          'Profession:', 
+          referral.referrer_profession === 'others' && referral.referrer_profession_other
+            ? referral.referrer_profession_other
+            : referral.referrer_profession.replace(/_/g, ' ')
+        ]] : []),
+        ...(referral.referrer_contact_numbers && referral.referrer_contact_numbers.length > 0 
+          ? [['Referrer Contact Numbers:', referral.referrer_contact_numbers.join(', ')]] 
+          : referral.referrer_cellphone 
+            ? [['Referrer Contact Number:', referral.referrer_cellphone]]
+            : []
+        ),
         ...(referral.mode_of_transportation ? [['Transportation:', referral.mode_of_transportation.replace(/_/g, ' ')]] : [])
       ];
 
       hospitalData.forEach(([label, value]) => {
+        checkPageBreak(5);
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, margin, yPos);
+        doc.setFont('helvetica', 'normal');
+        const lines = doc.splitTextToSize(String(value) || 'N/A', contentWidth - 50);
+        doc.text(lines, margin + 50, yPos);
+        yPos += Math.max(4, lines.length * 3.5);
+      });
+
+      yPos += 2;
+
+      // Service Needed
+      addSection('Service Needed');
+
+      const serviceData = [
+        ['Specialty Needed:', referral.specialty_needed_name || 'N/A'],
+        ...(referral.is_urgent ? [['Urgency:', 'URGENT']] : []),
+        ['Reason for Referral:', referral.reason_for_referral || 'N/A'],
+        ...(referral.management_done ? [['Management Done:', referral.management_done]] : [])
+      ];
+
+      serviceData.forEach(([label, value]) => {
         checkPageBreak(5);
         doc.setFont('helvetica', 'bold');
         doc.text(label, margin, yPos);
@@ -623,6 +692,16 @@ export const ReferralView = () => {
               </div>
               
               <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Age</p>
+                <p className="font-medium text-gray-900 dark:text-white">{referral.age} years old</p>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Gender</p>
+                <p className="font-medium text-gray-900 dark:text-white capitalize">{referral.gender}</p>
+              </div>
+              
+              <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Admission Status</p>
                 <p className="font-medium text-gray-900 dark:text-white">
                   {referral.admission_status?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
@@ -669,13 +748,48 @@ export const ReferralView = () => {
                   <p className="font-medium text-gray-900 dark:text-white">{referral.pertinent_physical_exam}</p>
                 </div>
               )}
+              
+              {referral.management_done && (
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Treatment / Management Done</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{referral.management_done}</p>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Latest Vital Signs */}
           {(referral.bp || referral.hr || referral.temp || referral.o2_sat) && (
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Latest Vital Signs</h4>
+              <div className="mb-4">
+                <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Latest Vital Signs</h4>
+                {(referral.vital_signs_date || referral.vital_signs_time) ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Date & Time Taken:</span>
+                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                      {referral.vital_signs_date ? (
+                        <>
+                          {new Date(referral.vital_signs_date).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                          {referral.vital_signs_time && ` at ${formatTime12Hour(referral.vital_signs_time)}`}
+                        </>
+                      ) : (
+                        referral.vital_signs_time && (
+                          <>
+                            <span className="text-amber-600 dark:text-amber-400">(Date not recorded)</span>
+                            {` at ${formatTime12Hour(referral.vital_signs_time)}`}
+                          </>
+                        )
+                      )}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 italic">Date and time not recorded</p>
+                )}
+              </div>
               
               <div className="grid grid-cols-3 gap-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                 {/* First Row */}
@@ -712,20 +826,6 @@ export const ReferralView = () => {
                   <div className="text-center">
                     <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">O2 Saturation</p>
                     <p className="text-xl font-bold text-gray-900 dark:text-white">{referral.o2_sat}%</p>
-                  </div>
-                )}
-
-                {(referral.vital_signs_time || referral.vital_signs_date) && (
-                  <div className="text-center">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Time Taken</p>
-                    <div className="text-xl font-bold text-gray-900 dark:text-white">
-                      {referral.vital_signs_date && (
-                        <p className="text-sm">{new Date(referral.vital_signs_date).toLocaleDateString()}</p>
-                      )}
-                      {referral.vital_signs_time && (
-                        <p className="text-lg">{referral.vital_signs_time}</p>
-                      )}
-                    </div>
                   </div>
                 )}
               </div>
@@ -765,7 +865,7 @@ export const ReferralView = () => {
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2 mb-4">
               <MapPin className="w-5 h-5 text-purple-600" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Referring Hospital</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Referring Hospital & Referrer Information</h3>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
@@ -789,14 +889,90 @@ export const ReferralView = () => {
               {referral.referrer_profession && (
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Profession</p>
-                  <p className="font-medium text-gray-900 dark:text-white capitalize">{referral.referrer_profession.replace(/_/g, ' ')}</p>
+                  <p className="font-medium text-gray-900 dark:text-white capitalize">
+                    {referral.referrer_profession === 'others' && referral.referrer_profession_other
+                      ? referral.referrer_profession_other
+                      : referral.referrer_profession.replace(/_/g, ' ')}
+                  </p>
+                </div>
+              )}
+
+              {/* Referrer Contact Numbers */}
+              {(referral.referrer_contact_numbers && referral.referrer_contact_numbers.length > 0) ? (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Referrer Contact Numbers</p>
+                  <div className="flex flex-wrap gap-2">
+                    {referral.referrer_contact_numbers.map((number: string, index: number) => (
+                      <a
+                        key={index}
+                        href={`tel:${number}`}
+                        className="inline-flex items-center gap-2 px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-lg font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        {number}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : referral.referrer_cellphone && (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Referrer Contact Number</p>
+                  <a
+                    href={`tel:${referral.referrer_cellphone}`}
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-lg font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    {referral.referrer_cellphone}
+                  </a>
                 </div>
               )}
 
               {referral.mode_of_transportation && (
-                <div>
+                <div className="md:col-span-2">
                   <p className="text-sm text-gray-600 dark:text-gray-400">Mode of Transportation</p>
                   <p className="font-medium text-gray-900 dark:text-white capitalize">{referral.mode_of_transportation.replace(/_/g, ' ')}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Service Needed */}
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2 mb-4">
+              <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Service Needed</h3>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Specialty Needed</p>
+                <p className="font-medium text-gray-900 dark:text-white">{referral.specialty_needed_name || 'N/A'}</p>
+              </div>
+              
+              {referral.is_urgent && (
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Urgency</p>
+                  <span className="inline-block px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 rounded-full text-sm font-medium">
+                    URGENT
+                  </span>
+                </div>
+              )}
+              
+              <div className="md:col-span-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Reason for Referral</p>
+                <p className="font-medium text-gray-900 dark:text-white">{referral.reason_for_referral || 'N/A'}</p>
+              </div>
+              
+              {referral.management_done && (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Management Done</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{referral.management_done}</p>
                 </div>
               )}
             </div>

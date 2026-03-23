@@ -299,7 +299,11 @@ const Outpatient = () => {
     ly = sectionHeader("Referring Facility", leftX, ly);
     ly = row("Hospital",     r.referring_hospital_name, leftX, ly);
     ly = row("Referrer",     r.referrer_name, leftX, ly);
-    ly = row("Profession",   r.referrer_profession, leftX, ly);
+    ly = row("Profession",   
+      r.referrer_profession === 'others' && r.referrer_profession_other
+        ? r.referrer_profession_other
+        : r.referrer_profession, 
+      leftX, ly);
     ly = row("Cellphone",    r.referrer_cellphone, leftX, ly);
     ly = row("Transport",    r.mode_of_transportation, leftX, ly);
     ly = row("Specialty",    r.specialty_needed_name, leftX, ly);

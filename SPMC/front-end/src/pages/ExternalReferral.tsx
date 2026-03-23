@@ -98,7 +98,7 @@ const initialFormData: ReferralFormData = {
   chiefComplaint: "",
   pertinentHistory: "",
   pertinentPhysicalExam: "",
-  latestVitalSigns: { bp: "", hr: "", rr: "", temp: "", o2Sat: "", vitalSignsDate: "", timeTaken: "" },
+  latestVitalSigns: { bp: "", hr: "", rr: "", temp: "", o2Sat: "", vitalSignsDate: new Date().toISOString().split('T')[0], timeTaken: "" },
   gcsScore: "",
   o2Support: "",
   admissionStatus: "",
@@ -1191,7 +1191,7 @@ const ExternalReferral = () => {
                     <input
                       type="date"
                       className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('vitalSignsDate')}`}
-                      value={formData.latestVitalSigns.vitalSignsDate || new Date().toISOString().split('T')[0]}
+                      value={formData.latestVitalSigns.vitalSignsDate}
                       onChange={(e) => updateNestedFormData('latestVitalSigns', 'vitalSignsDate', e.target.value)}
                     />
                     <input
