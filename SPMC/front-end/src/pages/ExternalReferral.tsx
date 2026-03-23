@@ -501,6 +501,20 @@ const ExternalReferral = () => {
     }
   };
 
+  // Handler for vital signs input - only allows numbers and "/"
+  const handleVitalSignsInput = (field: string, value: string) => {
+    // Only allow numbers, forward slash, and decimal point
+    const filteredValue = value.replace(/[^0-9/.]/g, '');
+    updateNestedFormData('latestVitalSigns', field, filteredValue);
+  };
+
+  // Handler for contact number input - only allows numbers, spaces, hyphens, and plus sign
+  const handleContactNumberInput = (value: string) => {
+    // Only allow numbers, spaces, hyphens, parentheses, and plus sign for phone numbers
+    const filteredValue = value.replace(/[^0-9\s\-+()]/g, '');
+    setReferrerContactInput(filteredValue);
+  };
+
   const calculateAge = (birthDate: string): string => {
     if (!birthDate) return '';
     
@@ -1106,7 +1120,7 @@ const ExternalReferral = () => {
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('bp')}`}
                     placeholder="120/80"
                     value={formData.latestVitalSigns.bp}
-                    onChange={(e) => updateNestedFormData('latestVitalSigns', 'bp', e.target.value)}
+                    onChange={(e) => handleVitalSignsInput('bp', e.target.value)}
                   />
                 </div>
                 <div>
@@ -1118,7 +1132,7 @@ const ExternalReferral = () => {
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('hr')}`}
                     placeholder="80"
                     value={formData.latestVitalSigns.hr}
-                    onChange={(e) => updateNestedFormData('latestVitalSigns', 'hr', e.target.value)}
+                    onChange={(e) => handleVitalSignsInput('hr', e.target.value)}
                   />
                 </div>
                 <div>
@@ -1130,7 +1144,7 @@ const ExternalReferral = () => {
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('rr')}`}
                     placeholder="20"
                     value={formData.latestVitalSigns.rr}
-                    onChange={(e) => updateNestedFormData('latestVitalSigns', 'rr', e.target.value)}
+                    onChange={(e) => handleVitalSignsInput('rr', e.target.value)}
                   />
                 </div>
                 {/* Second Row */}
@@ -1143,7 +1157,7 @@ const ExternalReferral = () => {
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('temp')}`}
                     placeholder="36.5"
                     value={formData.latestVitalSigns.temp}
-                    onChange={(e) => updateNestedFormData('latestVitalSigns', 'temp', e.target.value)}
+                    onChange={(e) => handleVitalSignsInput('temp', e.target.value)}
                   />
                 </div>
                 <div>
@@ -1155,7 +1169,7 @@ const ExternalReferral = () => {
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('o2Sat')}`}
                     placeholder="98"
                     value={formData.latestVitalSigns.o2Sat}
-                    onChange={(e) => updateNestedFormData('latestVitalSigns', 'o2Sat', e.target.value)}
+                    onChange={(e) => handleVitalSignsInput('o2Sat', e.target.value)}
                   />
                 </div>
                 <div>
@@ -1773,7 +1787,7 @@ const ExternalReferral = () => {
                       className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300"
                       placeholder="e.g. 09171234567"
                       value={referrerContactInput}
-                      onChange={(e) => setReferrerContactInput(e.target.value)}
+                      onChange={(e) => handleContactNumberInput(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();

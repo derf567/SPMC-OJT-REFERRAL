@@ -161,6 +161,13 @@ export const ReferralEdit = () => {
   }, [id, user, navigate, toast]);
 
   const handleChange = (field: string, value: any) => {
+    // Validate vital signs fields - only allow numbers, decimal points, and "/" for BP
+    const vitalSignsFields = ['bp', 'hr', 'rr', 'temp', 'o2_sat'];
+    if (vitalSignsFields.includes(field) && typeof value === 'string') {
+      // Only allow numbers, decimal point, and forward slash
+      value = value.replace(/[^0-9/.]/g, '');
+    }
+    
     setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
@@ -537,11 +544,12 @@ export const ReferralEdit = () => {
                   HR (bpm)
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   value={formData.hr || ''}
                   onChange={(e) => handleChange('hr', e.target.value)}
                   readOnly={!isEDCCorTriage}
                   disabled={!isEDCCorTriage}
+                  placeholder="80"
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
                     isEDCCorTriage 
                       ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
@@ -554,11 +562,12 @@ export const ReferralEdit = () => {
                   RR (/min)
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   value={formData.rr || ''}
                   onChange={(e) => handleChange('rr', e.target.value)}
                   readOnly={!isEDCCorTriage}
                   disabled={!isEDCCorTriage}
+                  placeholder="20"
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
                     isEDCCorTriage 
                       ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
@@ -572,12 +581,12 @@ export const ReferralEdit = () => {
                   Temp (°C)
                 </label>
                 <input
-                  type="number"
-                  step="0.1"
+                  type="text"
                   value={formData.temp || ''}
                   onChange={(e) => handleChange('temp', e.target.value)}
                   readOnly={!isEDCCorTriage}
                   disabled={!isEDCCorTriage}
+                  placeholder="36.5"
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
                     isEDCCorTriage 
                       ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
@@ -590,11 +599,12 @@ export const ReferralEdit = () => {
                   O2 Sat (%)
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   value={formData.o2_sat || ''}
                   onChange={(e) => handleChange('o2_sat', e.target.value)}
                   readOnly={!isEDCCorTriage}
                   disabled={!isEDCCorTriage}
+                  placeholder="98"
                   className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md ${
                     isEDCCorTriage 
                       ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white' 
