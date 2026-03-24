@@ -4,6 +4,7 @@ import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { EditActionButton } from "@/components/ui/edit-action-button";
 import { TransitFormDialog } from "@/components/ui/TransitFormDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -36,6 +37,19 @@ export const ReferralView = () => {
   const [fraudNotes, setFraudNotes] = useState('');
   const [suspensionDays, setSuspensionDays] = useState(7);
   const [fraudActionLoading, setFraudActionLoading] = useState(false);
+
+  const getRtpcrColor = (result: string) => {
+    switch (result) {
+      case "positive":
+        return "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30";
+      case "negative":
+        return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
+      case "not_done":
+        return "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30";
+      default:
+        return "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30";
+    }
+  };
 
   // Helper function to convert 24-hour time to 12-hour format
   const formatTime12Hour = (time24: string) => {
@@ -411,10 +425,21 @@ export const ReferralView = () => {
   // Referrers can only edit pending referrals they created
   // EDCC and Triage can edit any referral
   const isEDCCorTriage = !!user?.permissions?.can_triage_referrals;
+  const isCareCoordinationUser = !!user?.permissions?.can_triage_referrals || !!user?.permissions?.can_transfer_referrals;
+  const isDepartmentPovUser =
+    user?.role === 'department_user' ||
+    user?.role === 'view_only' ||
+    user?.role === 'doctor' ||
+    !!user?.permissions?.is_his_department;
+  const isReferralOwner = referral.created_by === user?.id;
   const canEdit = isEDCCorTriage || (referral.status === 'pending' && referral.created_by === user?.id);
   const canFillTransit = referral.status === 'dispositioned' && referral.created_by === user?.id;
-  // Anyone can cancel except if already cancelled or completed
-  const canCancel = referral.status !== 'cancelled' && referral.status !== 'completed';
+  // Departments (e.g., EMEDS and other departments) must not cancel referrals from View Details.
+  const canCancel =
+    !isDepartmentPovUser &&
+    (isReferralOwner || isCareCoordinationUser) &&
+    referral.status !== 'cancelled' &&
+    referral.status !== 'completed';
   // EDCC and EDMA can download PDF
   const canDownloadPDF = isEDCCorTriage;
   const riskBadgeClass =
@@ -759,7 +784,16 @@ export const ReferralView = () => {
           </div>
 
           {/* Latest Vital Signs */}
-          {(referral.bp || referral.hr || referral.temp || referral.o2_sat) && (
+          {(referral.bp ||
+            referral.hr ||
+            referral.rr ||
+            referral.temp ||
+            referral.o2_sat ||
+            referral.gcs_score ||
+            referral.o2_support ||
+            referral.rtpcr_result ||
+            referral.vital_signs_date ||
+            referral.vital_signs_time) && (
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="mb-4">
                 <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Latest Vital Signs</h4>
@@ -791,7 +825,7 @@ export const ReferralView = () => {
                 )}
               </div>
               
-              <div className="grid grid-cols-3 gap-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                 {/* First Row */}
                 {referral.bp && (
                   <div className="text-center">
@@ -828,33 +862,29 @@ export const ReferralView = () => {
                     <p className="text-xl font-bold text-gray-900 dark:text-white">{referral.o2_sat}%</p>
                   </div>
                 )}
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+
                 {referral.gcs_score && (
-                  <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">GCS Score</p>
-                    <p className="font-bold text-gray-900 dark:text-white">{referral.gcs_score}</p>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">GCS Score</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{referral.gcs_score}</p>
                   </div>
                 )}
                 
                 {referral.o2_support && (
-                  <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">O2 Support</p>
-                    <p className="font-medium text-gray-900 dark:text-white">{referral.o2_support}</p>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">O2 Support</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{referral.o2_support}</p>
                   </div>
                 )}
                 
                 {referral.rtpcr_result && (
-                  <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">RTPCR Result</p>
-                    <span className={`inline-block px-2 py-1 rounded text-sm font-medium ${
-                      referral.rtpcr_result === 'positive' ? 'bg-red-100 text-red-800' :
-                      referral.rtpcr_result === 'negative' ? 'bg-green-100 text-green-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {referral.rtpcr_result.replace('_', ' ').toUpperCase()}
-                    </span>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">RTPCR Result</p>
+                    <div className="mt-1 flex justify-center">
+                      <Badge className={getRtpcrColor(referral.rtpcr_result)}>
+                        {referral.rtpcr_result.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      </Badge>
+                    </div>
                   </div>
                 )}
               </div>

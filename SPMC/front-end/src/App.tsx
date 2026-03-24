@@ -28,6 +28,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AccountApproval from "./pages/admin/AccountApproval";
 import DepartmentSettings from "./pages/admin/DepartmentSettings";
 import FraudMonitor from "./pages/FraudMonitor";
+import DepartmentArchive from "./pages/DepartmentArchive";
 
 const queryClient = new QueryClient();
 
@@ -114,6 +115,11 @@ const App = () => (
             <Route path="/doctor/reports" element={
               <ProtectedRoute>
                 <Reports />
+              </ProtectedRoute>
+            } />
+            <Route path="/department/archive" element={
+              <ProtectedRoute>
+                <DepartmentArchive />
               </ProtectedRoute>
             } />
             

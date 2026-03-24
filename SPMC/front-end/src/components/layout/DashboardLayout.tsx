@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { referralsAPI } from "@/lib/api";
 import { AboutUsDialog } from "@/components/ui/AboutUsDialog";
@@ -39,6 +40,19 @@ interface NavigationItem {
   icon: LucideIcon;
   badge?: string;
 }
+
+const getRtpcrColor = (result: string) => {
+  switch (result) {
+    case "positive":
+      return "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30";
+    case "negative":
+      return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
+    case "not_done":
+      return "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30";
+    default:
+      return "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30";
+  }
+};
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
@@ -84,7 +98,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const departmentNavigation: NavigationItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Incoming Patient", href: "/referrals", icon: Inbox, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
-    { name: "Archived Patient", href: "/patients", icon: Users },
+    { name: "Archived Patient", href: "/department/archive", icon: Users },
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
@@ -92,12 +106,14 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const viewOnlyNavigation: NavigationItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Patients", href: "/referrals", icon: Users, badge: activeReferralsCount > 0 ? activeReferralsCount.toString() : undefined },
+    { name: "Archived Patients", href: "/department/archive", icon: Calendar },
     { name: "Reports", href: "/reports", icon: BarChart3 },
   ];
 
   // Doctor navigation (view-only, department-filtered)
   const doctorNavigation: NavigationItem[] = [
     { name: "Dashboard", href: "/doctor/dashboard", icon: Home },
+    { name: "Archived Patients", href: "/department/archive", icon: Users },
     { name: "Reports", href: "/doctor/reports", icon: BarChart3 },
   ];
 
@@ -599,10 +615,19 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   </div>
 
                   {/* Vital Signs */}
-                  {(selectedReferral.bp || selectedReferral.hr || selectedReferral.rr || selectedReferral.temp || selectedReferral.o2_sat) && (
+                  {(selectedReferral.bp ||
+                    selectedReferral.hr ||
+                    selectedReferral.rr ||
+                    selectedReferral.temp ||
+                    selectedReferral.o2_sat ||
+                    selectedReferral.gcs_score ||
+                    selectedReferral.o2_support ||
+                    selectedReferral.rtpcr_result ||
+                    selectedReferral.vital_signs_time ||
+                    selectedReferral.vital_signs_date) && (
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                       <h4 className="font-medium text-gray-900 dark:text-white mb-3">Latest Vital Signs</h4>
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {/* First Row */}
                         {selectedReferral.bp && (
                           <div className="text-center">
@@ -645,6 +670,28 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                               {selectedReferral.vital_signs_time && (
                                 <p className="text-sm">{selectedReferral.vital_signs_time}</p>
                               )}
+                            </div>
+                          </div>
+                        )}
+                        {selectedReferral.gcs_score && (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">GCS Score</p>
+                            <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.gcs_score}</p>
+                          </div>
+                        )}
+                        {selectedReferral.o2_support && (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">O2 Support</p>
+                            <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.o2_support}</p>
+                          </div>
+                        )}
+                        {selectedReferral.rtpcr_result && (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">RTPCR Result</p>
+                            <div className="mt-1 flex justify-center">
+                              <Badge className={getRtpcrColor(selectedReferral.rtpcr_result)}>
+                                {selectedReferral.rtpcr_result.replace("_", " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                              </Badge>
                             </div>
                           </div>
                         )}

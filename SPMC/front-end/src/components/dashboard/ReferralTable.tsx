@@ -275,10 +275,19 @@ const ReferralDetailModal = ({
             </div>
 
             {/* Vital Signs */}
-            {(referral.bp || referral.hr || referral.rr || referral.temp || referral.o2_sat || referral.vital_signs_time) && (
+            {(referral.bp ||
+              referral.hr ||
+              referral.rr ||
+              referral.temp ||
+              referral.o2_sat ||
+              referral.gcs_score ||
+              referral.o2_support ||
+              referral.rtpcr_result ||
+              referral.vital_signs_time ||
+              referral.vital_signs_date) && (
               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                 <h4 className="font-medium text-gray-900 dark:text-white mb-3">Latest Vital Signs</h4>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {/* First Row */}
                   {referral.bp && (
                     <div className="text-center p-2">
@@ -324,35 +333,30 @@ const ReferralDetailModal = ({
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
-            )}
 
-            {/* Additional Medical Information */}
-            {(referral.gcs_score || referral.o2_support || referral.rtpcr_result) && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
                 {referral.gcs_score && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">GCS Score</label>
-                    <p className="text-sm text-gray-900 dark:text-white mt-1 font-semibold">{referral.gcs_score}</p>
+                  <div className="text-center p-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">GCS Score</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{referral.gcs_score}</p>
                   </div>
                 )}
                 {referral.o2_support && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">O2 Support</label>
-                    <p className="text-sm text-gray-900 dark:text-white mt-1">{referral.o2_support}</p>
+                  <div className="text-center p-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">O2 Support</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{referral.o2_support}</p>
                   </div>
                 )}
                 {referral.rtpcr_result && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">RTPCR Result</label>
-                    <div className="mt-1">
+                  <div className="text-center p-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">RTPCR Result</p>
+                    <div className="mt-1 flex justify-center">
                       <Badge className={getRtpcrColor(referral.rtpcr_result)}>
                         {referral.rtpcr_result.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                       </Badge>
                     </div>
                   </div>
                 )}
+              </div>
               </div>
             )}
           </div>
