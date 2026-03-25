@@ -38,6 +38,7 @@ const getStatusColor = (status: string) => {
   switch (status) {
     case "completed":
       return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
+    case "rejected":
     case "cancelled":
     case "uncoordinated":
       return "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30";
@@ -82,6 +83,16 @@ const DepartmentArchive = () => {
     );
   };
 
+  const getMyDepartmentAcceptanceStatus = (referral: ReferralRow) => {
+    if (!departmentCode || !Array.isArray(referral.department_acceptances)) return null;
+    const match = referral.department_acceptances.find((item) => {
+      const code = String(item.department_code || "").toLowerCase();
+      const nameAsCode = String(item.department_name || "").toLowerCase().replace(/\s+/g, "_");
+      return code === departmentCode || nameAsCode === departmentCode;
+    });
+    return match?.status || null;
+  };
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -89,7 +100,12 @@ const DepartmentArchive = () => {
         setError(null);
         const response = await referralsAPI.getAll();
         const all = (Array.isArray(response) ? response : response?.results || []) as ReferralRow[];
-        const filtered = all.filter((r) => archivedStatuses.has(r.status) && isAssignedToDepartment(r));
+        const filtered = all.filter((r) => {
+          if (!isAssignedToDepartment(r)) return false;
+          const isArchivedByStatus = archivedStatuses.has(r.status);
+          const isRejectedByDepartment = getMyDepartmentAcceptanceStatus(r) === "rejected";
+          return isArchivedByStatus || isRejectedByDepartment;
+        });
         setRows(filtered);
       } catch (err: any) {
         setError(err?.message || "Failed to load archived referrals");
@@ -119,9 +135,12 @@ const DepartmentArchive = () => {
 
   const stats = useMemo(() => {
     const completed = rows.filter((r) => r.status === "completed").length;
-    const uncoordinated = rows.filter((r) => r.status === "cancelled" || r.status === "uncoordinated").length;
-    return { total: rows.length, completed, uncoordinated };
-  }, [rows]);
+    const unresolved = rows.filter((r) => {
+      const acceptanceStatus = getMyDepartmentAcceptanceStatus(r);
+      return r.status === "cancelled" || r.status === "uncoordinated" || acceptanceStatus === "rejected";
+    }).length;
+    return { total: rows.length, completed, unresolved };
+  }, [rows, departmentCode]);
 
   if (loading) {
     return (
@@ -178,8 +197,8 @@ const DepartmentArchive = () => {
             <div className="flex items-center gap-3">
               <AlertTriangle className="w-8 h-8 text-red-600" />
               <div>
-                <h3 className="text-lg font-semibold text-red-800 dark:text-red-400">Uncoordinated</h3>
-                <p className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.uncoordinated}</p>
+                <h3 className="text-lg font-semibold text-red-800 dark:text-red-400">Uncoordinated/Rejected</h3>
+                <p className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.unresolved}</p>
               </div>
             </div>
           </div>
@@ -209,7 +228,7 @@ const DepartmentArchive = () => {
                 <p className="text-gray-500 dark:text-gray-400 mt-2">
                   {searchTerm
                     ? "Try a different keyword."
-                    : "Completed or uncoordinated referrals assigned to your department will appear here."}
+                    : "Completed, uncoordinated, or department-rejected referrals will appear here."}
                 </p>
               </div>
             ) : (
@@ -252,8 +271,8 @@ const DepartmentArchive = () => {
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <Badge className={`${getStatusColor(referral.status)} border`}>
-                          {getStatusDisplay(referral.status)}
+                        <Badge className={`${getStatusColor(getMyDepartmentAcceptanceStatus(referral) === "rejected" ? "rejected" : referral.status)} border`}>
+                          {getMyDepartmentAcceptanceStatus(referral) === "rejected" ? "Rejected" : getStatusDisplay(referral.status)}
                         </Badge>
                       </div>
                     </div>

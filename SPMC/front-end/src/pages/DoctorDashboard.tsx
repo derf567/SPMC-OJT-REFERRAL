@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { referralsAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Stethoscope, FileText, Eye, Clock, User, MapPin, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Stethoscope, FileText, Eye, Clock, User, MapPin, CheckCircle, XCircle, Loader2, Activity } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -167,6 +167,23 @@ const DoctorDashboard = () => {
     return departmentAcceptance;
   };
 
+  const dashboardReferrals = useMemo(() => {
+    return referrals.filter((referral: any) => {
+      if (["completed", "cancelled", "uncoordinated"].includes(referral.status)) {
+        return false;
+      }
+
+      const acceptanceStatus = Array.isArray(referral.department_acceptances)
+        ? referral.department_acceptances.find((acc: any) => acc.department_code === user?.department)
+        : null;
+      if (acceptanceStatus?.status === "rejected") {
+        return false;
+      }
+
+      return true;
+    });
+  }, [referrals, user?.department]);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -223,7 +240,7 @@ const DoctorDashboard = () => {
                 <p className="text-2xl font-bold text-blue-600 mt-1">{stats.inProgress}</p>
               </div>
               <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                <div className="w-6 h-6 rounded-full border-2 border-blue-600 border-t-transparent animate-spin"></div>
+                <Activity className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </div>
@@ -270,14 +287,14 @@ const DoctorDashboard = () => {
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               </div>
-            ) : referrals.length === 0 ? (
+            ) : dashboardReferrals.length === 0 ? (
               <div className="text-center py-12">
                 <Stethoscope className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">No referrals found for your department</p>
+                <p className="text-gray-500 dark:text-gray-400">No active referrals found for your department</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {Array.isArray(referrals) && referrals.map((referral) => {
+              <div className="max-h-[65vh] overflow-y-auto pr-1 space-y-4">
+                {Array.isArray(dashboardReferrals) && dashboardReferrals.map((referral) => {
                   const acceptanceStatus = getDepartmentAcceptanceStatus(referral);
                   const canDecide = canMakeDecision(referral);
                   
@@ -358,7 +375,7 @@ const DoctorDashboard = () => {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleDecision(referral, 'accept')}
-                                className="h-8 rounded-md border-emerald-500/50 bg-emerald-500/15 px-3 text-emerald-300 hover:border-emerald-400 hover:bg-emerald-500/25"
+                                className="h-8 rounded-md border-emerald-500/60 bg-emerald-50 px-3 text-emerald-700 hover:border-emerald-600 hover:bg-emerald-100 dark:border-emerald-500/50 dark:bg-emerald-500/15 dark:text-emerald-300 dark:hover:border-emerald-400 dark:hover:bg-emerald-500/25"
                               >
                                 <CheckCircle className="w-4 h-4 mr-1" />
                                 Accept
@@ -367,7 +384,7 @@ const DoctorDashboard = () => {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleDecision(referral, 'reject')}
-                                className="h-8 rounded-md border-rose-500/50 bg-rose-500/15 px-3 text-rose-300 hover:border-rose-400 hover:bg-rose-500/25"
+                                className="h-8 rounded-md border-rose-500/60 bg-rose-50 px-3 text-rose-700 hover:border-rose-600 hover:bg-rose-100 dark:border-rose-500/50 dark:bg-rose-500/15 dark:text-rose-300 dark:hover:border-rose-400 dark:hover:bg-rose-500/25"
                               >
                                 <XCircle className="w-4 h-4 mr-1" />
                                 Reject
