@@ -77,6 +77,7 @@ const PatientArrivalPage = () => {
   const [editTransitOpen, setEditTransitOpen] = useState(false);
   const [editTransitReferral, setEditTransitReferral] = useState<Referral | null>(null);
   const [openKebabId, setOpenKebabId] = useState<string | null>(null);
+  const [kebabPos, setKebabPos] = useState<{ top: number; left: number } | null>(null);
   const kebabRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -578,14 +579,16 @@ const PatientArrivalPage = () => {
                               className="h-8 w-8 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                setKebabPos({ top: rect.bottom + 4, left: rect.right - 160 });
                                 setOpenKebabId(openKebabId === referral.referral_id ? null : referral.referral_id);
                               }}
                               title="More options"
                             >
                               <MoreVertical className="h-4 w-4" />
                             </Button>
-                            {openKebabId === referral.referral_id && (
-                              <div className="absolute right-0 top-9 z-50 min-w-[160px] rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                            {openKebabId === referral.referral_id && kebabPos && (
+                              <div style={{ position: 'fixed', top: kebabPos.top, left: kebabPos.left }} className="z-50 min-w-[160px] rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
                                 <button
                                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
                                   onClick={() => downloadPatientPDF(referral)}

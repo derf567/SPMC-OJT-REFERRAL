@@ -105,6 +105,7 @@ const Patients = () => {
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedReferralForTimeline, setSelectedReferralForTimeline] = useState<any>(null);
   const [openKebabId, setOpenKebabId] = useState<string | null>(null);
+  const [kebabPos, setKebabPos] = useState<{ top: number; left: number } | null>(null);
   const kebabRef = useRef<HTMLDivElement | null>(null);
   const { user } = useAuth();
 
@@ -535,6 +536,8 @@ const Patients = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                setKebabPos({ top: rect.bottom + 4, left: rect.right - 160 });
                                 setOpenKebabId(openKebabId === referral.id ? null : referral.id);
                               }}
                               className="inline-flex items-center justify-center h-7 w-7 rounded-md text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -542,8 +545,8 @@ const Patients = () => {
                             >
                               <MoreVertical className="w-4 h-4" />
                             </button>
-                            {openKebabId === referral.id && (
-                              <div className="absolute left-0 top-8 z-50 min-w-[160px] rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                            {openKebabId === referral.id && kebabPos && (
+                              <div style={{ position: 'fixed', top: kebabPos.top, left: kebabPos.left }} className="z-50 min-w-[160px] rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
                                 <button
                                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
                                   onClick={(e) => {

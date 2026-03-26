@@ -356,6 +356,33 @@ const ReferralDetailModal = ({
                     </div>
                   </div>
                 )}
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {referral.gcs_score && (
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">GCS Score</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{referral.gcs_score}</p>
+                    </div>
+                  )}
+                  {referral.o2_support && (
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">O2 Support</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{referral.o2_support}</p>
+                    </div>
+                  )}
+                  {referral.rtpcr_result && (
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">RTPCR Result</p>
+                      <div className="mt-1">
+                        <Badge className={getRtpcrColor(referral.rtpcr_result)}>
+                          {referral.rtpcr_result.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               </div>
             )}
@@ -556,6 +583,7 @@ export const ReferralTable = () => {
   const [showAssignDepartmentsDialog, setShowAssignDepartmentsDialog] = useState(false);
   const [selectedReferralForAssign, setSelectedReferralForAssign] = useState<ReferralData | null>(null);
   const [openKebabId, setOpenKebabId] = useState<string | null>(null);
+  const [kebabPos, setKebabPos] = useState<{ top: number; left: number } | null>(null);
   const kebabRef = useRef<HTMLDivElement | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1444,6 +1472,18 @@ export const ReferralTable = () => {
                             <span className="font-medium text-gray-900 dark:text-white">{referral.gcs_score}</span>
                           </div>
                         )}
+                        {referral.o2_support && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500 dark:text-gray-400">O2 Sup:</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{referral.o2_support}</span>
+                          </div>
+                        )}
+                        {referral.rtpcr_result && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500 dark:text-gray-400">RTPCR:</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{referral.rtpcr_result.replace('_', ' ').toUpperCase()}</span>
+                          </div>
+                        )}
                         {(!referral.bp && !referral.hr && !referral.temp && !referral.o2_sat && !referral.gcs_score) && (
                           <div className="text-gray-400 dark:text-gray-500 text-xs">
                             No vital signs recorded
@@ -1617,13 +1657,17 @@ export const ReferralTable = () => {
                             variant="ghost"
                             size="sm"
                             className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-                            onClick={() => setOpenKebabId(openKebabId === (referral.id || referral.referral_id) ? null : (referral.id || referral.referral_id))}
+                            onClick={(e) => {
+                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              setKebabPos({ top: rect.bottom + 4, left: rect.right - 192 });
+                              setOpenKebabId(openKebabId === (referral.id || referral.referral_id) ? null : (referral.id || referral.referral_id));
+                            }}
                             title="More options"
                           >
                             <MoreVertical className="w-4 h-4" />
                           </Button>
-                          {openKebabId === (referral.id || referral.referral_id) && (
-                            <div className="absolute right-0 top-8 z-50 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1">
+                          {openKebabId === (referral.id || referral.referral_id) && kebabPos && (
+                            <div style={{ position: 'fixed', top: kebabPos.top, left: kebabPos.left }} className="z-50 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1">
                               <button
                                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 onClick={() => downloadPatientPDF(referral)}

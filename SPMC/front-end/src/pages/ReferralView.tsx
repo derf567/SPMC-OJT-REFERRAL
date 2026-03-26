@@ -781,6 +781,7 @@ export const ReferralView = () => {
                   </div>
                 )}
 
+                
                 {referral.gcs_score && (
                   <div className="text-center">
                     <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">GCS Score</p>
@@ -803,6 +804,15 @@ export const ReferralView = () => {
                         {referral.rtpcr_result.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                       </Badge>
                     </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">RTPCR Result</p>
+                    <span className={`inline-block px-2 py-1 rounded text-sm font-medium ${
+                      referral.rtpcr_result === 'positive' ? 'bg-red-100 text-red-800' :
+                      referral.rtpcr_result === 'negative' ? 'bg-green-100 text-green-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {referral.rtpcr_result.replace('_', ' ').toUpperCase()}
+                    </span>
                   </div>
                 )}
               </div>
