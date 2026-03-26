@@ -333,29 +333,29 @@ const ReferralDetailModal = ({
                       </div>
                     </div>
                   )}
-
-                {referral.gcs_score && (
-                  <div className="text-center p-2">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">GCS Score</p>
-                    <p className="font-semibold text-gray-900 dark:text-white">{referral.gcs_score}</p>
-                  </div>
-                )}
-                {referral.o2_support && (
-                  <div className="text-center p-2">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">O2 Support</p>
-                    <p className="font-semibold text-gray-900 dark:text-white">{referral.o2_support}</p>
-                  </div>
-                )}
-                {referral.rtpcr_result && (
-                  <div className="text-center p-2">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">RTPCR Result</p>
-                    <div className="mt-1 flex justify-center">
-                      <Badge className={getRtpcrColor(referral.rtpcr_result)}>
-                        {referral.rtpcr_result.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </Badge>
+                  {referral.gcs_score && (
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">GCS Score</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{referral.gcs_score}</p>
                     </div>
-                  </div>
-                )}
+                  )}
+                  {referral.o2_support && (
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">O2 Support</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{referral.o2_support}</p>
+                    </div>
+                  )}
+                  {referral.rtpcr_result && (
+                    <div className="text-center p-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">RTPCR Result</p>
+                      <div className="mt-1">
+                        <Badge className={getRtpcrColor(referral.rtpcr_result)}>
+                          {referral.rtpcr_result.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

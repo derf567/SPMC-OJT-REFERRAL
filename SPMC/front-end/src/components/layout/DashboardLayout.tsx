@@ -688,28 +688,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                         {selectedReferral.rtpcr_result && (
                           <div className="text-center">
                             <p className="text-xs text-gray-500 dark:text-gray-400">RTPCR Result</p>
-                            <div className="mt-1 flex justify-center">
-                              <Badge className={getRtpcrColor(selectedReferral.rtpcr_result)}>
-                                {selectedReferral.rtpcr_result.replace("_", " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                              </Badge>
-                            </div>
-                          </div>
-                        )}
-                        {selectedReferral.gcs_score && (
-                          <div className="text-center">
-                            <p className="text-xs text-gray-500 dark:text-gray-400">GCS Score</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.gcs_score}</p>
-                          </div>
-                        )}
-                        {selectedReferral.o2_support && (
-                          <div className="text-center">
-                            <p className="text-xs text-gray-500 dark:text-gray-400">O2 Support</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{selectedReferral.o2_support}</p>
-                          </div>
-                        )}
-                        {selectedReferral.rtpcr_result && (
-                          <div className="text-center">
-                            <p className="text-xs text-gray-500 dark:text-gray-400">RTPCR Result</p>
+
                             <p className="font-medium text-gray-900 dark:text-white">
                               {selectedReferral.rtpcr_result.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                             </p>
