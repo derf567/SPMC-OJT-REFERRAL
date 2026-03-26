@@ -12,31 +12,6 @@ const isProduction = import.meta.env.PROD;
 
 if (isProduction) {
   // Override console methods in production to prevent information leakage
-  // Keep a reference to the original methods for potential internal use
-  const originalConsole = {
-    log: console.log,
-    info: console.info,
-    warn: console.warn,
-    error: console.error,
-    debug: console.debug,
-    table: console.table,
-    trace: console.trace,
-    dir: console.dir,
-    dirxml: console.dirxml,
-    group: console.group,
-    groupEnd: console.groupEnd,
-    groupCollapsed: console.groupCollapsed,
-    time: console.time,
-    timeEnd: console.timeEnd,
-    timeLog: console.timeLog,
-    assert: console.assert,
-    clear: console.clear,
-    count: console.count,
-    countReset: console.countReset,
-    profile: console.profile,
-    profileEnd: console.profileEnd,
-  };
-
   // Override all console methods to do nothing in production
   console.log = () => {};
   console.info = () => {};
@@ -110,7 +85,7 @@ if (isProduction) {
 }
 
 // Export a function to safely log errors that won't expose sensitive data
-export const safeErrorLog = (context: string, error?: unknown) => {
+export const safeErrorLog = (context: string) => {
   if (isProduction) {
     // In production, don't log anything
     return;

@@ -73,7 +73,6 @@ const Reports = () => {
   const [globalMonth, setGlobalMonth] = useState(new Date().getMonth() + 1); // Default to current month for week filter
   
   const [referralsByTime, setReferralsByTime] = useState<any[]>([]);
-  const [departmentData, setDepartmentData] = useState<any[]>([]);
   const [loadingTimeData, setLoadingTimeData] = useState(false);
   
   // Data states
@@ -129,7 +128,6 @@ const Reports = () => {
 
       const [
         referralsByTimeData,
-        departmentsData,
         hospitalsData,
         specialtiesData
       ] = await Promise.all([
@@ -139,13 +137,11 @@ const Reports = () => {
           apiMonth, 
           apiWeek
         ),
-        referralsAPI.getTopDepartments(globalFilter, apiYear, apiMonth, apiWeek),
         referralsAPI.getTopHospitals(globalFilter, apiYear, apiMonth, apiWeek),
         referralsAPI.getTopSpecialties(globalFilter, apiYear, apiMonth, apiWeek)
       ]);
 
       setReferralsByTime(referralsByTimeData);
-      setDepartmentData(departmentsData);
       setHospitalsData(hospitalsData);
       setSpecialtyData(specialtiesData);
       

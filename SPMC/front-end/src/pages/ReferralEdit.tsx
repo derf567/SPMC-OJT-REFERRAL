@@ -171,6 +171,31 @@ export const ReferralEdit = () => {
     setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
+  const calculateAge = (birthDate: string): string => {
+    if (!birthDate) return "";
+
+    const today = new Date();
+    const birth = new Date(birthDate);
+
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+
+    return age >= 0 ? age.toString() : "";
+  };
+
+  const handleBirthdayChange = (birthDate: string) => {
+    const calculatedAge = calculateAge(birthDate);
+    setFormData((prev: any) => ({
+      ...prev,
+      birthday: birthDate,
+      age: calculatedAge,
+    }));
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -401,7 +426,7 @@ export const ReferralEdit = () => {
                   <input
                     type="date"
                     value={formData.birthday || ''}
-                    onChange={(e) => handleChange('birthday', e.target.value)}
+                    onChange={(e) => handleBirthdayChange(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>

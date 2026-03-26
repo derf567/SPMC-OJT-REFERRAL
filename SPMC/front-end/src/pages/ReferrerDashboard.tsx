@@ -45,6 +45,7 @@ const ReferrerDashboard = () => {
     this_month: 0,
     last_month: 0,
   });
+
   const [recentReferrals, setRecentReferrals] = useState<any[]>([]);
   const [allReferrals, setAllReferrals] = useState<any[]>([]);
   const [recentStatusFilter, setRecentStatusFilter] = useState<string>('all');
