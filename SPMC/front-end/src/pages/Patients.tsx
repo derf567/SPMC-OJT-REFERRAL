@@ -414,7 +414,7 @@ const Patients = () => {
             <div className="flex items-center gap-3">
               <AlertTriangle className="w-8 h-8 text-red-600" />
               <div>
-                <h3 className="text-lg font-semibold text-red-800 dark:text-red-400 mb-1">Uncoordinated</h3>
+                <h3 className="text-lg font-semibold text-red-800 dark:text-red-400 mb-1">Cancelled</h3>
                 <p className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.uncoordinated}</p>
               </div>
             </div>

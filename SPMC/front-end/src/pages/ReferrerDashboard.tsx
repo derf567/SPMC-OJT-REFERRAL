@@ -61,6 +61,12 @@ const ReferrerDashboard = () => {
   const [transitDecisionReferral, setTransitDecisionReferral] = useState<any>(null);
   const [transitFormModalOpen, setTransitFormModalOpen] = useState(false);
   const [transitFormReferral, setTransitFormReferral] = useState<any>(null);
+
+  // Reports section state
+  const [reportFilter, setReportFilter] = useState<'week' | 'month'>('month');
+  const [reportYear, setReportYear] = useState(new Date().getFullYear());
+  const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
+
   const { user } = useAuth();
   const location = useLocation();
 
@@ -69,6 +75,7 @@ const ReferrerDashboard = () => {
     const path = location.pathname;
     if (path === '/referrer/referred') return 'referred';
     if (path === '/referrer/archived') return 'archived';
+    if (path === '/referrer/reports') return 'reports';
     return 'dashboard';
   };
 
@@ -424,9 +431,217 @@ const ReferrerDashboard = () => {
         return renderReferredSection();
       case 'archived':
         return renderArchivedSection();
+      case 'reports':
+        return renderReportsSection();
       default:
         return renderMainDashboard();
     }
+  };
+
+  const renderReportsSection = () => {
+    const availableYears = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+
+    const PENDING_STATUSES = ['pending', 'waiting', 'waiting_acceptance', 'dispositioned', 'in_transit', 'emergent', 'urgent', 'schedule_opd'];
+    const coordinated = allReferrals.filter(r => r.status === 'completed');
+    const cancelled = allReferrals.filter(r => r.status === 'cancelled' || r.status === 'uncoordinated');
+    const pending = allReferrals.filter(r => PENDING_STATUSES.includes(r.status));
+
+    // Chart data
+    const getChartData = () => {
+      if (reportFilter === 'month') {
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return months.map((label, i) => ({
+          period: label,
+          count: allReferrals.filter(r => {
+            const d = new Date(r.created_at);
+            return d.getFullYear() === reportYear && d.getMonth() === i;
+          }).length
+        }));
+      }
+      const weeks: { period: string; count: number }[] = [];
+      const year = new Date().getFullYear();
+      const firstDay = new Date(year, reportMonth - 1, 1);
+      const lastDay = new Date(year, reportMonth, 0);
+      let ws = new Date(firstDay); let wn = 1;
+      while (ws <= lastDay) {
+        const we = new Date(ws); we.setDate(we.getDate() + 6);
+        if (we > lastDay) we.setTime(lastDay.getTime());
+        weeks.push({ period: `Wk ${wn}`, count: allReferrals.filter(r => { const d = new Date(r.created_at); return d >= ws && d <= we; }).length });
+        ws.setDate(ws.getDate() + 7); wn++;
+      }
+      return weeks;
+    };
+
+    const chartData = getChartData();
+    const maxVal = Math.max(...chartData.map(d => d.count), 1);
+    const step = Math.max(1, Math.ceil(maxVal / 4));
+    const gridVals = Array.from({ length: 5 }, (_, i) => i * step);
+    const actualMax = Math.max(maxVal, gridVals[gridVals.length - 1]);
+
+    // Fixed SVG dimensions — small and tight
+    const VW = 500; const VH = 130;
+    const pL = 30; const pR = 8; const pT = 10; const pB = 28;
+    const cW = VW - pL - pR; const cH = VH - pT - pB;
+
+    return (
+      <div className="space-y-4">
+        {/* Header */}
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">My Reports</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Analytics for your submitted referrals</p>
+        </div>
+
+        {/* 3 summary cards — Coordinated, Pending, Cancelled only */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-green-50 dark:bg-gray-800 border border-green-200 dark:border-gray-700 px-4 py-3 rounded-lg">
+            <p className="text-xs font-medium text-green-700 dark:text-green-400">Coordinated</p>
+            <p className="text-3xl font-bold text-green-600 dark:text-green-400 leading-tight">{coordinated.length}</p>
+            <p className="text-xs text-green-500 mt-0.5">{allReferrals.length > 0 ? Math.round((coordinated.length / allReferrals.length) * 100) : 0}% success rate</p>
+          </div>
+          <div className="bg-yellow-50 dark:bg-gray-800 border border-yellow-200 dark:border-gray-700 px-4 py-3 rounded-lg">
+            <p className="text-xs font-medium text-yellow-700 dark:text-yellow-400">Pending</p>
+            <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 leading-tight">{pending.length}</p>
+            <p className="text-xs text-yellow-500 mt-0.5">Active referrals</p>
+          </div>
+          <div className="bg-red-50 dark:bg-gray-800 border border-red-200 dark:border-gray-700 px-4 py-3 rounded-lg">
+            <p className="text-xs font-medium text-red-700 dark:text-red-400">Cancelled</p>
+            <p className="text-3xl font-bold text-red-600 dark:text-red-400 leading-tight">{cancelled.length}</p>
+            <p className="text-xs text-red-500 mt-0.5">{allReferrals.length > 0 ? Math.round((cancelled.length / allReferrals.length) * 100) : 0}% cancellation rate</p>
+          </div>
+        </div>
+
+        {/* Chart — compact */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">            <TrendingUp className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+            <span className="text-xs font-semibold text-gray-900 dark:text-white">
+              Referrals by {reportFilter === 'month' ? 'Month' : 'Week'}
+            </span>
+            <div className="ml-auto flex items-center gap-1">
+              {(['week', 'month'] as const).map(f => (
+                <button key={f} onClick={() => setReportFilter(f)}
+                  className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${
+                    reportFilter === f ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                  }`}>
+                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                </button>
+              ))}
+              {reportFilter === 'month' && (
+                <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
+                  className="px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                  {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              )}
+              {reportFilter === 'week' && (
+                <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))}
+                  className="px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                  {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                    <option key={i+1} value={i+1}>{m}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+          <div className="h-36 w-full max-w-2xl mx-auto">
+            <svg className="w-full h-full" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet">
+            <line x1={pL} y1={pT} x2={pL} y2={pT+cH} stroke="#6b7280" strokeWidth="1"/>
+            <line x1={pL} y1={pT+cH} x2={pL+cW} y2={pT+cH} stroke="#6b7280" strokeWidth="1"/>
+            {gridVals.map((v, i) => {
+              const yp = pT + cH - (v / actualMax) * cH;
+              return (
+                <g key={i}>
+                  <line x1={pL} y1={yp} x2={pL+cW} y2={yp} stroke="#e5e7eb" strokeWidth="0.8" opacity="0.8"/>
+                  <text x={pL-3} y={yp} textAnchor="end" dominantBaseline="middle" fill="#9ca3af" fontSize="7">{v}</text>
+                </g>
+              );
+            })}
+            {chartData.map((item, idx) => {
+              const sp = cW / chartData.length;
+              const bw = Math.max(6, sp * 0.45);
+              const x = pL + idx * sp + (sp - bw) / 2;
+              const bh = Math.max((item.count / actualMax) * cH, item.count > 0 ? 1.5 : 0);
+              const y = pT + cH - bh;
+              const lx = pL + idx * sp + sp / 2;
+              return (
+                <g key={idx}>
+                  <rect x={x} y={y} width={bw} height={bh} fill="#3b82f6" rx="1.5"/>
+                  {item.count > 0 && <text x={x+bw/2} y={y-2} textAnchor="middle" fill="#6b7280" fontSize="7" fontWeight="600">{item.count}</text>}
+                  <text x={lx} y={pT+cH+9} textAnchor="middle" fill="#9ca3af" fontSize="7"
+                    transform={chartData.length > 6 ? `rotate(-40 ${lx} ${pT+cH+9})` : undefined}>
+                    {item.period}
+                  </text>
+                </g>
+              );
+            })}
+            </svg>
+          </div>
+        </div>
+
+        {/* Detail panels — 3 columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          {/* Coordinated */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <div className="bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800 px-3 py-2 flex items-center gap-2">
+              <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0"/>
+              <span className="text-xs font-semibold text-green-800 dark:text-green-300">Coordinated Referrals</span>
+              <span className="ml-auto text-xs font-bold text-green-600 dark:text-green-400">{coordinated.length}</span>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-56 overflow-y-auto">
+              {coordinated.length === 0
+                ? <p className="text-center text-gray-400 text-xs py-4">No coordinated referrals yet</p>
+                : coordinated.map(r => (
+                  <div key={r.id} className="px-3 py-2">
+                    <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{r.patient_name || 'Unknown Patient'}</p>
+                    <p className="text-xs text-gray-400 truncate">{r.hospital_name || r.referring_hospital_name || '—'} · {new Date(r.created_at).toLocaleDateString()}</p>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Cancelled */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-3 py-2 flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-600 dark:text-red-400 flex-shrink-0"/>
+              <span className="text-xs font-semibold text-red-800 dark:text-red-300">Cancelled Referrals</span>
+              <span className="ml-auto text-xs font-bold text-red-600 dark:text-red-400">{cancelled.length}</span>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-56 overflow-y-auto">
+              {cancelled.length === 0
+                ? <p className="text-center text-gray-400 text-xs py-4">No cancelled referrals</p>
+                : cancelled.map(r => (
+                  <div key={r.id} className="px-3 py-2">
+                    <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{r.patient_name || 'Unknown Patient'}</p>
+                    <p className="text-xs text-gray-400 truncate">{r.hospital_name || r.referring_hospital_name || '—'} · {new Date(r.created_at).toLocaleDateString()}</p>
+                    {r.cancellation_reason && <p className="text-xs text-red-400 italic truncate">Reason: {r.cancellation_reason}</p>}
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Pending */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800 px-3 py-2 flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400 flex-shrink-0"/>
+              <span className="text-xs font-semibold text-yellow-800 dark:text-yellow-300">Pending Referrals</span>
+              <span className="ml-auto text-xs font-bold text-yellow-600 dark:text-yellow-400">{pending.length}</span>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-56 overflow-y-auto">
+              {pending.length === 0
+                ? <p className="text-center text-gray-400 text-xs py-4">No pending referrals</p>
+                : pending.map(r => (
+                  <div key={r.id} className="px-3 py-2">
+                    <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{r.patient_name || 'Unknown Patient'}</p>
+                    <div className="flex items-center justify-between gap-1 mt-0.5">
+                      <p className="text-xs text-gray-400 truncate">{r.hospital_name || r.referring_hospital_name || '—'} · {new Date(r.created_at).toLocaleDateString()}</p>
+                      <span className={`text-xs px-1 py-0.5 rounded-full border flex-shrink-0 ${getStatusColor(r.status)}`}>{getStatusLabel(r.status)}</span>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderMainDashboard = () => (
@@ -718,7 +933,7 @@ const ReferrerDashboard = () => {
                           ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30'
                           : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
                       }`}>
-                        {referral.status === 'completed' ? '✅ Completed' : '❌ Uncoordinated'}
+                        {referral.status === 'completed' ? '✅ Completed' : '❌ Cancelled'}
                       </span>
                     )}
                     <button
@@ -1012,7 +1227,7 @@ const ReferrerDashboard = () => {
             </div>
           </div>
 
-          {/* Right: Completed/Uncoordinated Referrals */}
+          {/* Right: Completed/Cancelled Referrals */}
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
@@ -1096,7 +1311,7 @@ const ReferrerDashboard = () => {
                                     ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30'
                                     : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
                                 }`}>
-                                  {referral.status === 'completed' ? '✅ Completed' : '❌ Uncoordinated'}
+                                  {referral.status === 'completed' ? '✅ Completed' : '❌ Cancelled'}
                                 </span>
                               )}
                               <button

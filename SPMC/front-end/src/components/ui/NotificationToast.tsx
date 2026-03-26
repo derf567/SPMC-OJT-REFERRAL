@@ -39,13 +39,19 @@ export const NotificationToast = ({ id, type, message, referralId, onClose, onCl
     if (onClick) {
       onClick(referralId);
     }
-    // Don't call onClose - just close the pop-up, keep notification in panel
     setIsExiting(true);
+    // Remove from DOM after fade-out so it doesn't block clicks underneath
+    setTimeout(() => {
+      onClose(id);
+    }, 300);
   };
 
   const handleCloseButton = () => {
-    // X button just closes the pop-up, doesn't remove notification
     setIsExiting(true);
+    // Remove from DOM after fade-out animation completes so it doesn't block clicks
+    setTimeout(() => {
+      onClose(id);
+    }, 300);
   };
 
   const getIcon = () => {

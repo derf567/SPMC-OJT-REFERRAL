@@ -7,7 +7,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import html2canvas from "html2canvas";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -296,38 +295,162 @@ const Reports = () => {
     fetchAllFilteredData();
   }, [globalFilter, globalYear, globalMonth]);
 
+  // Draw bar chart from referralsByTime data onto a canvas, return base64 PNG
+  const drawBarChart = (data: any[]): string => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 320;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const padL = 55, padR = 20, padT = 30, padB = 60;
+    const chartW = canvas.width - padL - padR;
+    const chartH = canvas.height - padT - padB;
+    const maxVal = Math.max(...data.map(d => d.count), 1);
+    const step = Math.max(1, Math.ceil(maxVal / 4));
+    const gridValues = Array.from({ length: 5 }, (_, i) => i * step);
+    const actualMax = Math.max(maxVal, gridValues[gridValues.length - 1]);
+
+    // Grid lines + Y labels
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#374151';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    gridValues.forEach(v => {
+      const y = padT + chartH - (v / actualMax) * chartH;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
+      ctx.fillText(String(v), padL - 6, y + 4);
+    });
+
+    // Axes
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + chartH); ctx.lineTo(padL + chartW, padT + chartH); ctx.stroke();
+
+    // Bars + X labels
+    const barW = Math.max(16, (chartW / data.length) * 0.6);
+    const spacing = chartW / data.length;
+    data.forEach((item, i) => {
+      const x = padL + i * spacing + (spacing - barW) / 2;
+      const bh = (item.count / actualMax) * chartH;
+      const y = padT + chartH - bh;
+      ctx.fillStyle = '#3b82f6';
+      ctx.beginPath();
+      ctx.roundRect(x, y, barW, Math.max(bh, 2), 3);
+      ctx.fill();
+      // Value on top
+      if (item.count > 0) {
+        ctx.fillStyle = '#1f2937';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(String(item.count), x + barW / 2, y - 4);
+      }
+      // X label
+      ctx.save();
+      ctx.translate(x + barW / 2, padT + chartH + 10);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillStyle = '#374151';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'right';
+      let label = item.period || '';
+      if (label.length > 8) label = label.substring(0, 7) + '…';
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    });
+
+    return canvas.toDataURL('image/png');
+  };
+
+  // Draw a donut/pie chart from { name, count }[] data onto a canvas, return base64 PNG
+  const drawPieChart = (data: any[], colors: string[]): string => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 500;
+    canvas.height = 280;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cx = 140, cy = 140, outerR = 110, innerR = 60;
+    const total = data.reduce((s, d) => s + d.count, 0) || 1;
+    let startAngle = -Math.PI / 2;
+
+    data.slice(0, 6).forEach((item, i) => {
+      const slice = (item.count / total) * 2 * Math.PI;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, outerR, startAngle, startAngle + slice);
+      ctx.closePath();
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.fill();
+      startAngle += slice;
+    });
+
+    // Donut hole
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerR, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+
+    // Center total
+    ctx.fillStyle = '#1f2937';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(total), cx, cy - 4);
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText('Total', cx, cy + 14);
+
+    // Legend
+    const legendX = 295, legendStartY = 30;
+    ctx.textAlign = 'left';
+    data.slice(0, 6).forEach((item, i) => {
+      const y = legendStartY + i * 36;
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.beginPath();
+      ctx.arc(legendX + 7, y + 7, 7, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.fillStyle = '#1f2937';
+      ctx.font = 'bold 11px sans-serif';
+      const name = item.name || item.department || '';
+      const label = name.length > 22 ? name.substring(0, 21) + '…' : name;
+      ctx.fillText(label, legendX + 20, y + 8);
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '10px sans-serif';
+      const pct = ((item.count / total) * 100).toFixed(1);
+      ctx.fillText(`${item.count} (${pct}%)`, legendX + 20, y + 22);
+    });
+
+    return canvas.toDataURL('image/png');
+  };
+
+  // Add a chart image to the PDF, centered, fixed 150x90mm
+  const addChartImage = (pdf: jsPDF, image: string, pageWidth: number, yPosition: number): number => {
+    const w = 150, h = 90;
+    const x = (pageWidth - w) / 2;
+    pdf.addImage(image, 'PNG', x, yPosition, w, h);
+    return yPosition + h + 6;
+  };
+
   // Download report function
-  const handleDownloadReport = async (includeGraphs: boolean) => {
+  const handleDownloadReport = (includeGraphs: boolean) => {
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       let yPosition = 20;
 
-      // Capture pie chart as image if includeGraphs is true
-      let pieChartImage: string | null = null;
+      // Generate all three charts from data if needed
+      let barChartImage: string | null = null;
+      let hospitalsChartImage: string | null = null;
+      let specialtyChartImage: string | null = null;
       if (includeGraphs) {
-        const pieChartElement = document.getElementById('department-pie-chart');
-        if (pieChartElement) {
-          try {
-            console.log('Capturing pie chart...');
-            const canvas = await html2canvas(pieChartElement, {
-              backgroundColor: '#ffffff',
-              scale: 2,
-              logging: false,
-              useCORS: true
-            });
-            pieChartImage = canvas.toDataURL('image/png');
-            console.log('Pie chart captured successfully');
-          } catch (error) {
-            console.error('Error capturing pie chart:', error);
-          }
-        } else {
-          console.warn('Pie chart element not found');
-        }
+        if (referralsByTime.length > 0) barChartImage = drawBarChart(referralsByTime);
+        if (hospitalsData.length > 0) hospitalsChartImage = drawPieChart(hospitalsData, ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4']);
+        if (specialtyData.length > 0) specialtyChartImage = drawPieChart(specialtyData, ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#3b82f6']);
       }
 
-      // Helper function to check if we need a new page
       const checkNewPage = (requiredSpace: number) => {
         if (yPosition + requiredSpace > pageHeight - 20) {
           pdf.addPage();
@@ -342,7 +465,6 @@ const Reports = () => {
       pdf.setTextColor(37, 99, 235);
       pdf.text('SPMC REFERRAL SYSTEM', pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 10;
-      
       pdf.setFontSize(14);
       pdf.text('Comprehensive Report', pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 12;
@@ -383,14 +505,18 @@ const Reports = () => {
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
-
       yPosition = (pdf as any).lastAutoTable.finalY + 10;
 
       // Referrals by Time Period
-      checkNewPage(40);
+      checkNewPage(barChartImage ? 110 : 40);
       pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
       pdf.text(`Referrals by ${globalFilter.charAt(0).toUpperCase() + globalFilter.slice(1)}`, 15, yPosition);
       yPosition += 8;
+
+      if (includeGraphs && barChartImage) {
+        yPosition = addChartImage(pdf, barChartImage, pageWidth, yPosition);
+      }
 
       const timeData = referralsByTime.map(item => [String(item.period), String(item.count)]);
       autoTable(pdf, {
@@ -401,81 +527,18 @@ const Reports = () => {
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
-
-      yPosition = (pdf as any).lastAutoTable.finalY + 10;
-
-      // Top Departments with Pie Chart
-      checkNewPage(pieChartImage ? 90 : 40);
-      pdf.setFontSize(14);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text('Top Departments', 15, yPosition);
-      yPosition += 8;
-
-      // Add pie chart image if available
-      if (includeGraphs && pieChartImage) {
-        try {
-          // Get the actual element dimensions
-          const pieChartElement = document.getElementById('department-pie-chart');
-          if (pieChartElement) {
-            const actualWidth = pieChartElement.offsetWidth;
-            const actualHeight = pieChartElement.offsetHeight;
-            
-            // Calculate aspect ratio
-            const aspectRatio = actualWidth / actualHeight;
-            
-            // Set max dimensions (in mm)
-            const maxWidth = 70;
-            const maxHeight = 70;
-            
-            // Calculate final dimensions maintaining aspect ratio
-            let imgWidth = maxWidth;
-            let imgHeight = maxWidth / aspectRatio;
-            
-            // If height exceeds max, scale based on height instead
-            if (imgHeight > maxHeight) {
-              imgHeight = maxHeight;
-              imgWidth = maxHeight * aspectRatio;
-            }
-            
-            // Center the image horizontally
-            const xPos = (pageWidth - imgWidth) / 2;
-            
-            // Add image to PDF
-            pdf.addImage(pieChartImage, 'PNG', xPos, yPosition, imgWidth, imgHeight);
-            yPosition += imgHeight + 10;
-          } else {
-            // Fallback if element not found
-            pdf.setFontSize(10);
-            pdf.setTextColor(150, 150, 150);
-            pdf.text('[Chart: Department Distribution]', pageWidth / 2, yPosition, { align: 'center' });
-            yPosition += 10;
-          }
-        } catch (error) {
-          console.error('Error adding pie chart to PDF:', error);
-          pdf.setFontSize(10);
-          pdf.setTextColor(150, 150, 150);
-          pdf.text('[Chart: Department Distribution]', pageWidth / 2, yPosition, { align: 'center' });
-          yPosition += 10;
-        }
-      }
-
-      const deptData = departmentData.map((dept, idx) => [String(idx + 1), String(dept.department), String(dept.count)]);
-      autoTable(pdf, {
-        startY: yPosition,
-        head: [['#', 'Department', 'Count']],
-        body: deptData.length > 0 ? deptData : [['', 'No data available', '']],
-        theme: 'striped',
-        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
-        margin: { left: 15, right: 15 },
-      });
-
       yPosition = (pdf as any).lastAutoTable.finalY + 10;
 
       // Top Hospitals
-      checkNewPage(40);
+      checkNewPage(hospitalsChartImage ? 110 : 40);
       pdf.setFontSize(14);
-      pdf.text('Top Hospitals', 15, yPosition);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Top Referring Hospitals', 15, yPosition);
       yPosition += 8;
+
+      if (includeGraphs && hospitalsChartImage) {
+        yPosition = addChartImage(pdf, hospitalsChartImage, pageWidth, yPosition);
+      }
 
       const hospData = hospitalsData.map((hosp, idx) => [String(idx + 1), String(hosp.name), String(hosp.count), `${hosp.percentage}%`]);
       autoTable(pdf, {
@@ -486,7 +549,31 @@ const Reports = () => {
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
+      yPosition = (pdf as any).lastAutoTable.finalY + 10;
 
+      // Specialty Required
+      checkNewPage(specialtyChartImage ? 110 : 40);
+      pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Specialty Required', 15, yPosition);
+      yPosition += 8;
+
+      if (includeGraphs && specialtyChartImage) {
+        yPosition = addChartImage(pdf, specialtyChartImage, pageWidth, yPosition);
+      }
+
+      const specData = specialtyData.map((s, idx) => {
+        const total = specialtyData.reduce((sum: number, x: any) => sum + x.count, 0);
+        return [String(idx + 1), String(s.name), String(s.count), `${((s.count / total) * 100).toFixed(1)}%`];
+      });
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['#', 'Specialty', 'Count', 'Percentage']],
+        body: specData.length > 0 ? specData : [['', 'No data available', '', '']],
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
+        margin: { left: 15, right: 15 },
+      });
       yPosition = (pdf as any).lastAutoTable.finalY + 10;
 
       // Status Distribution
@@ -505,12 +592,12 @@ const Reports = () => {
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
-
       yPosition = (pdf as any).lastAutoTable.finalY + 10;
 
       // Priority Distribution
       checkNewPage(40);
       pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
       pdf.text('Priority Distribution', 15, yPosition);
       yPosition += 8;
 
@@ -524,12 +611,9 @@ const Reports = () => {
         margin: { left: 15, right: 15 },
       });
 
-      // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
       const graphType = includeGraphs ? 'WithGraphs' : 'WithoutGraphs';
       const filename = `SPMC_Report_${graphType}_${timestamp}.pdf`;
-
-      // Save the PDF
       pdf.save(filename);
 
       toast({
@@ -716,10 +800,10 @@ const Reports = () => {
           </div>
           
           <div className="bg-red-50 dark:bg-gray-800 border border-red-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300">
-            <h3 className="text-lg font-semibold text-red-800 dark:text-red-400 mb-2">Uncoordinated</h3>
+            <h3 className="text-lg font-semibold text-red-800 dark:text-red-400 mb-2">Cancelled</h3>
             <p className="text-3xl font-bold text-red-600 dark:text-red-400">{summary.cancelled_referrals.toLocaleString()}</p>
             <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-              {summary.cancellation_rate}% uncoordinated rate
+              {summary.cancellation_rate}% cancellation rate
             </p>
           </div>
         </div>
@@ -740,7 +824,7 @@ const Reports = () => {
             ) : referralsByTime.length > 0 ? (
               <div className="space-y-4">
                 {/* Column Bar Graph Container */}
-                <div className="h-80 w-full">
+                <div id="bar-chart" className="h-80 w-full">
                   <svg className="w-full h-full" viewBox="0 0 500 300" preserveAspectRatio="xMidYMid meet">
                     {/* Background */}
                     <rect width="100%" height="100%" fill="transparent" />
@@ -982,7 +1066,7 @@ const Reports = () => {
               ) : hospitalsData.length > 0 ? (
                 <>
                   {/* Pie Chart Visualization - Same size as bar graph */}
-                  <div className="h-80 w-full flex items-center justify-center mb-4">
+                  <div id="hospitals-pie-chart" className="h-80 w-full flex items-center justify-center mb-4">
                     <div className="relative w-64 h-64">
                       <svg className="w-64 h-64 transform -rotate-90" viewBox="0 0 100 100">
                         {hospitalsData.slice(0, 6).map((hospital, index) => {
@@ -1201,7 +1285,7 @@ const Reports = () => {
                 </div>
               </div>
 
-              {/* Uncoordinated Overall */}
+              {/* Cancelled Overall */}
               <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -1209,7 +1293,7 @@ const Reports = () => {
                       <Building2 className="w-5 h-5 text-red-600 dark:text-red-400" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Overall</h3>
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Cancelled Overall</h3>
                       <p className="text-xs text-gray-500 dark:text-gray-400">All Regions</p>
                     </div>
                   </div>
@@ -1251,7 +1335,7 @@ const Reports = () => {
                 </div>
               </div>
 
-              {/* Uncoordinated Inside Davao */}
+              {/* Cancelled Inside Davao */}
               <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -1259,7 +1343,7 @@ const Reports = () => {
                       <Building2 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Inside Davao</h3>
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Cancelled Inside Davao</h3>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Davao Region</p>
                     </div>
                   </div>
@@ -1301,7 +1385,7 @@ const Reports = () => {
                 </div>
               </div>
 
-              {/* Uncoordinated Outside Davao */}
+              {/* Cancelled Outside Davao */}
               <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg hover:shadow-lg transition-all cursor-pointer group">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -1309,7 +1393,7 @@ const Reports = () => {
                       <Building2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Uncoordinated Outside Davao</h3>
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Cancelled Outside Davao</h3>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Outside Davao</p>
                     </div>
                   </div>

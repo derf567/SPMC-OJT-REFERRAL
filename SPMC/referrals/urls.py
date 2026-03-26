@@ -7,7 +7,9 @@ from .views import (
 from .authentication import (
     login_view, logout_view, user_profile, register_view, 
     comprehensive_register_view, register_doctor_view,
-    pending_doctors_view, all_doctors_view, approve_doctor_view, reject_doctor_view
+    pending_doctors_view, all_doctors_view, approve_doctor_view, reject_doctor_view,
+    all_users_view, deactivate_user_view, reactivate_user_view, update_user_view,
+    create_user_view
 )
 
 router = DefaultRouter()
@@ -32,4 +34,9 @@ urlpatterns = [
     path('api/admin/doctors/', all_doctors_view, name='all_doctors'),
     path('api/admin/approve-doctor/<int:doctor_id>/', approve_doctor_view, name='approve_doctor'),
     path('api/admin/reject-doctor/<int:doctor_id>/', reject_doctor_view, name='reject_doctor'),
+    path('api/admin/users/', all_users_view, name='all_users'),
+    path('api/admin/users/create/', create_user_view, name='create_user'),
+    path('api/admin/users/<int:user_id>/deactivate/', deactivate_user_view, name='deactivate_user'),
+    path('api/admin/users/<int:user_id>/reactivate/', reactivate_user_view, name='reactivate_user'),
+    path('api/admin/users/<int:user_id>/update/', update_user_view, name='update_user'),
 ]

@@ -1324,77 +1324,88 @@ const ExternalReferral = () => {
       case 3:
         return (
           <div className="space-y-6">
+            {/* Two-column layout: Specialty | Reason for Referral */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Which Specialty/Service is Needed <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('specialtyNeeded')}`}
-                  value={formData.specialtyNeeded}
-                  onChange={(e) => updateFormData('specialtyNeeded', e.target.value)}
-                >
-                  <option value="">Select specialty</option>
-                  {specialties.map((specialty) => (
-                    <option key={specialty.id} value={specialty.id}>{specialty.name}</option>
-                  ))}
-                </select>
-              </div>
 
-              {specialties.find(s => s.id == formData.specialtyNeeded)?.name === "Others" && (
+              {/* LEFT COLUMN — Specialty */}
+              <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Please specify the required specialty or service needed <span className="text-red-500">*</span>
+                    Which Specialty/Service is Needed <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('otherSpecialty')}`}
-                    placeholder="Specify other specialty"
-                    value={formData.otherSpecialty}
-                    onChange={(e) => updateFormData('otherSpecialty', e.target.value)}
-                  />
+                  <select
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('specialtyNeeded')}`}
+                    value={formData.specialtyNeeded}
+                    onChange={(e) => updateFormData('specialtyNeeded', e.target.value)}
+                  >
+                    <option value="">Select specialty</option>
+                    {specialties.map((specialty) => (
+                      <option key={specialty.id} value={specialty.id}>{specialty.name}</option>
+                    ))}
+                  </select>
                 </div>
-              )}
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Reason for Referral <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('reasonForReferral')}`}
-                  value={formData.reasonForReferral}
-                  onChange={(e) => {
-                    updateFormData('reasonForReferral', e.target.value);
-                    if (e.target.value !== "Others") {
-                      updateFormData('otherReasonForReferral', '');
-                    }
-                  }}
-                >
-                  <option value="">Select reason for referral...</option>
-                  <option value="Financial Constraints">Financial Constraints</option>
-                  <option value="Higher Facility Care">Higher Facility Care</option>
-                  <option value="Trauma Center">Trauma Center</option>
-                  <option value="Burn Unit">Burn Unit</option>
-                  <option value="Patients Choice">Patients Choice</option>
-                  <option value="Repatriation">Repatriation</option>
-                  <option value="Others">Others (Please Specify)</option>
-                </select>
+                {/* Appears below specialty dropdown when Others is selected */}
+                {specialties.find(s => s.id == formData.specialtyNeeded)?.name === "Others" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Please specify the required specialty or service needed <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('otherSpecialty')}`}
+                      rows={3}
+                      placeholder="Specify other specialty"
+                      value={formData.otherSpecialty}
+                      onChange={(e) => updateFormData('otherSpecialty', e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
 
-              {formData.reasonForReferral === "Others" && (
-                <div className="md:col-span-2">
+              {/* RIGHT COLUMN — Reason for Referral */}
+              <div className="space-y-3">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Please Specify Reason <span className="text-red-500">*</span>
+                    Reason for Referral <span className="text-red-500">*</span>
                   </label>
-                  <textarea
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('otherReasonForReferral')}`}
-                    rows={3}
-                    placeholder="Please specify the reason for referral..."
-                    value={formData.otherReasonForReferral}
-                    onChange={(e) => updateFormData('otherReasonForReferral', e.target.value)}
-                  />
+                  <select
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('reasonForReferral')}`}
+                    value={formData.reasonForReferral}
+                    onChange={(e) => {
+                      updateFormData('reasonForReferral', e.target.value);
+                      if (e.target.value !== "Others") {
+                        updateFormData('otherReasonForReferral', '');
+                      }
+                    }}
+                  >
+                    <option value="">Select reason for referral...</option>
+                    <option value="Financial Constraints">Financial Constraints</option>
+                    <option value="Higher Facility Care">Higher Facility Care</option>
+                    <option value="Trauma Center">Trauma Center</option>
+                    <option value="Burn Unit">Burn Unit</option>
+                    <option value="Patients Choice">Patients Choice</option>
+                    <option value="Repatriation">Repatriation</option>
+                    <option value="Others">Others (Please Specify)</option>
+                  </select>
                 </div>
-              )}
+
+                {/* Appears below reason dropdown when Others is selected */}
+                {formData.reasonForReferral === "Others" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Please Specify Reason <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-300 ${getFieldErrorClass('otherReasonForReferral')}`}
+                      rows={3}
+                      placeholder="Please specify the reason for referral..."
+                      value={formData.otherReasonForReferral}
+                      onChange={(e) => updateFormData('otherReasonForReferral', e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
             </div>
 
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">

@@ -639,3 +639,12 @@ class ReferrerDocument(models.Model):
 
     def __str__(self):
         return f"{self.referrer} - {self.document_type}"
+
+
+class UserProfileProxy(UserProfile):
+    """Proxy of UserProfile that appears under Authentication and Authorization in Django admin."""
+    class Meta:
+        proxy = True
+        app_label = 'auth'
+        verbose_name = 'User Profile'
+        verbose_name_plural = 'User Profiles'

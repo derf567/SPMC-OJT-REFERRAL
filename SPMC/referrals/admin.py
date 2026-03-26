@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 from django import forms
 from django.utils.html import format_html
-from .models import ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory, ReferralDocument, UserProfile
+from .models import ReferringHospital, Specialty, Referral, TransitInfo, ReferralStatusHistory, ReferralDocument, UserProfile, UserProfileProxy
 
 HOSPITAL_REFERRER_HIDE_FIELDS = (
     'department',
@@ -251,7 +251,7 @@ class CustomUserAdmin(UserAdmin):
 admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)
 
-@admin.register(UserProfile)
+@admin.register(UserProfileProxy)
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ['user', 'role', 'department', 'display_contact_numbers']
     list_filter = ['role', 'department']
@@ -259,10 +259,6 @@ class UserProfileAdmin(admin.ModelAdmin):
     exclude = ['cellphone']
 
     def get_fields(self, request, obj=None):
-        """
-        Hide department and contact_number in direct UserProfile edit
-        only for hospital referrer profiles.
-        """
         fields = list(super().get_fields(request, obj))
         is_hospital_referrer = (
             obj is not None
@@ -288,9 +284,8 @@ class UserProfileAdmin(admin.ModelAdmin):
         if is_doctor:
             fields = [f for f in fields if f not in DOCTOR_HIDE_FIELDS]
         return fields
-    
+
     def display_contact_numbers(self, obj):
-        """Display contact numbers as comma-separated list"""
         if obj.contact_numbers:
             return ', '.join(obj.contact_numbers)
         return '-'

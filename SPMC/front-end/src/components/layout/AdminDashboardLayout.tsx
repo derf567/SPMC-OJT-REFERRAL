@@ -19,6 +19,7 @@ import {
   LogOut,
   Info,
   Bell,
+  ShieldCheck,
 } from "lucide-react";
 
 interface AdminDashboardLayoutProps {
@@ -45,6 +46,7 @@ export const AdminDashboardLayout = ({ children }: AdminDashboardLayoutProps) =>
   const navigation = [
     { name: "Dashboard", href: "/admin/dashboard", icon: Home },
     { name: "Account Approval", href: "/admin/approvals", icon: UserCheck, badge: pendingCount > 0 ? pendingCount.toString() : undefined },
+    { name: "User Management", href: "/admin/users", icon: ShieldCheck },
     { name: "Department Settings", href: "/admin/departments", icon: Users },
     { name: "Reports", href: "/admin/reports", icon: BarChart3 },
   ];

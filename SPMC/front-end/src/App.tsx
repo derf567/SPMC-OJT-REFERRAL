@@ -27,6 +27,7 @@ import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AccountApproval from "./pages/admin/AccountApproval";
 import DepartmentSettings from "./pages/admin/DepartmentSettings";
+import UserManagement from "./pages/admin/UserManagement";
 import FraudMonitor from "./pages/FraudMonitor";
 import DepartmentArchive from "./pages/DepartmentArchive";
 
@@ -81,6 +82,11 @@ const App = () => (
             <Route path="/admin/reports" element={
               <ProtectedRoute requireAdmin>
                 <Reports />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/users" element={
+              <ProtectedRoute requireAdmin>
+                <UserManagement />
               </ProtectedRoute>
             } />
             

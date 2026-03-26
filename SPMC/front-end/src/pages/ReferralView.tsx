@@ -144,246 +144,164 @@ export const ReferralView = () => {
   const handleDownloadPDF = async () => {
     try {
       setDownloading(true);
-      
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
+
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
       const margin = 10;
-      const contentWidth = pageWidth - (margin * 2);
-      let yPos = margin;
+      const colGap = 6;
+      const colW = (pageW - margin * 2 - colGap) / 2;
+      const labelW = 30;
+      const valueW = colW - labelW - 2;
 
-      const checkPageBreak = (spaceNeeded: number) => {
-        if (yPos + spaceNeeded > pageHeight - margin) {
-          doc.addPage();
-          yPos = margin;
-        }
+      const val = (v: any) => (v != null && v !== "" ? String(v) : "N/A");
+
+      const sectionHeader = (title: string, x: number, y: number) => {
+        doc.setFillColor(30, 64, 175);
+        doc.rect(x, y, colW, 5, "F");
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(255);
+        doc.text(title.toUpperCase(), x + 2, y + 3.5);
+        doc.setTextColor(0);
+        return y + 7;
       };
 
-      const addSection = (title: string) => {
-        checkPageBreak(12);
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(37, 99, 235);
-        doc.text(title, margin, yPos);
-        yPos += 5;
-        doc.setDrawColor(200, 200, 200);
-        doc.line(margin, yPos, pageWidth - margin, yPos);
-        yPos += 5;
+      const row = (label: string, value: any, x: number, y: number) => {
+        doc.setFontSize(6.5);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${label}:`, x, y);
+        doc.setFont("helvetica", "normal");
+        const lines = doc.splitTextToSize(val(value), valueW);
+        const capped = lines.slice(0, 2);
+        if (lines.length > 2) capped[1] = capped[1].slice(0, -3) + "...";
+        doc.text(capped, x + labelW, y);
+        return y + capped.length * 3.8 + 1;
       };
 
-      // Header
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 0, 0);
-      doc.text('SPMC Referral System', pageWidth / 2, yPos, { align: 'center' });
-      yPos += 6;
-      
-      doc.setFontSize(12);
-      doc.text('Patient Referral Details', pageWidth / 2, yPos, { align: 'center' });
-      yPos += 4;
-      
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Referral ID: ${referral.referral_id}`, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 3;
-      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 8;
+      // Page border
+      doc.setDrawColor(30, 64, 175);
+      doc.setLineWidth(0.5);
+      doc.rect(margin - 2, margin - 2, pageW - (margin - 2) * 2, pageH - (margin - 2) * 2);
 
-      // Patient Information
-      addSection('Patient Information');
-      doc.setFontSize(9);
-      doc.setTextColor(0, 0, 0);
+      // Title
+      let y = margin + 4;
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 64, 175);
+      doc.text("SPMC Patient Referral Information", pageW / 2, y, { align: "center" });
+      y += 5;
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text(`Generated: ${new Date().toLocaleString()}   |   Referral ID: ${referral.referral_id}`, pageW / 2, y, { align: "center" });
+      y += 3;
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.3);
+      doc.line(margin, y, pageW - margin, y);
+      y += 4;
 
-      const patientData = [
-        ['Patient Name:', referral.patient_full_name],
-        ['Category:', referral.patient_category?.replace('_', ' ') || 'N/A'],
-        ['Birthday:', referral.birthday || 'N/A'],
-        ['Age:', `${referral.age} years`],
-        ['Gender:', referral.gender || 'N/A'],
-        ['Address:', referral.current_address || 'N/A'],
-        ['Admission Status:', referral.admission_status?.replace('_', ' ') || 'N/A']
-      ];
+      const leftX = margin;
+      const rightX = margin + colW + colGap;
 
-      patientData.forEach(([label, value]) => {
-        checkPageBreak(5);
-        doc.setFont('helvetica', 'bold');
-        doc.text(label, margin, yPos);
-        doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(String(value), contentWidth - 50);
-        doc.text(lines, margin + 50, yPos);
-        yPos += Math.max(4, lines.length * 3.5);
-      });
+      // LEFT COLUMN
+      let ly = y;
+      ly = sectionHeader("Referral Details", leftX, ly);
+      ly = row("Referral ID",  referral.referral_id, leftX, ly);
+      ly = row("Status",       referral.status?.replace(/_/g, " ").toUpperCase(), leftX, ly);
+      ly = row("Priority",     referral.priority, leftX, ly);
+      ly = row("Date Created", referral.created_at ? new Date(referral.created_at).toLocaleString() : null, leftX, ly);
+      ly += 2;
 
-      yPos += 2;
+      ly = sectionHeader("Patient Information", leftX, ly);
+      ly = row("Full Name",    referral.patient_full_name, leftX, ly);
+      ly = row("Age / Gender", `${val(referral.age)} yrs / ${val(referral.gender)}`, leftX, ly);
+      ly = row("Birthday",     referral.birthday, leftX, ly);
+      ly = row("HRN",          referral.hrn, leftX, ly);
+      ly = row("Address",      referral.current_address, leftX, ly);
+      ly = row("Category",     referral.patient_category?.replace(/_/g, " "), leftX, ly);
+      ly += 2;
 
-      // Patient Status
-      addSection('Patient Status');
-      
-      const statusData = [
-        ['Chief Complaint:', referral.chief_complaint],
-        ['Initial Impression:', referral.working_impression],
-        ...(referral.pertinent_history ? [['Pertinent History:', referral.pertinent_history]] : []),
-        ...(referral.pertinent_physical_exam ? [['Physical Examination:', referral.pertinent_physical_exam]] : []),
-        ...(referral.management_done ? [['Treatment / Management Done:', referral.management_done]] : [])
-      ];
+      ly = sectionHeader("Vital Signs", leftX, ly);
+      ly = row("Blood Pressure", referral.bp, leftX, ly);
+      ly = row("Heart Rate",   referral.hr ? `${referral.hr} bpm` : null, leftX, ly);
+      ly = row("Resp. Rate",   referral.rr ? `${referral.rr} breaths/min` : null, leftX, ly);
+      ly = row("Temperature",  referral.temp ? `${referral.temp} °C` : null, leftX, ly);
+      ly = row("O2 Saturation",referral.o2_sat ? `${referral.o2_sat}%` : null, leftX, ly);
+      ly = row("GCS Score",    referral.gcs_score, leftX, ly);
+      ly = row("O2 Support",   referral.o2_support, leftX, ly);
+      ly = row("Admission",    referral.admission_status?.replace(/_/g, " "), leftX, ly);
+      ly = row("RT-PCR",       referral.rtpcr_result, leftX, ly);
+      ly += 2;
 
-      statusData.forEach(([label, value]) => {
-        checkPageBreak(5);
-        doc.setFont('helvetica', 'bold');
-        doc.text(label, margin, yPos);
-        doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(String(value) || 'N/A', contentWidth - 50);
-        doc.text(lines, margin + 50, yPos);
-        yPos += Math.max(4, lines.length * 3.5);
-      });
+      ly = sectionHeader("Referring Facility", leftX, ly);
+      ly = row("Hospital",     referral.referring_hospital_name, leftX, ly);
+      ly = row("Referrer",     referral.referrer_name, leftX, ly);
+      ly = row("Profession",
+        referral.referrer_profession === "others" && referral.referrer_profession_other
+          ? referral.referrer_profession_other
+          : referral.referrer_profession,
+        leftX, ly);
+      ly = row("Cellphone",
+        referral.referrer_contact_numbers && referral.referrer_contact_numbers.length > 0
+          ? referral.referrer_contact_numbers.join(", ")
+          : referral.referrer_cellphone,
+        leftX, ly);
+      ly = row("Transport",    referral.mode_of_transportation, leftX, ly);
+      ly = row("Specialty",    referral.specialty_needed_name, leftX, ly);
 
-      yPos += 2;
+      // RIGHT COLUMN
+      let ry = y;
+      ry = sectionHeader("Clinical Information", rightX, ry);
+      ry = row("Chief Complaint",    referral.chief_complaint, rightX, ry);
+      ry = row("Initial Impression", referral.working_impression, rightX, ry);
+      ry += 2;
 
-      // Vital Signs
-      if (referral.bp || referral.hr || referral.rr || referral.temp || referral.o2_sat) {
-        addSection('Latest Vital Signs');
+      ry = sectionHeader("Pertinent History", rightX, ry);
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "bold");
+      doc.text("History:", rightX, ry);
+      doc.setFont("helvetica", "normal");
+      const histLines = doc.splitTextToSize(val(referral.pertinent_history), colW - 2).slice(0, 4);
+      doc.text(histLines, rightX, ry + 4);
+      ry += histLines.length * 3.8 + 6;
 
-        // Add date/time if available
-        if (referral.vital_signs_date || referral.vital_signs_time) {
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(37, 99, 235);
-          let dateTimeText = 'Date & Time Taken: ';
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(0, 0, 0);
-          if (referral.vital_signs_date) {
-            const date = new Date(referral.vital_signs_date);
-            dateTimeText += date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-          }
-          if (referral.vital_signs_time) {
-            // Convert to 12-hour format
-            const [hours, minutes] = referral.vital_signs_time.split(':');
-            const hour = parseInt(hours, 10);
-            const ampm = hour >= 12 ? 'PM' : 'AM';
-            const hour12 = hour % 12 || 12;
-            dateTimeText += ` at ${hour12}:${minutes} ${ampm}`;
-          }
-          doc.text(dateTimeText, margin, yPos);
-          yPos += 5;
-        }
+      ry = sectionHeader("Physical Exam", rightX, ry);
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "bold");
+      doc.text("Findings:", rightX, ry);
+      doc.setFont("helvetica", "normal");
+      const examLines = doc.splitTextToSize(val(referral.pertinent_physical_exam), colW - 2).slice(0, 4);
+      doc.text(examLines, rightX, ry + 4);
+      ry += examLines.length * 3.8 + 6;
 
-        const vitalSigns = [];
-        if (referral.bp) vitalSigns.push(['Blood Pressure', referral.bp]);
-        if (referral.hr) vitalSigns.push(['Heart Rate', `${referral.hr} bpm`]);
-        if (referral.rr) vitalSigns.push(['Respiratory Rate', `${referral.rr} /min`]);
-        if (referral.temp) vitalSigns.push(['Temperature', `${referral.temp}°C`]);
-        if (referral.o2_sat) vitalSigns.push(['O2 Saturation', `${referral.o2_sat}%`]);
-        if (referral.gcs_score) vitalSigns.push(['GCS Score', referral.gcs_score]);
-        if (referral.o2_support) vitalSigns.push(['O2 Support', referral.o2_support]);
-        if (referral.rtpcr_result) vitalSigns.push(['RTPCR Result', referral.rtpcr_result.toUpperCase()]);
+      ry = sectionHeader("Management Done", rightX, ry);
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "bold");
+      doc.text("Management:", rightX, ry);
+      doc.setFont("helvetica", "normal");
+      const mgmtLines = doc.splitTextToSize(val(referral.management_done), colW - 2).slice(0, 4);
+      doc.text(mgmtLines, rightX, ry + 4);
+      ry += mgmtLines.length * 3.8 + 6;
 
-        checkPageBreak(vitalSigns.length * 4 + 8);
+      ry = sectionHeader("Reason for Referral", rightX, ry);
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "bold");
+      doc.text("Reason:", rightX, ry);
+      doc.setFont("helvetica", "normal");
+      const reasonLines = doc.splitTextToSize(val(referral.reason_for_referral), colW - 2).slice(0, 5);
+      doc.text(reasonLines, rightX, ry + 4);
 
-        // Table header
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.setFillColor(37, 99, 235);
-        doc.setTextColor(255, 255, 255);
-        doc.rect(margin, yPos - 2, contentWidth, 4, 'F');
-        doc.text('Vital Sign', margin + 2, yPos + 1);
-        doc.text('Value', margin + contentWidth - 20, yPos + 1);
-        yPos += 5;
-
-        // Table rows
-        doc.setTextColor(0, 0, 0);
-        doc.setFont('helvetica', 'normal');
-        vitalSigns.forEach((row, index) => {
-          if (index % 2 === 0) {
-            doc.setFillColor(245, 245, 245);
-            doc.rect(margin, yPos - 2, contentWidth, 4, 'F');
-          }
-          doc.text(row[0], margin + 2, yPos + 1);
-          doc.text(String(row[1]), margin + contentWidth - 20, yPos + 1);
-          yPos += 4;
-        });
-
-        yPos += 2;
-      }
-
-      // Referring Hospital
-      addSection('Referring Hospital & Referrer Information');
-
-      const hospitalData = [
-        ['Facility Name:', referral.referring_hospital_name],
-        ...(referral.hospital_doh_level ? [['DOH Level:', referral.hospital_doh_level]] : []),
-        ['Referrer Name:', referral.referrer_name],
-        ...(referral.referrer_profession ? [[
-          'Profession:', 
-          referral.referrer_profession === 'others' && referral.referrer_profession_other
-            ? referral.referrer_profession_other
-            : referral.referrer_profession.replace(/_/g, ' ')
-        ]] : []),
-        ...(referral.referrer_contact_numbers && referral.referrer_contact_numbers.length > 0 
-          ? [['Referrer Contact Numbers:', referral.referrer_contact_numbers.join(', ')]] 
-          : referral.referrer_cellphone 
-            ? [['Referrer Contact Number:', referral.referrer_cellphone]]
-            : []
-        ),
-        ...(referral.mode_of_transportation ? [['Transportation:', referral.mode_of_transportation.replace(/_/g, ' ')]] : [])
-      ];
-
-      hospitalData.forEach(([label, value]) => {
-        checkPageBreak(5);
-        doc.setFont('helvetica', 'bold');
-        doc.text(label, margin, yPos);
-        doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(String(value) || 'N/A', contentWidth - 50);
-        doc.text(lines, margin + 50, yPos);
-        yPos += Math.max(4, lines.length * 3.5);
-      });
-
-      yPos += 2;
-
-      // Service Needed
-      addSection('Service Needed');
-
-      const serviceData = [
-        ['Specialty Needed:', referral.specialty_needed_name || 'N/A'],
-        ...(referral.is_urgent ? [['Urgency:', 'URGENT']] : []),
-        ['Reason for Referral:', referral.reason_for_referral || 'N/A'],
-        ...(referral.management_done ? [['Management Done:', referral.management_done]] : [])
-      ];
-
-      serviceData.forEach(([label, value]) => {
-        checkPageBreak(5);
-        doc.setFont('helvetica', 'bold');
-        doc.text(label, margin, yPos);
-        doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(String(value) || 'N/A', contentWidth - 50);
-        doc.text(lines, margin + 50, yPos);
-        yPos += Math.max(4, lines.length * 3.5);
-      });
-
-      yPos += 2;
-
-      // Referral Information
-      addSection('Referral Information');
-
-      const referralData = [
-        ['Status:', referral.status.replace('_', ' ').toUpperCase()],
-        ['Priority:', referral.priority || 'N/A'],
-        ['Specialty Needed:', referral.specialty_needed_name || 'N/A'],
-        ['Reason for Referral:', referral.reason_for_referral],
-        ['Created:', new Date(referral.created_at).toLocaleString()]
-      ];
-
-      referralData.forEach(([label, value]) => {
-        checkPageBreak(5);
-        doc.setFont('helvetica', 'bold');
-        doc.text(label, margin, yPos);
-        doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(String(value) || 'N/A', contentWidth - 50);
-        doc.text(lines, margin + 50, yPos);
-        yPos += Math.max(4, lines.length * 3.5);
-      });
+      // Footer
+      const footerY = pageH - margin;
+      doc.setDrawColor(200);
+      doc.line(margin, footerY - 4, pageW - margin, footerY - 4);
+      doc.setFontSize(6);
+      doc.setTextColor(150);
+      doc.text("Southern Philippines Medical Center — Confidential Patient Record", pageW / 2, footerY, { align: "center" });
 
       // Save the PDF
-      const fileName = `Referral_${referral.referral_id}_${referral.patient_full_name.replace(/\s+/g, '_')}.pdf`;
+      const fileName = `Referral_${referral.referral_id}_${referral.patient_full_name.replace(/\s+/g, "_")}.pdf`;
       doc.save(fileName);
 
       toast({

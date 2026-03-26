@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminDashboardLayout } from "@/components/layout/AdminDashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Building2, Phone, Save, X, Edit2, CheckCircle } from "lucide-react";
+import { Building2, Phone, Save, X, Edit2, CheckCircle, Plus } from "lucide-react";
 import { adminAPI } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -13,12 +13,32 @@ interface Department {
   is_active: boolean;
 }
 
+const DEPARTMENT_CHOICES = [
+  { value: 'emergency', label: 'Emergency Department' },
+  { value: 'internal_medicine', label: 'Internal Medicine' },
+  { value: 'surgery', label: 'Surgery Department' },
+  { value: 'obstetrics_gynecology', label: 'Obstetrics and Gynecology' },
+  { value: 'pediatrics', label: 'Pediatrics' },
+  { value: 'orthopedics', label: 'Orthopedics' },
+  { value: 'cardiology', label: 'Cardiology' },
+  { value: 'neurology', label: 'Neurology' },
+  { value: 'anesthesiology', label: 'Anesthesiology' },
+  { value: 'radiology', label: 'Radiology' },
+  { value: 'pathology', label: 'Pathology' },
+  { value: 'other', label: 'Other Department' },
+];
+
 const DepartmentSettings = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Add department modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newDept, setNewDept] = useState({ code: '', name: '', contact_number: '' });
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     fetchDepartments();
@@ -45,6 +65,25 @@ const DepartmentSettings = () => {
   const cancelEdit = () => {
     setEditingId(null);
     setEditValue('');
+  };
+
+  const addDepartment = async () => {
+    if (!newDept.code || !newDept.name) {
+      toast.error('Code and name are required');
+      return;
+    }
+    try {
+      setAdding(true);
+      const result = await adminAPI.createDepartment(newDept.code, newDept.name, newDept.contact_number);
+      setDepartments([...departments, result.department]);
+      toast.success(`${result.department.name} added successfully`);
+      setShowAddModal(false);
+      setNewDept({ code: '', name: '', contact_number: '' });
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to add department');
+    } finally {
+      setAdding(false);
+    }
   };
 
   const saveContactNumber = async (deptId: number) => {
@@ -91,9 +130,18 @@ const DepartmentSettings = () => {
               Manage department contact numbers for referral coordination
             </p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-            <Building2 className="w-4 h-4" />
-            <span>{departments.length} Departments</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <Building2 className="w-4 h-4" />
+              <span>{departments.length} Departments</span>
+            </div>
+            <Button
+              onClick={() => setShowAddModal(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Department
+            </Button>
           </div>
         </div>
 
@@ -238,6 +286,88 @@ const DepartmentSettings = () => {
           </ol>
         </div>
       </div>
+
+      {/* Add Department Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Department</h2>
+              <button
+                onClick={() => { setShowAddModal(false); setNewDept({ code: '', name: '', contact_number: '' }); }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Department Code <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={newDept.code}
+                  onChange={(e) => {
+                    const selected = DEPARTMENT_CHOICES.find(d => d.value === e.target.value);
+                    setNewDept({ ...newDept, code: e.target.value, name: selected?.label || newDept.name });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="">Select a code...</option>
+                  {DEPARTMENT_CHOICES.filter(d => !departments.find(dep => dep.code === d.value)).map(d => (
+                    <option key={d.value} value={d.value}>{d.value}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Department Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newDept.name}
+                  onChange={(e) => setNewDept({ ...newDept, name: e.target.value })}
+                  placeholder="e.g., Cardiology"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Contact Number
+                </label>
+                <input
+                  type="text"
+                  value={newDept.contact_number}
+                  onChange={(e) => setNewDept({ ...newDept, contact_number: e.target.value })}
+                  placeholder="e.g., 082-227-2731"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => { setShowAddModal(false); setNewDept({ code: '', name: '', contact_number: '' }); }}
+                disabled={adding}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={addDepartment}
+                disabled={adding}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                {adding ? 'Adding...' : 'Add Department'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminDashboardLayout>
   );
 };

@@ -609,6 +609,14 @@ export const adminAPI = {
     });
   },
 
+  // Create a new department
+  createDepartment: async (code: string, name: string, contactNumber: string) => {
+    return apiRequest('/admin/departments/', {
+      method: 'POST',
+      body: JSON.stringify({ code, name, contact_number: contactNumber })
+    });
+  },
+
   // Update doctor specialties
   updateDoctorSpecialties: async (userId: number, specialtyIds: number[]) => {
     return apiRequest(`/admin/doctors/${userId}/update_specialties/`, {
@@ -644,6 +652,38 @@ export const adminAPI = {
   rejectReferrer: async (accountId: number) => {
     return apiRequest(`/referrers/${accountId}/reject_account/`, {
       method: 'POST',
+    });
+  },
+
+  // Get all users (all roles) for user management page
+  getAllUsers: async (activeOnly = true) => {
+    const qs = activeOnly ? '' : '?active=false';
+    return apiRequest(`/admin/users/${qs}`);
+  },
+
+  // Soft-delete a user (deactivate)
+  deactivateUser: async (userId: number) => {
+    return apiRequest(`/admin/users/${userId}/deactivate/`, { method: 'POST' });
+  },
+
+  // Reactivate a previously deactivated user
+  reactivateUser: async (userId: number) => {
+    return apiRequest(`/admin/users/${userId}/reactivate/`, { method: 'POST' });
+  },
+
+  // Update user details
+  updateUser: async (userId: number, data: Record<string, string>) => {
+    return apiRequest(`/admin/users/${userId}/update/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Create a new user account
+  createUser: async (data: Record<string, string>) => {
+    return apiRequest('/admin/users/create/', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   },
 };

@@ -2131,10 +2131,10 @@ def admin_dashboard_stats(request):
     })
 
 
-@api_view(['GET', 'PUT'])
+@api_view(['GET', 'PUT', 'POST'])
 @permission_classes([IsAuthenticated])
 def manage_departments(request):
-    """Get all departments or update a department's contact number"""
+    """Get all departments, update a department's contact number, or create a new department"""
     # Check if user is admin
     if not request.user.is_staff:
         user_profile = getattr(request.user, 'profile', None)
@@ -2180,6 +2180,35 @@ def manage_departments(request):
             })
         except Department.DoesNotExist:
             return Response({'error': 'Department not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    elif request.method == 'POST':
+        # Create a new department
+        code = request.data.get('code')
+        name = request.data.get('name')
+        contact_number = request.data.get('contact_number', '')
+
+        if not code or not name:
+            return Response({'error': 'Code and name are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if Department.objects.filter(code=code).exists():
+            return Response({'error': 'A department with this code already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
+        dept = Department.objects.create(
+            code=code,
+            name=name,
+            contact_number=contact_number,
+            is_active=True,
+        )
+        return Response({
+            'message': f'Department {dept.name} created successfully',
+            'department': {
+                'id': dept.id,
+                'code': dept.code,
+                'name': dept.name,
+                'contact_number': dept.contact_number,
+                'is_active': dept.is_active,
+            }
+        }, status=status.HTTP_201_CREATED)
 
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])

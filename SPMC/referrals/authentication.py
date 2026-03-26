@@ -600,6 +600,100 @@ def register_doctor_view(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def all_users_view(request):
+    """Get all system users for admin user management page"""
+    try:
+        is_admin = request.user.is_staff
+        if not is_admin:
+            try:
+                profile = request.user.profile
+                is_admin = profile.role == 'admin'
+            except UserProfile.DoesNotExist:
+                pass
+
+        if not is_admin:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Support ?active=false to fetch inactive users
+        show_active = request.query_params.get('active', 'true').lower() != 'false'
+        # Exclude superusers and admin-role users from the list
+        users = User.objects.select_related('profile').filter(
+            is_active=show_active,
+            is_superuser=False
+        ).exclude(profile__role='admin').order_by('-date_joined')
+
+        data = []
+        for u in users:
+            profile = getattr(u, 'profile', None)
+            role = 'unknown'
+            role_display = 'Unknown'
+            hospital = ''
+            edcc_edma_indicator = ''
+
+            if u.is_superuser:
+                role = 'administrator'
+                role_display = 'Administrator'
+            elif profile:
+                raw_role = profile.role
+                if raw_role == 'edcc_edma':
+                    indicator = profile.edcc_edma_indicator or 'EDCC'
+                    role = indicator.lower()          # 'edcc' or 'edma'
+                    role_display = indicator           # 'EDCC' or 'EDMA'
+                    edcc_edma_indicator = indicator
+                elif raw_role == 'admin':
+                    role = 'administrator'
+                    role_display = 'Administrator'
+                elif raw_role == 'doctor':
+                    role = 'doctor'
+                    role_display = 'Doctor'
+                elif raw_role == 'referrer':
+                    role = 'referrer'
+                    role_display = 'Referrer'
+                else:
+                    role = raw_role
+                    role_display = profile.get_role_display()
+
+                hospital = profile.hospital_name or ''
+
+            # Internal SPMC roles always belong to SPMC
+            if role in ('edcc', 'edma', 'administrator', 'doctor'):
+                hospital = 'Southern Philippines Medical Center'
+            elif role == 'referrer' and not hospital:
+                # For referrers, fall back to ReferrerAccount affiliate hospitals
+                try:
+                    from .models import ReferrerAccount
+                    ref_account = ReferrerAccount.objects.filter(user=u).first()
+                    if ref_account:
+                        aff = ref_account.affiliate_hospitals.first()
+                        hospital = aff.name if aff else ''
+                except Exception:
+                    pass
+
+            data.append({
+                'id': u.id,
+                'username': u.username,
+                'email': u.email,
+                'first_name': u.first_name,
+                'last_name': u.last_name,
+                'full_name': u.get_full_name() or u.username,
+                'role': role,
+                'role_display': role_display,
+                'edcc_edma_indicator': edcc_edma_indicator,
+                'hospital': hospital,
+                'department': profile.department or '' if profile else '',
+                'created_at': u.date_joined.isoformat(),
+                'is_active': 1 if u.is_active else 0,
+            })
+
+        return Response(data)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({'error': f'Failed to fetch users: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def pending_doctors_view(request):
     """Get all pending doctor accounts for admin approval"""
     try:
@@ -773,3 +867,252 @@ def reject_doctor_view(request, doctor_id):
         import traceback
         traceback.print_exc()
         return Response({'error': f'Failed to reject doctor: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def deactivate_user_view(request, user_id):
+    """Soft-delete a user by setting is_active=False (admin only)"""
+    try:
+        is_admin = request.user.is_staff
+        if not is_admin:
+            try:
+                profile = request.user.profile
+                is_admin = profile.role == 'admin'
+            except UserProfile.DoesNotExist:
+                pass
+
+        if not is_admin:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Prevent admin from deactivating themselves
+        if request.user.id == user_id:
+            return Response({'error': 'You cannot deactivate your own account'}, status=status.HTTP_400_BAD_REQUEST)
+
+        target = User.objects.get(id=user_id)
+        target.is_active = False
+        target.save(update_fields=['is_active'])
+
+        return Response({
+            'success': True,
+            'message': f'Account for {target.get_full_name() or target.username} has been deactivated',
+            'is_active': 0,
+        })
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({'error': f'Failed to deactivate user: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reactivate_user_view(request, user_id):
+    """Reactivate a previously deactivated user (admin only)"""
+    try:
+        is_admin = request.user.is_staff
+        if not is_admin:
+            try:
+                profile = request.user.profile
+                is_admin = profile.role == 'admin'
+            except UserProfile.DoesNotExist:
+                pass
+
+        if not is_admin:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        target = User.objects.get(id=user_id)
+        target.is_active = True
+        target.save(update_fields=['is_active'])
+
+        return Response({
+            'success': True,
+            'message': f'Account for {target.get_full_name() or target.username} has been reactivated',
+            'is_active': 1,
+        })
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({'error': f'Failed to reactivate user: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_user_view(request, user_id):
+    """Update a user's username, email, name, role, and optionally password (admin only)"""
+    try:
+        is_admin = request.user.is_staff
+        if not is_admin:
+            try:
+                profile = request.user.profile
+                is_admin = profile.role == 'admin'
+            except UserProfile.DoesNotExist:
+                pass
+
+        if not is_admin:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        target = User.objects.select_related('profile').get(id=user_id)
+        data = request.data
+
+        # Username uniqueness check
+        new_username = data.get('username', '').strip()
+        if new_username and new_username != target.username:
+            if User.objects.filter(username=new_username).exclude(id=user_id).exists():
+                return Response({'error': 'Username already taken'}, status=status.HTTP_400_BAD_REQUEST)
+            target.username = new_username
+
+        # Email uniqueness check
+        new_email = data.get('email', '').strip()
+        if new_email and new_email != target.email:
+            if User.objects.filter(email=new_email).exclude(id=user_id).exists():
+                return Response({'error': 'Email already in use'}, status=status.HTTP_400_BAD_REQUEST)
+            target.email = new_email
+
+        # Name fields
+        if 'first_name' in data:
+            target.first_name = data['first_name'].strip()
+        if 'last_name' in data:
+            target.last_name = data['last_name'].strip()
+
+        # Password
+        new_password = data.get('password', '').strip()
+        confirm_password = data.get('confirm_password', '').strip()
+        if new_password:
+            if new_password != confirm_password:
+                return Response({'error': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+            if len(new_password) < 6:
+                return Response({'error': 'Password must be at least 6 characters'}, status=status.HTTP_400_BAD_REQUEST)
+            target.set_password(new_password)
+
+        target.save()
+
+        # Role update via profile
+        new_role = data.get('role', '').strip()
+        if new_role and hasattr(target, 'profile'):
+            profile = target.profile
+            # Map frontend role keys back to model role values
+            role_map = {
+                'edcc': 'edcc_edma',
+                'edma': 'edcc_edma',
+                'administrator': 'admin',
+                'doctor': 'doctor',
+                'referrer': 'referrer',
+            }
+            if new_role in role_map:
+                profile.role = role_map[new_role]
+                if new_role in ('edcc', 'edma'):
+                    profile.edcc_edma_indicator = new_role.upper()
+                profile.save(update_fields=['role', 'edcc_edma_indicator'])
+
+        return Response({
+            'success': True,
+            'message': f'User {target.username} updated successfully',
+            'user': {
+                'id': target.id,
+                'username': target.username,
+                'email': target.email,
+                'first_name': target.first_name,
+                'last_name': target.last_name,
+                'full_name': target.get_full_name() or target.username,
+            }
+        })
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({'error': f'Failed to update user: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_user_view(request):
+    """Create a new user account (admin only)"""
+    try:
+        is_admin = request.user.is_staff
+        if not is_admin:
+            try:
+                profile = request.user.profile
+                is_admin = profile.role == 'admin'
+            except UserProfile.DoesNotExist:
+                pass
+
+        if not is_admin:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        first_name = data.get('first_name', '').strip()
+        last_name = data.get('last_name', '').strip()
+        role = data.get('role', '').strip()
+        password = data.get('password', '').strip()
+        confirm_password = data.get('confirm_password', '').strip()
+
+        # Validation
+        if not username:
+            return Response({'error': 'Username is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not password:
+            return Response({'error': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if password != confirm_password:
+            return Response({'error': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+        if len(password) < 6:
+            return Response({'error': 'Password must be at least 6 characters'}, status=status.HTTP_400_BAD_REQUEST)
+        if not role:
+            return Response({'error': 'Role is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=username).exists():
+            return Response({'error': 'Username already taken'}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(email=email).exists():
+            return Response({'error': 'Email already in use'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create user
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True,
+        )
+
+        # Map role to profile
+        role_map = {
+            'edcc': ('edcc_edma', 'EDCC'),
+            'edma': ('edcc_edma', 'EDMA'),
+            'doctor': ('doctor', None),
+            'referrer': ('referrer', None),
+        }
+        profile_role, indicator = role_map.get(role, ('referrer', None))
+        profile = UserProfile.objects.create(
+            user=user,
+            role=profile_role,
+            edcc_edma_indicator=indicator,
+        )
+
+        return Response({
+            'success': True,
+            'message': f'Account for {username} created successfully',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'full_name': user.get_full_name() or user.username,
+                'role': role,
+                'role_display': role.upper() if role in ('edcc', 'edma') else role.capitalize(),
+                'department': '',
+                'hospital': 'Southern Philippines Medical Center' if role in ('edcc', 'edma', 'doctor') else '',
+                'created_at': user.date_joined.isoformat(),
+                'is_active': 1,
+            }
+        }, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({'error': f'Failed to create user: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
