@@ -378,7 +378,33 @@ class Referral(models.Model):
         blank=True,
         help_text="When fraud/spam risk was last evaluated",
     )
-    
+
+    CANCELLATION_REASON_CHOICES = [
+        ('patient_hama', 'Patient went HAMA (Home Against Medical Advice)'),
+        ('patient_expired', 'Patient Expired'),
+        ('patient_opted_stay', 'Patient Opted to Stay at Facility'),
+        ('referred_tertiary', 'Referred to Nearest Tertiary Hospital'),
+        ('patient_scheduled_opd', 'Patient Scheduled for OPD'),
+        ('referral_sent_in_error', 'Referral Sent in Error'),
+        ('duplicate_referral', 'Duplicate Referral'),
+        ('patient_condition_improved', 'Patient Condition Improved'),
+        ('no_available_specialist', 'No Available Specialist at SPMC'),
+        ('others', 'Others'),
+    ]
+
+    cancellation_reason = models.CharField(
+        max_length=50,
+        choices=CANCELLATION_REASON_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Reason for cancelling the referral",
+    )
+    cancellation_reason_other = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Custom reason if cancellation_reason is 'others'",
+    )
+
     class Meta:
         ordering = ['-created_at']
     

@@ -300,18 +300,43 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'error': 'Cancellation reason is required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        # Map frontend string to choice key
+        reason_map = {
+            'Patient went HAMA (Home Against Medical Advice)': 'patient_hama',
+            'Patient Expired': 'patient_expired',
+            'Patient Opted to Stay at Facility': 'patient_opted_stay',
+            'Referred to Nearest Tertiary Hospital': 'referred_tertiary',
+            'Patient Scheduled for OPD': 'patient_scheduled_opd',
+            'Referral Sent in Error': 'referral_sent_in_error',
+            'Duplicate Referral': 'duplicate_referral',
+            'Patient Condition Improved': 'patient_condition_improved',
+            'No Available Specialist at SPMC': 'no_available_specialist',
+        }
+
+        reason_other = None
+        if cancellation_reason.startswith('Others: '):
+            reason_key = 'others'
+            reason_other = cancellation_reason[len('Others: '):]
+        else:
+            reason_key = reason_map.get(cancellation_reason, 'others')
+            if reason_key == 'others':
+                reason_other = cancellation_reason
+
         # Update referral status to cancelled
         old_status = referral.status
         referral.status = 'cancelled'
+        referral.cancellation_reason = reason_key
+        referral.cancellation_reason_other = reason_other
         referral.save()
         
         # Create status history record
+        display_reason = reason_other if reason_key == 'others' else cancellation_reason
         ReferralStatusHistory.objects.create(
             referral=referral,
             old_status=old_status,
             new_status='cancelled',
             changed_by=request.user,
-            notes=f'Referral cancelled. Reason: {cancellation_reason}'
+            notes=f'Referral cancelled. Reason: {display_reason}'
         )
         
         return Response({
@@ -345,18 +370,43 @@ class ReferralViewSet(viewsets.ModelViewSet):
         
         cancellation_reason = request.data.get('reason', 'No reason provided')
         
+        # Map frontend string to choice key
+        reason_map = {
+            'Patient went HAMA (Home Against Medical Advice)': 'patient_hama',
+            'Patient Expired': 'patient_expired',
+            'Patient Opted to Stay at Facility': 'patient_opted_stay',
+            'Referred to Nearest Tertiary Hospital': 'referred_tertiary',
+            'Patient Scheduled for OPD': 'patient_scheduled_opd',
+            'Referral Sent in Error': 'referral_sent_in_error',
+            'Duplicate Referral': 'duplicate_referral',
+            'Patient Condition Improved': 'patient_condition_improved',
+            'No Available Specialist at SPMC': 'no_available_specialist',
+        }
+
+        reason_other = None
+        if cancellation_reason.startswith('Others: '):
+            reason_key = 'others'
+            reason_other = cancellation_reason[len('Others: '):]
+        else:
+            reason_key = reason_map.get(cancellation_reason, 'others')
+            if reason_key == 'others':
+                reason_other = cancellation_reason
+
         # Update referral status to cancelled
         old_status = referral.status
         referral.status = 'cancelled'
+        referral.cancellation_reason = reason_key
+        referral.cancellation_reason_other = reason_other
         referral.save()
         
         # Create status history record
+        display_reason = reason_other if reason_key == 'others' else cancellation_reason
         ReferralStatusHistory.objects.create(
             referral=referral,
             old_status=old_status,
             new_status='cancelled',
             changed_by=request.user,
-            notes=f'Referral cancelled. Reason: {cancellation_reason}'
+            notes=f'Referral cancelled. Reason: {display_reason}'
         )
         
         return Response({

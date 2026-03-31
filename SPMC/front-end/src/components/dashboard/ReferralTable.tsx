@@ -357,11 +357,10 @@ const ReferralDetailModal = ({
                   )}
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* Referring Hospital Section */}
+          {/* Referring Hospital Section */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <MapPin className="w-5 h-5 text-purple-600" />
@@ -1168,7 +1167,7 @@ export const ReferralTable = () => {
 
   // Handle cancel referral
   const handleCancelReferral = async () => {
-    if (!selectedReferralForCancel || !cancellationReason.trim()) {
+    if (!selectedReferralForCancel || !cancellationReason.trim() || cancellationReason === "Others: ") {
       toast({
         title: "Error",
         description: "Please provide a cancellation reason.",
@@ -2215,19 +2214,49 @@ export const ReferralTable = () => {
               </div>
             )}
 
-            {/* Reason Input */}
+            {/* Reason Dropdown */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Cancellation Reason <span className="text-red-500">*</span>
               </label>
-              <textarea
-                value={cancellationReason}
-                onChange={(e) => setCancellationReason(e.target.value)}
-                placeholder="Please provide a reason for cancelling this referral..."
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white resize-none"
-                rows={3}
-              />
+              <select
+                value={cancellationReason.startsWith("Others: ") ? "Others" : cancellationReason}
+                onChange={(e) => {
+                  if (e.target.value === "Others") {
+                    setCancellationReason("Others: ");
+                  } else {
+                    setCancellationReason(e.target.value);
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">-- Select a reason --</option>
+                <option value="Patient went HAMA (Home Against Medical Advice)">Patient went HAMA (Home Against Medical Advice)</option>
+                <option value="Patient Expired">Patient Expired</option>
+                <option value="Patient Opted to Stay at Facility">Patient Opted to Stay at Facility</option>
+                <option value="Referred to Nearest Tertiary Hospital">Referred to Nearest Tertiary Hospital</option>
+                <option value="Patient Scheduled for OPD">Patient Scheduled for OPD</option>
+                <option value="Referral Sent in Error">Referral Sent in Error</option>
+                <option value="Duplicate Referral">Duplicate Referral</option>
+                <option value="Patient Condition Improved">Patient Condition Improved</option>
+                <option value="No Available Specialist at SPMC">No Available Specialist at SPMC</option>
+                <option value="Others">Others (Please Specify)</option>
+              </select>
             </div>
+            {cancellationReason.startsWith("Others: ") && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Please specify <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={cancellationReason.replace("Others: ", "")}
+                  onChange={(e) => setCancellationReason("Others: " + e.target.value)}
+                  placeholder="Please specify your reason..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white resize-none"
+                  rows={3}
+                />
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-2 justify-end">
@@ -2240,8 +2269,7 @@ export const ReferralTable = () => {
               </Button>
               <Button
                 onClick={handleCancelReferral}
-                disabled={cancelling || !cancellationReason.trim()}
-                className="bg-red-600 hover:bg-red-700"
+                disabled={cancelling || !cancellationReason.trim() || cancellationReason === "Others: "}
               >
                 {cancelling ? (
                   <>

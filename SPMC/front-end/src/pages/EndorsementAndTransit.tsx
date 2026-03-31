@@ -592,7 +592,7 @@ const TriageReferrals = () => {
 
   const handleCancelInTransit = async () => {
     if (!cancelTarget) return;
-    if (!cancellationReason.trim()) {
+    if (!cancellationReason.trim() || cancellationReason === "Others: ") {
       toast.error("Cancellation reason is required");
       return;
     }
@@ -1320,19 +1320,49 @@ const TriageReferrals = () => {
               <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Cancellation reason <span className="text-red-500">*</span>
               </label>
-              <textarea
-                value={cancellationReason}
-                onChange={(e) => setCancellationReason(e.target.value)}
-                rows={4}
+              <select
+                value={cancellationReason.startsWith("Others: ") ? "Others" : cancellationReason}
+                onChange={(e) => {
+                  if (e.target.value === "Others") {
+                    setCancellationReason("Others: ");
+                  } else {
+                    setCancellationReason(e.target.value);
+                  }
+                }}
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                placeholder="State why this referral must be cancelled"
-              />
+              >
+                <option value="">-- Select a reason --</option>
+                <option value="Patient went HAMA (Home Against Medical Advice)">Patient went HAMA (Home Against Medical Advice)</option>
+                <option value="Patient Expired">Patient Expired</option>
+                <option value="Patient Opted to Stay at Facility">Patient Opted to Stay at Facility</option>
+                <option value="Referred to Nearest Tertiary Hospital">Referred to Nearest Tertiary Hospital</option>
+                <option value="Patient Scheduled for OPD">Patient Scheduled for OPD</option>
+                <option value="Referral Sent in Error">Referral Sent in Error</option>
+                <option value="Duplicate Referral">Duplicate Referral</option>
+                <option value="Patient Condition Improved">Patient Condition Improved</option>
+                <option value="No Available Specialist at SPMC">No Available Specialist at SPMC</option>
+                <option value="Others">Others (Please Specify)</option>
+              </select>
+              {cancellationReason.startsWith("Others: ") && (
+                <div className="mt-2">
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Please specify <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={cancellationReason.replace("Others: ", "")}
+                    onChange={(e) => setCancellationReason("Others: " + e.target.value)}
+                    rows={3}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                    placeholder="Please specify your reason..."
+                  />
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={submitting}>
                 Keep Referral
               </Button>
-              <Button variant="destructive" onClick={handleCancelInTransit} disabled={submitting}>
+              <Button variant="destructive" onClick={handleCancelInTransit} disabled={submitting || !cancellationReason.trim() || cancellationReason === "Others: "}>
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Confirm Cancel
               </Button>
