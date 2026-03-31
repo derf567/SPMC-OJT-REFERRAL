@@ -243,6 +243,11 @@ export const referralsAPI = {
     return apiRequest('/referrals/reports_analytics/');
   },
 
+  // Get cancellation reasons distribution
+  getCancellationReasonsAnalytics: async () => {
+    return apiRequest('/referrals/cancellation_reasons_analytics/');
+  },
+
   // Get referrals by time period (week, month, year)
   getReferralsByTimePeriod: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });

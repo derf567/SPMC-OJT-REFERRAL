@@ -96,6 +96,11 @@ const Reports = () => {
   });
   const [loadingRegionalData, setLoadingRegionalData] = useState(false);
   
+  // Cancellation reasons state
+  const [cancellationReasonsData, setCancellationReasonsData] = useState<{ reason: string; name: string; count: number; percentage: number }[]>([]);
+  const [totalCancelled, setTotalCancelled] = useState(0);
+  const [loadingCancellationReasons, setLoadingCancellationReasons] = useState(false);
+
   const { toast } = useToast();
 
   // Generate years for dropdown (current year and 4 years back)
@@ -148,6 +153,18 @@ const Reports = () => {
       setDepartmentData(departmentsData);
       setHospitalsData(hospitalsData);
       setSpecialtyData(specialtiesData);
+
+      // Fetch cancellation reasons
+      try {
+        setLoadingCancellationReasons(true);
+        const cancelData = await referralsAPI.getCancellationReasonsAnalytics();
+        setCancellationReasonsData(cancelData.reasons || []);
+        setTotalCancelled(cancelData.total_cancelled || 0);
+      } catch (e) {
+        console.error('Error fetching cancellation reasons:', e);
+      } finally {
+        setLoadingCancellationReasons(false);
+      }
       
       // Fetch regional data
       await fetchRegionalData();
@@ -289,6 +306,8 @@ const Reports = () => {
 
     fetchReportsData();
   }, [toast]);
+
+
 
   // Fetch all filtered data when global filter or parameters change
   useEffect(() => {
@@ -445,10 +464,13 @@ const Reports = () => {
       let barChartImage: string | null = null;
       let hospitalsChartImage: string | null = null;
       let specialtyChartImage: string | null = null;
+      let cancellationChartImage: string | null = null;
       if (includeGraphs) {
         if (referralsByTime.length > 0) barChartImage = drawBarChart(referralsByTime);
         if (hospitalsData.length > 0) hospitalsChartImage = drawPieChart(hospitalsData, ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4']);
         if (specialtyData.length > 0) specialtyChartImage = drawPieChart(specialtyData, ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#3b82f6']);
+        const activeCancelReasons = cancellationReasonsData.filter(r => r.count > 0);
+        if (activeCancelReasons.length > 0) cancellationChartImage = drawPieChart(activeCancelReasons, ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6']);
       }
 
       const checkNewPage = (requiredSpace: number) => {
@@ -572,6 +594,33 @@ const Reports = () => {
         body: specData.length > 0 ? specData : [['', 'No data available', '', '']],
         theme: 'striped',
         headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
+        margin: { left: 15, right: 15 },
+      });
+      yPosition = (pdf as any).lastAutoTable.finalY + 10;
+
+      // Cancellation Reasons
+      checkNewPage(cancellationChartImage ? 110 : 40);
+      pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Cancellation Reasons', 15, yPosition);
+      yPosition += 8;
+
+      if (includeGraphs && cancellationChartImage) {
+        yPosition = addChartImage(pdf, cancellationChartImage, pageWidth, yPosition);
+      }
+
+      const cancelData = cancellationReasonsData.map((r, idx) => [
+        String(idx + 1),
+        r.name,
+        String(r.count),
+        `${r.percentage}%`,
+      ]);
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [['#', 'Reason', 'Count', 'Percentage']],
+        body: cancelData.length > 0 ? cancelData : [['', 'No data available', '', '']],
+        theme: 'striped',
+        headStyles: { fillColor: [239, 68, 68], textColor: [255, 255, 255] },
         margin: { left: 15, right: 15 },
       });
       yPosition = (pdf as any).lastAutoTable.finalY + 10;
@@ -1245,6 +1294,88 @@ const Reports = () => {
           </div>
         
         {/* Close the three-column grid */}
+        </div>
+
+        {/* Cancellation Reasons Pie Chart */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg">
+          <div className="flex items-center gap-2 mb-6">
+            <PieChart className="w-5 h-5 text-red-600" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Cancellation Reasons</h3>
+            <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">
+              Total cancelled: <span className="font-semibold text-gray-900 dark:text-white">{totalCancelled}</span>
+            </span>
+          </div>
+
+          {loadingCancellationReasons ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-600" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+              {/* Pie chart */}
+              <div className="flex items-center justify-center">
+                <div className="relative w-64 h-64">
+                  <svg className="w-64 h-64 transform -rotate-90" viewBox="0 0 100 100">
+                    {totalCancelled === 0 ? (
+                      <circle cx="50" cy="50" r="30" fill="transparent" stroke="#e5e7eb" strokeWidth="8" />
+                    ) : (
+                      (() => {
+                        const COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4','#10b981','#f59e0b','#6366f1','#84cc16','#14b8a6'];
+                        const active = cancellationReasonsData.filter(r => r.count > 0);
+                        const circumference = 2 * Math.PI * 30;
+                        let cumPct = 0;
+                        return active.map((item, i) => {
+                          const pct = item.count / totalCancelled;
+                          const dash = `${pct * circumference} ${circumference}`;
+                          const offset = -(cumPct * circumference);
+                          cumPct += pct;
+                          return (
+                            <circle
+                              key={item.reason}
+                              cx="50" cy="50" r="30"
+                              fill="transparent"
+                              stroke={COLORS[i % COLORS.length]}
+                              strokeWidth="8"
+                              strokeDasharray={dash}
+                              strokeDashoffset={offset}
+                            />
+                          );
+                        });
+                      })()
+                    )}
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <p className="text-xl font-bold text-gray-900 dark:text-white">{totalCancelled}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Cancelled</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Legend / table */}
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {(() => {
+                  const COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4','#10b981','#f59e0b','#6366f1','#84cc16','#14b8a6'];
+                  const active = cancellationReasonsData.filter(r => r.count > 0);
+                  const inactive = cancellationReasonsData.filter(r => r.count === 0);
+                  const sorted = [...active, ...inactive];
+                  return sorted.map((item, i) => (
+                    <div key={item.reason} className="flex items-center justify-between text-sm py-2 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">
+                      <div className="flex items-center gap-3">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: i < active.length ? COLORS[i % COLORS.length] : '#d1d5db' }} />
+                        <span className="text-gray-800 dark:text-gray-200">{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <span className="text-gray-500 dark:text-gray-400 text-xs w-12 text-right">{item.percentage}%</span>
+                        <span className="font-semibold text-gray-900 dark:text-white w-6 text-right">{item.count}</span>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* New Report Categories Section */}
