@@ -20,6 +20,31 @@ from .serializers import (
 )
 from .models import ReferrerAccount
 from .serializers import ReferrerAccountSerializer, ReferrerRegistrationSerializer
+# Mapping from frontend display strings to model choice keys
+_CANCELLATION_REASON_MAP = {
+    'Patient went HAMA (Home Against Medical Advice)': 'patient_hama',
+    'Patient Expired': 'patient_expired',
+    'Patient Opted to Stay at Facility': 'patient_opted_stay',
+    'Referred to Nearest Tertiary Hospital': 'referred_tertiary',
+    'Patient Scheduled for OPD': 'patient_scheduled_opd',
+    'OPD Appointment No-Show': 'opd_no_show',
+    'OPD Appointment Rescheduled': 'opd_rescheduled',
+    'OPD Slot Unavailable': 'opd_slot_unavailable',
+    'Referral Sent in Error': 'referral_sent_in_error',
+    'Duplicate Referral': 'duplicate_referral',
+    'Patient Condition Improved': 'patient_condition_improved',
+    'No Available Specialist at SPMC': 'no_available_specialist',
+}
+
+def _parse_cancellation_reason(reason_str):
+    """Parse frontend reason string into (reason_key, reason_other) tuple."""
+    if not reason_str:
+        return None, None
+    if reason_str.startswith('Others: '):
+        return 'others', reason_str[len('Others: '):]
+    key = _CANCELLATION_REASON_MAP.get(reason_str)
+    return key, None
+
 
 class ReferringHospitalViewSet(viewsets.ModelViewSet):
     queryset = ReferringHospital.objects.all()
@@ -299,28 +324,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': 'Cancellation reason is required'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Map frontend string to choice key
-        reason_map = {
-            'Patient went HAMA (Home Against Medical Advice)': 'patient_hama',
-            'Patient Expired': 'patient_expired',
-            'Patient Opted to Stay at Facility': 'patient_opted_stay',
-            'Referred to Nearest Tertiary Hospital': 'referred_tertiary',
-            'Patient Scheduled for OPD': 'patient_scheduled_opd',
-            'Referral Sent in Error': 'referral_sent_in_error',
-            'Duplicate Referral': 'duplicate_referral',
-            'Patient Condition Improved': 'patient_condition_improved',
-            'No Available Specialist at SPMC': 'no_available_specialist',
-        }
 
-        reason_other = None
-        if cancellation_reason.startswith('Others: '):
-            reason_key = 'others'
-            reason_other = cancellation_reason[len('Others: '):]
-        else:
-            reason_key = reason_map.get(cancellation_reason, 'others')
-            if reason_key == 'others':
-                reason_other = cancellation_reason
+        reason_key, reason_other = _parse_cancellation_reason(cancellation_reason)
 
         # Update referral status to cancelled
         old_status = referral.status
@@ -329,14 +334,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
         referral.cancellation_reason_other = reason_other
         referral.save()
         
-        # Create status history record
-        display_reason = reason_other if reason_key == 'others' else cancellation_reason
         ReferralStatusHistory.objects.create(
             referral=referral,
             old_status=old_status,
             new_status='cancelled',
             changed_by=request.user,
-            notes=f'Referral cancelled. Reason: {display_reason}'
+            notes=f'Referral cancelled. Reason: {cancellation_reason}'
         )
         
         return Response({
@@ -369,28 +372,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         cancellation_reason = request.data.get('reason', 'No reason provided')
-        
-        # Map frontend string to choice key
-        reason_map = {
-            'Patient went HAMA (Home Against Medical Advice)': 'patient_hama',
-            'Patient Expired': 'patient_expired',
-            'Patient Opted to Stay at Facility': 'patient_opted_stay',
-            'Referred to Nearest Tertiary Hospital': 'referred_tertiary',
-            'Patient Scheduled for OPD': 'patient_scheduled_opd',
-            'Referral Sent in Error': 'referral_sent_in_error',
-            'Duplicate Referral': 'duplicate_referral',
-            'Patient Condition Improved': 'patient_condition_improved',
-            'No Available Specialist at SPMC': 'no_available_specialist',
-        }
 
-        reason_other = None
-        if cancellation_reason.startswith('Others: '):
-            reason_key = 'others'
-            reason_other = cancellation_reason[len('Others: '):]
-        else:
-            reason_key = reason_map.get(cancellation_reason, 'others')
-            if reason_key == 'others':
-                reason_other = cancellation_reason
+        reason_key, reason_other = _parse_cancellation_reason(cancellation_reason)
 
         # Update referral status to cancelled
         old_status = referral.status
@@ -399,14 +382,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
         referral.cancellation_reason_other = reason_other
         referral.save()
         
-        # Create status history record
-        display_reason = reason_other if reason_key == 'others' else cancellation_reason
         ReferralStatusHistory.objects.create(
             referral=referral,
             old_status=old_status,
             new_status='cancelled',
             changed_by=request.user,
-            notes=f'Referral cancelled. Reason: {display_reason}'
+            notes=f'Referral cancelled. Reason: {cancellation_reason}'
         )
         
         return Response({
@@ -1313,6 +1294,82 @@ class ReferralViewSet(viewsets.ModelViewSet):
             'status_distribution': list(status_distribution),
             'priority_distribution': list(priority_distribution),
             'specialty_distribution': specialty_data
+        })
+
+    @action(detail=False, methods=['get'])
+    def cancellation_reasons_analytics(self, request):
+        """Get cancellation reason distribution for pie chart"""
+        from django.db.models import Count
+
+        REASON_LABELS = {
+            'patient_hama': 'Patient went HAMA',
+            'patient_expired': 'Patient Expired',
+            'patient_opted_stay': 'Patient Opted to Stay',
+            'referred_tertiary': 'Referred to Tertiary Hospital',
+            'patient_scheduled_opd': 'Patient Scheduled for OPD',
+            'opd_no_show': 'OPD Appointment No-Show',
+            'opd_rescheduled': 'OPD Appointment Rescheduled',
+            'opd_slot_unavailable': 'OPD Slot Unavailable',
+            'referral_sent_in_error': 'Referral Sent in Error',
+            'duplicate_referral': 'Duplicate Referral',
+            'patient_condition_improved': 'Patient Condition Improved',
+            'no_available_specialist': 'No Available Specialist',
+            'others': 'Others',
+            'unspecified': 'Unspecified / Legacy',
+        }
+
+        # All cancelled referrals
+        all_cancelled = Referral.objects.filter(status='cancelled')
+        total_cancelled = all_cancelled.count()
+
+        # Count by structured reason (non-null)
+        reason_counts = (
+            all_cancelled
+            .filter(cancellation_reason__isnull=False)
+            .values('cancellation_reason')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+
+        # Count legacy cancellations (no structured reason)
+        unspecified_count = all_cancelled.filter(cancellation_reason__isnull=True).count()
+
+        total_with_reason = sum(r['count'] for r in reason_counts) + unspecified_count
+
+        result = []
+        for item in reason_counts:
+            key = item['cancellation_reason']
+            result.append({
+                'reason': key,
+                'name': REASON_LABELS.get(key, key),
+                'count': item['count'],
+                'percentage': round(item['count'] / total_with_reason * 100, 1) if total_with_reason > 0 else 0,
+            })
+
+        # Include unspecified/legacy if any
+        if unspecified_count > 0:
+            result.append({
+                'reason': 'unspecified',
+                'name': 'Unspecified / Legacy',
+                'count': unspecified_count,
+                'percentage': round(unspecified_count / total_with_reason * 100, 1) if total_with_reason > 0 else 0,
+            })
+
+        # Fill in zeros for reasons with no data yet
+        for key, label in REASON_LABELS.items():
+            if key == 'unspecified':
+                continue
+            if not any(r['reason'] == key for r in result):
+                result.append({
+                    'reason': key,
+                    'name': label,
+                    'count': 0,
+                    'percentage': 0,
+                })
+
+        return Response({
+            'total_cancelled': total_cancelled,
+            'reasons': result,
         })
 
     @action(detail=False, methods=['get'])
