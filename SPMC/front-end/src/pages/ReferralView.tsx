@@ -21,6 +21,7 @@ import {
   Clock
 } from "lucide-react";
 import jsPDF from 'jspdf';
+import { CancellationReasonSelect } from "@/components/ui/CancellationReasonSelect";
 
 export const ReferralView = () => {
   const { id } = useParams();
@@ -1095,71 +1096,7 @@ export const ReferralView = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Cancellation Reason <span className="text-red-500">*</span>
               </label>
-              <select
-                value={cancellationReason.startsWith("Others: ") ? "Others" : cancellationReason}
-                onChange={(e) => {
-                  if (e.target.value === "Others") {
-                    setCancellationReason("Others: ");
-                  } else {
-                    setCancellationReason(e.target.value);
-                  }
-                }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
-              >
-                <option value="">-- Select a reason --</option>
-                <option value="Patient went HAMA (Home Against Medical Advice)">Patient went HAMA (Home Against Medical Advice)</option>
-                <option value="Patient Expired">Patient Expired</option>
-                <option value="Patient Opted to Stay at Facility">Patient Opted to Stay at Facility</option>
-                <option value="Referred to Nearest Tertiary Hospital">Referred to Nearest Tertiary Hospital</option>
-                <option value="Patient Scheduled for OPD">Patient Scheduled for OPD</option>
-                <option value="Referral Sent in Error">Referral Sent in Error</option>
-                <option value="Duplicate Referral">Duplicate Referral</option>
-                <option value="Patient Condition Improved">Patient Condition Improved</option>
-                <option value="No Available Specialist at SPMC">No Available Specialist at SPMC</option>
-                <option value="Others">Others (Please Specify)</option>
-              </select>
-            </div>
-            {cancellationReason.startsWith("Others: ") && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Please specify <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={cancellationReason.replace("Others: ", "")}
-                  onChange={(e) => setCancellationReason("Others: " + e.target.value)}
-                  placeholder="Please specify your reason..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white resize-none"
-                  rows={3}
-                />
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setShowCancelDialog(false)}
-                disabled={cancelling}
-              >
-                Keep Referral
-              </Button>
-              <Button
-                onClick={handleCancelReferral}
-                disabled={cancelling || !cancellationReason.trim() || cancellationReason === "Others: "}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                {cancelling ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Cancelling...
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Cancel Referral
-                  </>
-                )}
-              </Button>
+              <CancellationReasonSelect value={cancellationReason} onChange={setCancellationReason} />
             </div>
           </div>
         </DialogContent>

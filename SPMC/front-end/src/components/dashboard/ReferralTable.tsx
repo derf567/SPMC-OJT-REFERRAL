@@ -14,6 +14,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import jsPDF from "jspdf";
+import { CancellationReasonSelect } from "@/components/ui/CancellationReasonSelect";
 
 // Define the referral data structure from API
 interface ReferralData {
@@ -2219,44 +2220,8 @@ export const ReferralTable = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Cancellation Reason <span className="text-red-500">*</span>
               </label>
-              <select
-                value={cancellationReason.startsWith("Others: ") ? "Others" : cancellationReason}
-                onChange={(e) => {
-                  if (e.target.value === "Others") {
-                    setCancellationReason("Others: ");
-                  } else {
-                    setCancellationReason(e.target.value);
-                  }
-                }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
-              >
-                <option value="">-- Select a reason --</option>
-                <option value="Patient went HAMA (Home Against Medical Advice)">Patient went HAMA (Home Against Medical Advice)</option>
-                <option value="Patient Expired">Patient Expired</option>
-                <option value="Patient Opted to Stay at Facility">Patient Opted to Stay at Facility</option>
-                <option value="Referred to Nearest Tertiary Hospital">Referred to Nearest Tertiary Hospital</option>
-                <option value="Patient Scheduled for OPD">Patient Scheduled for OPD</option>
-                <option value="Referral Sent in Error">Referral Sent in Error</option>
-                <option value="Duplicate Referral">Duplicate Referral</option>
-                <option value="Patient Condition Improved">Patient Condition Improved</option>
-                <option value="No Available Specialist at SPMC">No Available Specialist at SPMC</option>
-                <option value="Others">Others (Please Specify)</option>
-              </select>
+              <CancellationReasonSelect value={cancellationReason} onChange={setCancellationReason} />
             </div>
-            {cancellationReason.startsWith("Others: ") && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Please specify <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={cancellationReason.replace("Others: ", "")}
-                  onChange={(e) => setCancellationReason("Others: " + e.target.value)}
-                  placeholder="Please specify your reason..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white resize-none"
-                  rows={3}
-                />
-              </div>
-            )}
 
             {/* Action Buttons */}
             <div className="flex gap-2 justify-end">
@@ -2269,7 +2234,8 @@ export const ReferralTable = () => {
               </Button>
               <Button
                 onClick={handleCancelReferral}
-                disabled={cancelling || !cancellationReason.trim() || cancellationReason === "Others: "}
+                disabled={cancelling || !cancellationReason.trim()}
+                className="bg-red-600 hover:bg-red-700 text-white"
               >
                 {cancelling ? (
                   <>

@@ -312,12 +312,6 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'error': 'You do not have permission to cancel referrals'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Check if referral is in transit
-        if referral.status != 'in_transit':
-            return Response({
-                'error': 'Can only cancel in-transit referrals'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
         cancellation_reason = request.data.get('reason', '')
         
         if not cancellation_reason:
@@ -352,23 +346,45 @@ class ReferralViewSet(viewsets.ModelViewSet):
         """Cancel referral anytime - allowed for referrer (own referrals), EDCC, and Triage"""
         referral = self.get_object()
         
-        # Check permissions
+        # Permission rules:
+        # - EDCC/EDMA: can cancel any referral
+        # - Referrer: can only cancel their own referral
+        # - Doctor (department): can only cancel referrals assigned to their department
         try:
             profile = request.user.profile
-            is_edcc_or_triage = profile.can_triage_referrals
         except:
-            is_edcc_or_triage = False
-        
-        # Allow if: EDCC/Triage OR referrer who created the referral
-        if not is_edcc_or_triage and referral.created_by != request.user:
             return Response({
                 'error': 'You do not have permission to cancel this referral'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Check if referral is already cancelled or completed
+        is_edcc_edma = profile.can_triage_referrals
+        is_referrer = profile.role == 'referrer'
+        is_doctor = profile.role == 'doctor'
+        
+        if is_edcc_edma:
+            pass  # EDCC/EDMA can cancel any referral
+        elif is_referrer:
+            if referral.created_by != request.user:
+                return Response({
+                    'error': 'You can only cancel your own referrals'
+                }, status=status.HTTP_403_FORBIDDEN)
+        elif is_doctor:
+            dept = profile.department
+            assigned = list(referral.assigned_departments or []) + ([referral.assigned_department] if referral.assigned_department else [])
+            if not dept or dept not in assigned:
+                return Response({
+                    'error': 'You can only cancel referrals assigned to your department'
+                }, status=status.HTTP_403_FORBIDDEN)
+        else:
+            return Response({
+                'error': 'You do not have permission to cancel this referral'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        
+        # Block only if already cancelled or completed
         if referral.status in ['cancelled', 'completed']:
             return Response({
-                'error': f'Cannot cancel referral with status: {referral.status}'
+                'error': f'Referral is already {referral.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         cancellation_reason = request.data.get('reason', 'No reason provided')
@@ -454,24 +470,56 @@ class ReferralViewSet(viewsets.ModelViewSet):
         """Cancel referral - referrer can cancel pending referrals"""
         referral = self.get_object()
         
-        # Check if referral can be cancelled (only pending referrals)
-        if referral.status != 'pending':
+        # Block only if already cancelled or completed
+        if referral.status in ['cancelled', 'completed']:
             return Response({
-                'error': 'Can only cancel pending referrals. This referral is already being processed.'
+                'error': f'Referral is already {referral.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check if user is the creator or has admin permissions
-        if referral.created_by != request.user and not (hasattr(request.user, 'profile') and request.user.profile.is_admin_user):
+        # Permission rules (same as main cancel):
+        # - EDCC/EDMA: any referral
+        # - Referrer: own referral only
+        # - Doctor: referrals in their department only
+        try:
+            profile = request.user.profile
+        except:
             return Response({
-                'error': 'You can only cancel your own referrals'
+                'error': 'You do not have permission to cancel this referral'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Get cancellation reason
+        is_edcc_edma = profile.can_triage_referrals
+        is_referrer = profile.role == 'referrer'
+        is_doctor = profile.role == 'doctor'
+        
+        if is_edcc_edma:
+            pass
+        elif is_referrer:
+            if referral.created_by != request.user:
+                return Response({
+                    'error': 'You can only cancel your own referrals'
+                }, status=status.HTTP_403_FORBIDDEN)
+        elif is_doctor:
+            dept = profile.department
+            assigned = list(referral.assigned_departments or []) + ([referral.assigned_department] if referral.assigned_department else [])
+            if not dept or dept not in assigned:
+                return Response({
+                    'error': 'You can only cancel referrals assigned to your department'
+                }, status=status.HTTP_403_FORBIDDEN)
+        else:
+            return Response({
+                'error': 'You do not have permission to cancel this referral'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        
+        # Get and parse cancellation reason
         reason = request.data.get('reason', 'No reason provided')
+        reason_key, reason_other = _parse_cancellation_reason(reason)
         
         # Update referral status
         old_status = referral.status
         referral.status = 'cancelled'
+        referral.cancellation_reason = reason_key
+        referral.cancellation_reason_other = reason_other
         referral.save()
         
         # Create status history
@@ -480,7 +528,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
             old_status=old_status,
             new_status='cancelled',
             changed_by=request.user,
-            notes=f'Cancelled by referrer: {reason}'
+            notes=f'Referral cancelled. Reason: {reason}'
         )
         
         return Response({

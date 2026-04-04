@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Loader2, RefreshCw, Search, Eye, Send, XCircle, Clock, FileText, CheckCircle, MapPin, X, Bell, MoreVertical, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CancellationReasonSelect } from "@/components/ui/CancellationReasonSelect";
 import jsPDF from "jspdf";
 
 type SectionKey = "endorsements" | "transit";
@@ -1248,13 +1249,7 @@ const TriageReferrals = () => {
               <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Cancellation reason <span className="text-red-500">*</span>
               </label>
-              <textarea
-                value={cancelReferralReason}
-                onChange={(e) => setCancelReferralReason(e.target.value)}
-                rows={4}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                placeholder="Reason for cancellation"
-              />
+              <CancellationReasonSelect value={cancelReferralReason} onChange={setCancelReferralReason} />
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setCancelReferralOpen(false)} disabled={submitting}>
@@ -1284,79 +1279,7 @@ const TriageReferrals = () => {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Verification notes (optional)</label>
-              <textarea
-                value={verificationNotes}
-                onChange={(e) => setVerificationNotes(e.target.value)}
-                rows={4}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-orange-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                placeholder="Add notes before sending"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setSendTemplateOpen(false)} disabled={submitting}>
-                Cancel
-              </Button>
-              <Button onClick={handleSendTransitTemplate} disabled={submitting} className="bg-orange-600 hover:bg-orange-700">
-                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Send Transit Template
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Cancel In-Transit Referral</DialogTitle>
-            <DialogDescription>EDCC/EDMA can cancel referrals currently in transit status.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{cancelTarget?.patient_full_name}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{cancelTarget?.referral_id}</p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Cancellation reason <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={cancellationReason.startsWith("Others: ") ? "Others" : cancellationReason}
-                onChange={(e) => {
-                  if (e.target.value === "Others") {
-                    setCancellationReason("Others: ");
-                  } else {
-                    setCancellationReason(e.target.value);
-                  }
-                }}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-              >
-                <option value="">-- Select a reason --</option>
-                <option value="Patient went HAMA (Home Against Medical Advice)">Patient went HAMA (Home Against Medical Advice)</option>
-                <option value="Patient Expired">Patient Expired</option>
-                <option value="Patient Opted to Stay at Facility">Patient Opted to Stay at Facility</option>
-                <option value="Referred to Nearest Tertiary Hospital">Referred to Nearest Tertiary Hospital</option>
-                <option value="Patient Scheduled for OPD">Patient Scheduled for OPD</option>
-                <option value="Referral Sent in Error">Referral Sent in Error</option>
-                <option value="Duplicate Referral">Duplicate Referral</option>
-                <option value="Patient Condition Improved">Patient Condition Improved</option>
-                <option value="No Available Specialist at SPMC">No Available Specialist at SPMC</option>
-                <option value="Others">Others (Please Specify)</option>
-              </select>
-              {cancellationReason.startsWith("Others: ") && (
-                <div className="mt-2">
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Please specify <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={cancellationReason.replace("Others: ", "")}
-                    onChange={(e) => setCancellationReason("Others: " + e.target.value)}
-                    rows={3}
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                    placeholder="Please specify your reason..."
-                  />
-                </div>
-              )}
+              <CancellationReasonSelect value={cancellationReason} onChange={setCancellationReason} />
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={submitting}>
