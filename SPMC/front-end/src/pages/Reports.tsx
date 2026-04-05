@@ -100,6 +100,8 @@ const Reports = () => {
   const [cancellationReasonsData, setCancellationReasonsData] = useState<{ reason: string; name: string; count: number; percentage: number }[]>([]);
   const [totalCancelled, setTotalCancelled] = useState(0);
   const [loadingCancellationReasons, setLoadingCancellationReasons] = useState(false);
+  const [tatData, setTatData] = useState<any>(null);
+  const [loadingTAT, setLoadingTAT] = useState(false);
 
   const { toast } = useToast();
 
@@ -121,8 +123,8 @@ const Reports = () => {
       
       if (globalFilter === 'week') {
         // Week filter: show weeks within the selected month
-        // Use current year and the selected month, don't pass week parameter
-        apiYear = new Date().getFullYear(); // Always use current year for week filter
+        // Use globalYear (now user-selectable) and the selected month
+        apiYear = globalYear;
         apiMonth = globalMonth; // Pass the specific month to filter weeks within it
         apiWeek = undefined; // Don't pass week parameter to get all weeks in the month
       } else if (globalFilter === 'month') {
@@ -157,13 +159,24 @@ const Reports = () => {
       // Fetch cancellation reasons
       try {
         setLoadingCancellationReasons(true);
-        const cancelData = await referralsAPI.getCancellationReasonsAnalytics();
+        const cancelData = await referralsAPI.getCancellationReasonsAnalytics(globalFilter, apiYear, apiMonth);
         setCancellationReasonsData(cancelData.reasons || []);
         setTotalCancelled(cancelData.total_cancelled || 0);
       } catch (e) {
         console.error('Error fetching cancellation reasons:', e);
       } finally {
         setLoadingCancellationReasons(false);
+      }
+
+      // Fetch TAT analytics
+      try {
+        setLoadingTAT(true);
+        const tat = await referralsAPI.getTATAnalytics(globalFilter, apiYear, apiMonth);
+        setTatData(tat);
+      } catch (e) {
+        console.error('Error fetching TAT analytics:', e);
+      } finally {
+        setLoadingTAT(false);
       }
       
       // Fetch regional data
@@ -198,7 +211,7 @@ const Reports = () => {
       
       if (globalFilter === 'week') {
         // Week filter: show weeks within the selected month
-        apiYear = new Date().getFullYear(); // Always use current year for week filter
+        apiYear = globalYear; // Use user-selected year
         apiMonth = globalMonth; // Pass the specific month to filter weeks within it
         apiWeek = undefined; // Don't pass week parameter to get all weeks in the month
       } else if (globalFilter === 'month') {
@@ -766,26 +779,37 @@ const Reports = () => {
                 </select>
               )}
               
-              {/* Month Selector - Only show for Week filter */}
+              {/* Year + Month Selector - Only show for Week filter */}
               {globalFilter === 'week' && (
-                <select
-                  value={globalMonth}
-                  onChange={(e) => setGlobalMonth(Number(e.target.value))}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value={1}>January</option>
-                  <option value={2}>February</option>
-                  <option value={3}>March</option>
-                  <option value={4}>April</option>
-                  <option value={5}>May</option>
-                  <option value={6}>June</option>
-                  <option value={7}>July</option>
-                  <option value={8}>August</option>
-                  <option value={9}>September</option>
-                  <option value={10}>October</option>
-                  <option value={11}>November</option>
-                  <option value={12}>December</option>
-                </select>
+                <>
+                  <select
+                    value={globalYear}
+                    onChange={(e) => setGlobalYear(Number(e.target.value))}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    {availableYears.map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={globalMonth}
+                    onChange={(e) => setGlobalMonth(Number(e.target.value))}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value={1}>January</option>
+                    <option value={2}>February</option>
+                    <option value={3}>March</option>
+                    <option value={4}>April</option>
+                    <option value={5}>May</option>
+                    <option value={6}>June</option>
+                    <option value={7}>July</option>
+                    <option value={8}>August</option>
+                    <option value={9}>September</option>
+                    <option value={10}>October</option>
+                    <option value={11}>November</option>
+                    <option value={12}>December</option>
+                  </select>
+                </>
               )}
             </div>
             
@@ -1373,6 +1397,114 @@ const Reports = () => {
                     </div>
                   ));
                 })()}
+              </div>
+            </div>
+          )}
+        </div>
+
+
+        {/* TAT Analytics Section */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Turnaround Time (TAT) Analytics</h3>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <span>Target: 90% within</span>
+              <span className="font-semibold text-blue-600 dark:text-blue-400">30 minutes</span>
+            </div>
+          </div>
+
+          {loadingTAT ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+            </div>
+          ) : !tatData || tatData.total_measured === 0 ? (
+            <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+              <p className="text-sm">No TAT data yet. Data appears once EDCC/EDMA assigns departments to referrals.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4 text-center">
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{tatData.total_measured}</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Total Measured</p>
+                </div>
+                <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4 text-center">
+                  <p className="text-2xl font-bold text-green-700 dark:text-green-300">{tatData.within_target}</p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">Within 30 min</p>
+                </div>
+                <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 text-center">
+                  <p className="text-2xl font-bold text-red-700 dark:text-red-300">{tatData.exceeded_target}</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">Exceeded 30 min</p>
+                </div>
+                <div className={`rounded-lg border p-4 text-center ${
+                  tatData.compliance_rate >= 90
+                    ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
+                    : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
+                }`}>
+                  <p className={`text-2xl font-bold ${tatData.compliance_rate >= 90 ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                    {tatData.compliance_rate}%
+                  </p>
+                  <p className={`text-xs mt-1 ${tatData.compliance_rate >= 90 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                    Compliance Rate {tatData.compliance_rate >= 90 ? '✓' : '⚠'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Target indicator */}
+              <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
+                tatData.compliance_rate >= 90
+                  ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20'
+                  : 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20'
+              }`}>
+                <span className="text-xl">{tatData.compliance_rate >= 90 ? '✅' : '⚠️'}</span>
+                <div>
+                  <p className={`text-sm font-semibold ${tatData.compliance_rate >= 90 ? 'text-green-800 dark:text-green-200' : 'text-amber-800 dark:text-amber-200'}`}>
+                    {tatData.compliance_rate >= 90
+                      ? `Target met — ${tatData.compliance_rate}% of referrals processed within 30 minutes`
+                      : `Target not yet met — ${tatData.compliance_rate}% of referrals processed within 30 minutes (target: 90%)`}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Average TAT: {tatData.avg_tat_minutes} minutes</p>
+                </div>
+              </div>
+
+              {/* Distribution bar chart */}
+              <div>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Response Time Distribution</p>
+                <div className="space-y-3">
+                  {tatData.distribution.map((bucket: any, i: number) => {
+                    const maxCount = Math.max(...tatData.distribution.map((b: any) => b.count), 1);
+                    const pct = Math.round((bucket.count / maxCount) * 100);
+                    const isWithinTarget = i < 3; // 0-10, 10-20, 20-30 are within 30 min
+                    return (
+                      <div key={bucket.label} className="flex items-center gap-3">
+                        <span className="w-20 text-xs text-right text-gray-600 dark:text-gray-400 flex-shrink-0">{bucket.label}</span>
+                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-6 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full flex items-center justify-end pr-2 transition-all ${
+                              isWithinTarget ? 'bg-green-500 dark:bg-green-600' : 'bg-red-400 dark:bg-red-600'
+                            }`}
+                            style={{ width: `${pct}%`, minWidth: bucket.count > 0 ? '2rem' : '0' }}
+                          >
+                            {bucket.count > 0 && (
+                              <span className="text-xs font-semibold text-white">{bucket.count}</span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="w-20 text-xs text-gray-600 dark:text-gray-400 flex-shrink-0">
+                          {tatData.total_measured > 0 ? `${((bucket.count / tatData.total_measured) * 100).toFixed(1)}%` : '0%'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block"></span> Within 30 min target</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span> Exceeded target</span>
+                </div>
               </div>
             </div>
           )}

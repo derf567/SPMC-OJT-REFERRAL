@@ -624,6 +624,12 @@ class ReferralViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': 'Invalid triage decision'
             }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Emergent: enforce Emergency Department as required main service
+        if triage_decision == 'emergent':
+            if 'emergency' not in department_codes:
+                department_codes = ['emergency'] + list(department_codes)
+            main_service_code = 'emergency'
         
         # Validate scheduled date/time for OPD
         if triage_decision == 'schedule_opd':
@@ -1345,9 +1351,109 @@ class ReferralViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=False, methods=['get'])
+    def tat_analytics(self, request):
+        """Turnaround Time analytics — time from referral submission to EDCC/EDMA assignment.
+        Target: 90% of referrals processed within 30 minutes."""
+        from django.utils import timezone
+        from datetime import datetime, timedelta
+
+        TAT_TARGET_MINUTES = 30
+
+        # Apply time filter
+        time_filter = request.query_params.get('filter', 'month')
+        year = int(request.query_params.get('year', timezone.now().year))
+        month = int(request.query_params.get('month', 0))
+        week = int(request.query_params.get('week', 0))
+
+        queryset = Referral.objects.filter(triaged_at__isnull=False)
+
+        if time_filter == 'year':
+            queryset = queryset.filter(created_at__year=year)
+        elif time_filter == 'month' and month > 0:
+            queryset = queryset.filter(created_at__year=year, created_at__month=month)
+        elif time_filter == 'month':
+            queryset = queryset.filter(created_at__year=year)
+        elif time_filter == 'week' and month > 0:
+            month_start = datetime(year if year else timezone.now().year, month, 1).date()
+            if month == 12:
+                month_end = datetime((year if year else timezone.now().year) + 1, 1, 1).date() - timedelta(days=1)
+            else:
+                month_end = datetime(year if year else timezone.now().year, month + 1, 1).date() - timedelta(days=1)
+            queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+
+        tat_minutes_list = []
+        within_target = 0
+        exceeded_target = 0
+
+        for ref in queryset:
+            delta = (ref.triaged_at - ref.created_at).total_seconds() / 60
+            tat_minutes_list.append({
+                'referral_id': ref.referral_id,
+                'patient': ref.patient_full_name,
+                'status': ref.status,
+                'tat_minutes': round(delta, 1),
+                'within_target': delta <= TAT_TARGET_MINUTES,
+            })
+            if delta <= TAT_TARGET_MINUTES:
+                within_target += 1
+            else:
+                exceeded_target += 1
+
+        total_measured = len(tat_minutes_list)
+        avg_tat = round(sum(r['tat_minutes'] for r in tat_minutes_list) / total_measured, 1) if total_measured > 0 else 0
+        compliance_rate = round((within_target / total_measured) * 100, 1) if total_measured > 0 else 0
+
+        buckets = [
+            {'label': '0–10 min', 'min': 0, 'max': 10, 'count': 0},
+            {'label': '10–20 min', 'min': 10, 'max': 20, 'count': 0},
+            {'label': '20–30 min', 'min': 20, 'max': 30, 'count': 0},
+            {'label': '30–60 min', 'min': 30, 'max': 60, 'count': 0},
+            {'label': '1–2 hrs', 'min': 60, 'max': 120, 'count': 0},
+            {'label': '>2 hrs', 'min': 120, 'max': float('inf'), 'count': 0},
+        ]
+        for r in tat_minutes_list:
+            for b in buckets:
+                if b['min'] <= r['tat_minutes'] < b['max']:
+                    b['count'] += 1
+                    break
+
+        return Response({
+            'target_minutes': TAT_TARGET_MINUTES,
+            'total_measured': total_measured,
+            'avg_tat_minutes': avg_tat,
+            'within_target': within_target,
+            'exceeded_target': exceeded_target,
+            'compliance_rate': compliance_rate,
+            'distribution': [{'label': b['label'], 'count': b['count']} for b in buckets],
+        })
+
+    @action(detail=False, methods=['get'])
     def cancellation_reasons_analytics(self, request):
         """Get cancellation reason distribution for pie chart"""
         from django.db.models import Count
+        from datetime import datetime, timedelta
+        from django.utils import timezone
+
+        # Apply time filter
+        time_filter = request.query_params.get('filter', 'month')
+        year = int(request.query_params.get('year', timezone.now().year))
+        month = int(request.query_params.get('month', 0))
+
+        all_cancelled = Referral.objects.filter(status='cancelled')
+
+        if time_filter == 'year':
+            all_cancelled = all_cancelled.filter(created_at__year=year)
+        elif time_filter == 'month' and month > 0:
+            all_cancelled = all_cancelled.filter(created_at__year=year, created_at__month=month)
+        elif time_filter == 'month':
+            all_cancelled = all_cancelled.filter(created_at__year=year)
+        elif time_filter == 'week' and month > 0:
+            month_start = datetime(year, month, 1).date()
+            if month == 12:
+                month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+            else:
+                month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+            all_cancelled = all_cancelled.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
 
         REASON_LABELS = {
             'patient_hama': 'Patient went HAMA',
@@ -1366,8 +1472,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
             'unspecified': 'Unspecified / Legacy',
         }
 
-        # All cancelled referrals
-        all_cancelled = Referral.objects.filter(status='cancelled')
+        # total_cancelled uses the filtered queryset
         total_cancelled = all_cancelled.count()
 
         # Count by structured reason (non-null)

@@ -1589,19 +1589,10 @@ export const ReferralTable = () => {
                             className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/20 flex items-center gap-1.5"
                             onClick={async () => {
                               // First, transfer to triage if not already in triage
-                              try {
-                                await referralsAPI.transferToTriageTab(referral.id || referral.referral_id);
-                                // Then open the assign departments dialog
-                                setSelectedReferralForAssign(referral);
-                                setShowAssignDepartmentsDialog(true);
-                              } catch (error: any) {
-                                console.error('Error transferring to triage:', error);
-                                toast({
-                                  title: "Transfer Error",
-                                  description: error.message || 'Failed to transfer referral to triage',
-                                  variant: "destructive",
-                                });
-                              }
+                              // Open the assign departments dialog directly
+                              // Transfer to triage happens on form submit
+                              setSelectedReferralForAssign(referral);
+                              setShowAssignDepartmentsDialog(true);
                             }}
                             title="Call & Endorse - Assign Departments"
                           >
@@ -2317,6 +2308,26 @@ function AssignDepartmentsDialogForReferralTable({
     fetchDepts();
   }, []);
 
+  // Auto-select Emergency dept and lock it as main service when Emergent is chosen
+  useEffect(() => {
+    if (triageDecision === 'emergent') {
+      const emergencyCode = 'emergency';
+      setSelectedDepts(prev =>
+        prev.includes(emergencyCode) ? prev : [emergencyCode, ...prev]
+      );
+      setMainServiceCode(emergencyCode);
+    }
+  }, [triageDecision]);
+
+  const handleTriageDecision = (decision: string) => {
+    setTriageDecision(decision);
+    if (decision !== 'emergent') {
+      // Clear emergency lock when switching away
+      setSelectedDepts(prev => prev.filter(d => d !== 'emergency'));
+      setMainServiceCode('');
+    }
+  };
+
   const handleSubmit = async () => {
     if (selectedDepts.length === 0) {
       toast({
@@ -2361,6 +2372,13 @@ function AssignDepartmentsDialogForReferralTable({
 
     try {
       setSubmitting(true);
+      
+      // Transfer to triage first (idempotent — safe to call even if already in triage)
+      try {
+        await referralsAPI.transferToTriageTab(referral.id?.toString() || referral.referral_id);
+      } catch (_) {
+        // Already in triage is fine, continue
+      }
       
       await referralsAPI.assignDepartments(
         referral.id?.toString() || referral.referral_id, 
@@ -2407,79 +2425,7 @@ function AssignDepartmentsDialogForReferralTable({
           </p>
         </div>
 
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Select Departments <span className="text-red-500">*</span>
-            <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">(can select multiple)</span>
-          </label>
-          <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700">
-            {!depts || depts.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No departments available</p>
-            ) : (
-              depts.map((dept) => (
-                <label 
-                  key={dept.code} 
-                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedDepts.includes(dept.code)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedDepts([...selectedDepts, dept.code]);
-                      } else {
-                        setSelectedDepts(selectedDepts.filter(d => d !== dept.code));
-                      }
-                    }}
-                    className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500 dark:bg-gray-600"
-                  />
-                  <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{dept.name}</span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{dept.contact_number}</span>
-                </label>
-              ))
-            )}
-          </div>
-          {selectedDepts.length > 0 && (
-            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-              {selectedDepts.length} department(s) selected
-            </p>
-          )}
-        </div>
-
-        {/* Main Service Selection */}
-        {selectedDepts.length > 0 && (
-          <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Select Main Service <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">(optional - primary department)</span>
-            </label>
-            <div className="space-y-2">
-              {depts
-                .filter(dept => selectedDepts.includes(dept.code))
-                .map((dept) => (
-                  <label 
-                    key={dept.code} 
-                    className="flex items-center space-x-3 p-3 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-800/30 rounded cursor-pointer bg-white dark:bg-gray-800"
-                  >
-                    <input
-                      type="radio"
-                      name="main_service"
-                      value={dept.code}
-                      checked={mainServiceCode === dept.code}
-                      onChange={(e) => setMainServiceCode(e.target.value)}
-                      className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
-                    />
-                    <div className="flex-1">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{dept.name}</span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Main service - final decision authority</p>
-                    </div>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{dept.contact_number}</span>
-                  </label>
-                ))}
-            </div>
-          </div>
-        )}
-
-        {/* Triage Decision */}
+        {/* 1. Triage Decision */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Triage Decision <span className="text-red-500">*</span>
@@ -2487,7 +2433,7 @@ function AssignDepartmentsDialogForReferralTable({
           <div className="grid grid-cols-3 gap-3">
             <button
               type="button"
-              onClick={() => setTriageDecision('emergent')}
+              onClick={() => handleTriageDecision('emergent')}
               className={`p-3 border-2 rounded-lg text-center transition-all ${
                 triageDecision === 'emergent'
                   ? 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
@@ -2498,10 +2444,9 @@ function AssignDepartmentsDialogForReferralTable({
               <div className="font-medium text-sm">Emergent</div>
               <div className="text-xs text-gray-500 dark:text-gray-400">Immediate care</div>
             </button>
-            
             <button
               type="button"
-              onClick={() => setTriageDecision('urgent')}
+              onClick={() => handleTriageDecision('urgent')}
               className={`p-3 border-2 rounded-lg text-center transition-all ${
                 triageDecision === 'urgent'
                   ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
@@ -2512,10 +2457,9 @@ function AssignDepartmentsDialogForReferralTable({
               <div className="font-medium text-sm">Urgent</div>
               <div className="text-xs text-gray-500 dark:text-gray-400">Priority case</div>
             </button>
-            
             <button
               type="button"
-              onClick={() => setTriageDecision('schedule_opd')}
+              onClick={() => handleTriageDecision('schedule_opd')}
               className={`p-3 border-2 rounded-lg text-center transition-all ${
                 triageDecision === 'schedule_opd'
                   ? 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
@@ -2529,7 +2473,7 @@ function AssignDepartmentsDialogForReferralTable({
           </div>
         </div>
 
-        {/* Scheduled Date/Time for OPD */}
+        {/* OPD Scheduling - shown right after triage decision */}
         {triageDecision === 'schedule_opd' && (
           <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
             <h4 className="font-medium text-gray-800 dark:text-white mb-3">Schedule Appointment</h4>
@@ -2561,6 +2505,117 @@ function AssignDepartmentsDialogForReferralTable({
           </div>
         )}
 
+        {/* 2. Select Departments */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Select Departments <span className="text-red-500">*</span>
+            <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">(can select multiple)</span>
+          </label>
+          {!triageDecision && (
+            <div className="flex items-center gap-2 mb-2 rounded-md border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
+              <span className="text-amber-600 dark:text-amber-400 text-sm">⚠️ Please select a Triage Decision first before choosing departments.</span>
+            </div>
+          )}
+          <div className={`space-y-2 max-h-60 overflow-y-auto border rounded-lg p-3 transition-all ${
+            !triageDecision
+              ? "border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 opacity-50 pointer-events-none select-none"
+              : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700"
+          }`}>
+            {!depts || depts.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No departments available</p>
+            ) : (
+              depts.map((dept) => (
+                <label
+                  key={dept.code}
+                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedDepts.includes(dept.code)}
+                    onChange={(e) => {
+                      // Emergency dept is locked when emergent is selected
+                      if (triageDecision === 'emergent' && dept.code === 'emergency') return;
+                      if (e.target.checked) {
+                        setSelectedDepts([...selectedDepts, dept.code]);
+                      } else {
+                        setSelectedDepts(selectedDepts.filter(d => d !== dept.code));
+                        if (mainServiceCode === dept.code) setMainServiceCode('');
+                      }
+                    }}
+                    disabled={triageDecision === 'emergent' && dept.code === 'emergency'}
+                    className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500 dark:bg-gray-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                  <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{dept.name}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{dept.contact_number}</span>
+                </label>
+              ))
+            )}
+          </div>
+          {selectedDepts.length > 0 && (
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+              {selectedDepts.length} department(s) selected
+            </p>
+          )}
+        </div>
+
+        {/* Main Service - shown when multiple departments selected */}
+        {selectedDepts.length > 1 && (
+          <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Select Main Service <span className="text-gray-500 dark:text-gray-400 font-normal ml-2">(primary department)</span>
+              </label>
+              {triageDecision === 'emergent' && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 px-2 py-0.5 text-xs font-semibold text-red-700 dark:text-red-300">
+                  🔒 Locked to Emergency
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              {depts
+                .filter(dept => selectedDepts.includes(dept.code))
+                .map((dept) => {
+                  const isEmergencyLocked = triageDecision === 'emergent' && dept.code === 'emergency';
+                  const isSelected = mainServiceCode === dept.code || (triageDecision === 'emergent' && dept.code === 'emergency');
+                  return (
+                    <label
+                      key={dept.code}
+                      className={`flex items-center space-x-3 p-3 border rounded cursor-pointer bg-white dark:bg-gray-800 transition-all ${
+                        isSelected
+                          ? 'border-purple-500 dark:border-purple-400 bg-purple-50 dark:bg-purple-900/30 ring-2 ring-purple-400/40'
+                          : 'border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-800/30'
+                      } ${isEmergencyLocked ? 'cursor-not-allowed' : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="main_service"
+                        value={dept.code}
+                        checked={isSelected}
+                        onChange={() => {
+                          if (triageDecision === 'emergent') return;
+                          setMainServiceCode(dept.code);
+                        }}
+                        disabled={triageDecision === 'emergent'}
+                        className="accent-purple-600 disabled:cursor-not-allowed"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{dept.name}</span>
+                          {isEmergencyLocked && (
+                            <span className="text-xs font-semibold text-red-600 dark:text-red-400">🔒 Main Service</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Main service — final decision authority</p>
+                      </div>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{dept.contact_number}</span>
+                    </label>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
+        {/* 3. Remarks */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Remarks

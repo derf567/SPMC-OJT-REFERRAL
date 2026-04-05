@@ -244,8 +244,23 @@ export const referralsAPI = {
   },
 
   // Get cancellation reasons distribution
-  getCancellationReasonsAnalytics: async () => {
-    return apiRequest('/referrals/cancellation_reasons_analytics/');
+  getCancellationReasonsAnalytics: async (filter?: string, year?: number, month?: number) => {
+    const params = new URLSearchParams();
+    if (filter) params.append('filter', filter);
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    const qs = params.toString();
+    return apiRequest(`/referrals/cancellation_reasons_analytics/${qs ? '?' + qs : ''}`);
+  },
+
+  // Get TAT (Turnaround Time) analytics
+  getTATAnalytics: async (filter?: string, year?: number, month?: number) => {
+    const params = new URLSearchParams();
+    if (filter) params.append('filter', filter);
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    const qs = params.toString();
+    return apiRequest(`/referrals/tat_analytics/${qs ? '?' + qs : ''}`);
   },
 
   // Get referrals by time period (week, month, year)
