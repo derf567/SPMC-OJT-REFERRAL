@@ -70,10 +70,9 @@ const Reports = () => {
   // Global filter that controls all sections
   const [globalFilter, setGlobalFilter] = useState<TimeFilter>('month');
   const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
-  const [globalMonth, setGlobalMonth] = useState(new Date().getMonth() + 1); // Default to current month for week filter
+  const [globalMonth, setGlobalMonth] = useState(0); // Default to all months
   
   const [referralsByTime, setReferralsByTime] = useState<any[]>([]);
-  const [departmentData, setDepartmentData] = useState<any[]>([]);
   const [loadingTimeData, setLoadingTimeData] = useState(false);
   
   // Data states
@@ -116,54 +115,50 @@ const Reports = () => {
       setLoadingSpecialtyData(true);
       setLoadingRegionalData(true);
 
-      // Determine the correct parameters based on filter type
-      let apiMonth: number | undefined = 0;
-      let apiWeek: number | undefined = 0;
-      let apiYear = globalYear;
-      
-      if (globalFilter === 'week') {
-        // Week filter: show weeks within the selected month
-        // Use globalYear (now user-selectable) and the selected month
-        apiYear = globalYear;
-        apiMonth = globalMonth; // Pass the specific month to filter weeks within it
-        apiWeek = undefined; // Don't pass week parameter to get all weeks in the month
-      } else if (globalFilter === 'month') {
-        // Month filter: show months within the selected year
-        apiYear = globalYear;
-        apiMonth = 0; // 0 means show all months in the year
-        apiWeek = 0;
+      // The main reports data already contains filtered time period, hospitals, and specialty data
+      // So we just need to set them from the existing reportsData
+      if (reportsData) {
+        // Use monthly_trends for time period data - map to expected format
+        const timeData = reportsData.monthly_trends.map(item => ({
+          period: item.month,
+          count: item.count,
+          full_period: item.month
+        }));
+        setReferralsByTime(timeData || []);
+        
+        // Use top_hospitals for hospital data
+        setHospitalsData(reportsData.top_hospitals || []);
+        
+        // Use specialty_distribution for specialty data
+        setSpecialtyData(reportsData.specialty_distribution || []);
       }
-
-      const [
-        referralsByTimeData,
-        departmentsData,
-        hospitalsData,
-        specialtiesData
-      ] = await Promise.all([
-        referralsAPI.getReferralsByTimePeriod(
-          globalFilter, 
-          apiYear, 
-          apiMonth, 
-          apiWeek
-        ),
-        referralsAPI.getTopDepartments(globalFilter, apiYear, apiMonth, apiWeek),
-        referralsAPI.getTopHospitals(globalFilter, apiYear, apiMonth, apiWeek),
-        referralsAPI.getTopSpecialties(globalFilter, apiYear, apiMonth, apiWeek)
-      ]);
-
-      setReferralsByTime(referralsByTimeData);
-      setDepartmentData(departmentsData);
-      setHospitalsData(hospitalsData);
-      setSpecialtyData(specialtiesData);
 
       // Fetch cancellation reasons
       try {
         setLoadingCancellationReasons(true);
-        const cancelData = await referralsAPI.getCancellationReasonsAnalytics(globalFilter, apiYear, apiMonth);
+        
+        // Determine the correct parameters based on filter type
+        let apiMonth: number | undefined = 0;
+        let apiYear = globalYear;
+        let apiFilter = globalFilter;
+        
+        if (globalFilter === 'week') {
+          apiYear = globalYear;
+          apiMonth = globalMonth;
+          apiFilter = 'week';
+        } else if (globalFilter === 'month') {
+          apiYear = globalYear;
+          apiMonth = 0;
+          apiFilter = 'month';
+        }
+        
+        const cancelData = await referralsAPI.getCancellationReasonsAnalytics(apiFilter, apiYear, apiMonth);
         setCancellationReasonsData(cancelData.reasons || []);
         setTotalCancelled(cancelData.total_cancelled || 0);
       } catch (e) {
         console.error('Error fetching cancellation reasons:', e);
+        setCancellationReasonsData([]);
+        setTotalCancelled(0);
       } finally {
         setLoadingCancellationReasons(false);
       }
@@ -171,10 +166,27 @@ const Reports = () => {
       // Fetch TAT analytics
       try {
         setLoadingTAT(true);
-        const tat = await referralsAPI.getTATAnalytics(globalFilter, apiYear, apiMonth);
+        
+        // Determine the correct parameters based on filter type
+        let apiMonth: number | undefined = 0;
+        let apiYear = globalYear;
+        let apiFilter = globalFilter;
+        
+        if (globalFilter === 'week') {
+          apiYear = globalYear;
+          apiMonth = globalMonth;
+          apiFilter = 'week';
+        } else if (globalFilter === 'month') {
+          apiYear = globalYear;
+          apiMonth = 0;
+          apiFilter = 'month';
+        }
+        
+        const tat = await referralsAPI.getTATAnalytics(apiFilter, apiYear, apiMonth);
         setTatData(tat);
       } catch (e) {
         console.error('Error fetching TAT analytics:', e);
+        setTatData(null);
       } finally {
         setLoadingTAT(false);
       }
@@ -183,6 +195,15 @@ const Reports = () => {
       await fetchRegionalData();
     } catch (error: any) {
       console.error('Error fetching filtered data:', error);
+      
+      // Clear all data on error
+      setReferralsByTime([]);
+      setHospitalsData([]);
+      setSpecialtyData([]);
+      setCancellationReasonsData([]);
+      setTotalCancelled(0);
+      setTatData(null);
+      
       const errorMessage = error?.message || "Failed to load filtered data. Please try again.";
       toast({
         title: "Error Loading Data",
@@ -204,20 +225,17 @@ const Reports = () => {
   // Fetch regional data
   const fetchRegionalData = async () => {
     try {
-      // Determine the correct parameters based on filter type
-      let apiMonth: number | undefined = 0;
-      let apiWeek: number | undefined = 0;
+      let apiMonth: number = 0;
+      let apiWeek: number = 0;
       let apiYear = globalYear;
-      
+
       if (globalFilter === 'week') {
-        // Week filter: show weeks within the selected month
-        apiYear = globalYear; // Use user-selected year
-        apiMonth = globalMonth; // Pass the specific month to filter weeks within it
-        apiWeek = undefined; // Don't pass week parameter to get all weeks in the month
-      } else if (globalFilter === 'month') {
-        // Month filter: show months within the selected year
         apiYear = globalYear;
-        apiMonth = 0; // 0 means show all months in the year
+        apiMonth = globalMonth; // pass month so backend filters weeks within that month
+        apiWeek = 0;
+      } else if (globalFilter === 'month') {
+        apiYear = globalYear;
+        apiMonth = 0; // all months in the year
         apiWeek = 0;
       }
 
@@ -303,7 +321,28 @@ const Reports = () => {
     const fetchReportsData = async () => {
       try {
         setLoading(true);
-        const data = await referralsAPI.getReportsAnalytics();
+        
+        // Determine the correct parameters based on filter type
+        let apiMonth: number | undefined = 0;
+        let apiWeek: number | undefined = 0;
+        let apiYear = globalYear;
+        let apiFilter = globalFilter;
+        
+        if (globalFilter === 'week') {
+          // Week filter: show weeks within the selected month, or all weeks in year if month = 0
+          apiYear = globalYear;
+          apiMonth = globalMonth; // Pass the specific month, or 0 for all months in the year
+          apiWeek = undefined; // Don't pass week parameter to get all weeks in the month/year
+          apiFilter = 'week';
+        } else if (globalFilter === 'month') {
+          // Month filter: show all months for the selected year
+          apiYear = globalYear;
+          apiMonth = 0; // 0 means show all months in the year
+          apiWeek = 0;
+          apiFilter = 'month';
+        }
+        
+        const data = await referralsAPI.getReportsAnalytics(apiFilter, apiYear, apiMonth, apiWeek);
         setReportsData(data);
       } catch (error) {
         console.error('Error fetching reports data:', error);
@@ -318,14 +357,16 @@ const Reports = () => {
     };
 
     fetchReportsData();
-  }, [toast]);
+  }, [toast, globalFilter, globalYear, globalMonth]);
 
 
 
   // Fetch all filtered data when global filter or parameters change
   useEffect(() => {
-    fetchAllFilteredData();
-  }, [globalFilter, globalYear, globalMonth]);
+    if (reportsData) {
+      fetchAllFilteredData();
+    }
+  }, [globalFilter, globalYear, globalMonth, reportsData]);
 
   // Draw bar chart from referralsByTime data onto a canvas, return base64 PNG
   const drawBarChart = (data: any[]): string => {
@@ -779,7 +820,7 @@ const Reports = () => {
                 </select>
               )}
               
-              {/* Year + Month Selector - Only show for Week filter */}
+              {/* Year + Month Selector - Show for Week filter */}
               {globalFilter === 'week' && (
                 <>
                   <select
@@ -796,6 +837,7 @@ const Reports = () => {
                     onChange={(e) => setGlobalMonth(Number(e.target.value))}
                     className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
+                    <option value={0}>All months</option>
                     <option value={1}>January</option>
                     <option value={2}>February</option>
                     <option value={3}>March</option>
@@ -882,7 +924,7 @@ const Reports = () => {
         </div>
         
         {/* Referrals and Charts Row - Three Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className={`grid grid-cols-1 ${user?.role === 'doctor' ? 'md:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-3'} gap-6`}>
           {/* First Column: Referrals by Time Period - Bar Graph */}
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300 min-h-[650px]">
             <div className="flex items-center gap-2 mb-6">
@@ -1124,8 +1166,8 @@ const Reports = () => {
             )}
           </div>
 
-          {/* Second Column: Top Referring Hospitals - Pie Chart */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300 min-h-[650px]">
+          {/* Second Column: Top Referring Hospitals - Pie Chart (hidden for doctors) */}
+          {user?.role !== 'doctor' && <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300 min-h-[650px]">
             <div className="flex items-center gap-2 mb-4">
               <PieChart className="w-5 h-5 text-green-600" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Top Referring Hospitals</h3>
@@ -1217,7 +1259,7 @@ const Reports = () => {
                 <p className="text-gray-500 dark:text-gray-400 text-center flex-1 flex items-center justify-center">No hospital data available</p>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* Third Column: Specialty Required - Pie Chart */}
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300 min-h-[650px]">
@@ -1316,12 +1358,88 @@ const Reports = () => {
               )}
             </div>
           </div>
-        
+
+          {/* Doctor view: Cancellation Reasons as third column */}
+          {user?.role === 'doctor' && (
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg transition-colors duration-300 min-h-[650px]">
+              <div className="flex items-center gap-2 mb-4">
+                <PieChart className="w-5 h-5 text-red-600" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Cancellation Reasons</h3>
+                <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
+                  Total: <span className="font-semibold text-gray-900 dark:text-white">{totalCancelled}</span>
+                </span>
+              </div>
+              <div className="h-full flex flex-col">
+                {loadingCancellationReasons ? (
+                  <div className="flex items-center justify-center flex-1">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="h-80 w-full flex items-center justify-center mb-4">
+                      <div className="relative w-64 h-64">
+                        <svg className="w-64 h-64 transform -rotate-90" viewBox="0 0 100 100">
+                          {totalCancelled === 0 ? (
+                            <circle cx="50" cy="50" r="30" fill="transparent" stroke="#e5e7eb" strokeWidth="8" />
+                          ) : (() => {
+                            const COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4','#10b981','#f59e0b','#6366f1','#84cc16','#14b8a6'];
+                            const active = cancellationReasonsData.filter(r => r.count > 0);
+                            const circumference = 2 * Math.PI * 30;
+                            let cumPct = 0;
+                            return active.map((item, i) => {
+                              const pct = item.count / totalCancelled;
+                              const dash = `${pct * circumference} ${circumference}`;
+                              const offset = -(cumPct * circumference);
+                              cumPct += pct;
+                              return (
+                                <circle key={item.reason} cx="50" cy="50" r="30" fill="transparent"
+                                  stroke={COLORS[i % COLORS.length]} strokeWidth="8"
+                                  strokeDasharray={dash} strokeDashoffset={offset} />
+                              );
+                            });
+                          })()}
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-center">
+                            <p className="text-xl font-bold text-gray-900 dark:text-white">{totalCancelled}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Cancelled</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3 max-h-48 overflow-y-auto border-t pt-4 mt-4">
+                      {(() => {
+                        const COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4','#10b981','#f59e0b','#6366f1','#84cc16','#14b8a6'];
+                        const active = cancellationReasonsData.filter(r => r.count > 0);
+                        const inactive = cancellationReasonsData.filter(r => r.count === 0);
+                        return [...active, ...inactive].map((item, i) => (
+                          <div key={item.reason} className="flex items-center justify-between text-sm py-2 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors">
+                            <div className="flex items-center gap-3">
+                              <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: i < active.length ? COLORS[i % COLORS.length] : '#d1d5db' }} />
+                              <div className="flex flex-col">
+                                <span className="text-gray-800 dark:text-gray-200 font-medium">{item.name}</span>
+                                <span className="text-gray-500 dark:text-gray-400 text-xs">{item.percentage}% of total</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="font-bold text-gray-900 dark:text-white text-lg">{item.count}</span>
+                              <span className="text-gray-500 dark:text-gray-400 text-xs">cases</span>
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
         {/* Close the three-column grid */}
         </div>
 
-        {/* Cancellation Reasons Pie Chart */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg">
+        {/* Cancellation Reasons Pie Chart - hidden for doctors (shown in grid above) */}
+        {user?.role !== 'doctor' && <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg">
           <div className="flex items-center gap-2 mb-6">
             <PieChart className="w-5 h-5 text-red-600" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Cancellation Reasons</h3>
@@ -1400,121 +1518,140 @@ const Reports = () => {
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
 
-        {/* TAT Analytics Section */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Turnaround Time (TAT) Analytics</h3>
+        {/* TAT Analytics Section - Hidden for doctors */}
+        {user?.role !== 'doctor' && (
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Turnaround Time (TAT) Analytics</h3>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <span>Target: 90% within</span>
+                <span className="font-semibold text-blue-600 dark:text-blue-400">30 minutes</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-              <span>Target: 90% within</span>
-              <span className="font-semibold text-blue-600 dark:text-blue-400">30 minutes</span>
-            </div>
-          </div>
 
-          {loadingTAT ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-            </div>
-          ) : !tatData || tatData.total_measured === 0 ? (
-            <div className="text-center py-10 text-gray-500 dark:text-gray-400">
-              <p className="text-sm">No TAT data yet. Data appears once EDCC/EDMA assigns departments to referrals.</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Summary cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4 text-center">
-                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{tatData.total_measured}</p>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Total Measured</p>
+            {loadingTAT ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+              </div>
+            ) : !tatData || tatData.total_measured === 0 ? (
+              <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+                <p className="text-sm">No TAT data yet. Data appears once EDCC/EDMA assigns departments to referrals.</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Summary cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4 text-center">
+                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{tatData.total_measured}</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Total Measured</p>
+                  </div>
+                  <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4 text-center">
+                    <p className="text-2xl font-bold text-green-700 dark:text-green-300">{tatData.within_target}</p>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">Within 30 min</p>
+                  </div>
+                  <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 text-center">
+                    <p className="text-2xl font-bold text-red-700 dark:text-red-300">{tatData.exceeded_target}</p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">Exceeded 30 min</p>
+                  </div>
+                  <div className={`rounded-lg border p-4 text-center ${
+                    tatData.compliance_rate >= 90
+                      ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
+                      : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
+                  }`}>
+                    <p className={`text-2xl font-bold ${tatData.compliance_rate >= 90 ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                      {tatData.compliance_rate}%
+                    </p>
+                    <p className={`text-xs mt-1 ${tatData.compliance_rate >= 90 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                      Compliance Rate {tatData.compliance_rate >= 90 ? '✓' : '⚠'}
+                    </p>
+                  </div>
                 </div>
-                <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4 text-center">
-                  <p className="text-2xl font-bold text-green-700 dark:text-green-300">{tatData.within_target}</p>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">Within 30 min</p>
-                </div>
-                <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 text-center">
-                  <p className="text-2xl font-bold text-red-700 dark:text-red-300">{tatData.exceeded_target}</p>
-                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">Exceeded 30 min</p>
-                </div>
-                <div className={`rounded-lg border p-4 text-center ${
+
+                {/* Target indicator */}
+                <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
                   tatData.compliance_rate >= 90
-                    ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
-                    : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
+                    ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20'
+                    : 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20'
                 }`}>
-                  <p className={`text-2xl font-bold ${tatData.compliance_rate >= 90 ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
-                    {tatData.compliance_rate}%
-                  </p>
-                  <p className={`text-xs mt-1 ${tatData.compliance_rate >= 90 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                    Compliance Rate {tatData.compliance_rate >= 90 ? '✓' : '⚠'}
-                  </p>
+                  <span className="text-xl">{tatData.compliance_rate >= 90 ? '✅' : '⚠️'}</span>
+                  <div>
+                    <p className={`text-sm font-semibold ${tatData.compliance_rate >= 90 ? 'text-green-800 dark:text-green-200' : 'text-amber-800 dark:text-amber-200'}`}>
+                      {tatData.compliance_rate >= 90
+                        ? `Target met — ${tatData.compliance_rate}% of referrals processed within 30 minutes`
+                        : `Target not yet met — ${tatData.compliance_rate}% of referrals processed within 30 minutes (target: 90%)`}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Average TAT: {tatData.avg_tat_minutes} minutes</p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Target indicator */}
-              <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
-                tatData.compliance_rate >= 90
-                  ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20'
-                  : 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20'
-              }`}>
-                <span className="text-xl">{tatData.compliance_rate >= 90 ? '✅' : '⚠️'}</span>
+                {/* Distribution bar chart */}
                 <div>
-                  <p className={`text-sm font-semibold ${tatData.compliance_rate >= 90 ? 'text-green-800 dark:text-green-200' : 'text-amber-800 dark:text-amber-200'}`}>
-                    {tatData.compliance_rate >= 90
-                      ? `Target met — ${tatData.compliance_rate}% of referrals processed within 30 minutes`
-                      : `Target not yet met — ${tatData.compliance_rate}% of referrals processed within 30 minutes (target: 90%)`}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Average TAT: {tatData.avg_tat_minutes} minutes</p>
-                </div>
-              </div>
-
-              {/* Distribution bar chart */}
-              <div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Response Time Distribution</p>
-                <div className="space-y-3">
-                  {tatData.distribution.map((bucket: any, i: number) => {
-                    const maxCount = Math.max(...tatData.distribution.map((b: any) => b.count), 1);
-                    const pct = Math.round((bucket.count / maxCount) * 100);
-                    const isWithinTarget = i < 3; // 0-10, 10-20, 20-30 are within 30 min
-                    return (
-                      <div key={bucket.label} className="flex items-center gap-3">
-                        <span className="w-20 text-xs text-right text-gray-600 dark:text-gray-400 flex-shrink-0">{bucket.label}</span>
-                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-6 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full flex items-center justify-end pr-2 transition-all ${
-                              isWithinTarget ? 'bg-green-500 dark:bg-green-600' : 'bg-red-400 dark:bg-red-600'
-                            }`}
-                            style={{ width: `${pct}%`, minWidth: bucket.count > 0 ? '2rem' : '0' }}
-                          >
-                            {bucket.count > 0 && (
-                              <span className="text-xs font-semibold text-white">{bucket.count}</span>
-                            )}
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Response Time Distribution</p>
+                  <div className="space-y-3">
+                    {tatData.distribution.map((bucket: any, i: number) => {
+                      const maxCount = Math.max(...tatData.distribution.map((b: any) => b.count), 1);
+                      const pct = Math.round((bucket.count / maxCount) * 100);
+                      const isWithinTarget = i < 3; // 0-10, 10-20, 20-30 are within 30 min
+                      return (
+                        <div key={bucket.label} className="flex items-center gap-3">
+                          <span className="w-20 text-xs text-right text-gray-600 dark:text-gray-400 flex-shrink-0">{bucket.label}</span>
+                          <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-6 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full flex items-center justify-end pr-2 transition-all ${
+                                isWithinTarget ? 'bg-green-500 dark:bg-green-600' : 'bg-red-400 dark:bg-red-600'
+                              }`}
+                              style={{ width: `${pct}%`, minWidth: bucket.count > 0 ? '2rem' : '0' }}
+                            >
+                              {bucket.count > 0 && (
+                                <span className="text-xs font-semibold text-white">{bucket.count}</span>
+                              )}
+                            </div>
                           </div>
+                          <span className="w-20 text-xs text-gray-600 dark:text-gray-400 flex-shrink-0">
+                            {tatData.total_measured > 0 ? `${((bucket.count / tatData.total_measured) * 100).toFixed(1)}%` : '0%'}
+                          </span>
                         </div>
-                        <span className="w-20 text-xs text-gray-600 dark:text-gray-400 flex-shrink-0">
-                          {tatData.total_measured > 0 ? `${((bucket.count / tatData.total_measured) * 100).toFixed(1)}%` : '0%'}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block"></span> Within 30 min target</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span> Exceeded target</span>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block"></span> Within 30 min target</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span> Exceeded target</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* New Report Categories Section */}
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 border border-blue-200 dark:border-gray-600 p-6 rounded-lg">
-          <div className="flex items-center gap-2 mb-6">
-            <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Detailed Report Categories</h2>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Detailed Report Categories</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+              <span className="text-xs text-gray-500 dark:text-gray-400">Filtered by:</span>
+              <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded text-xs font-medium capitalize">
+                {globalFilter}
+              </span>
+              <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded text-xs font-medium">
+                {globalYear}
+              </span>
+              {globalFilter === 'week' && globalMonth > 0 && (
+                <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded text-xs font-medium">
+                  {new Date(globalYear, globalMonth - 1).toLocaleString('default', { month: 'long' })}
+                </span>
+              )}
+            </div>
           </div>
           
           {loadingRegionalData ? (

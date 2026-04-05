@@ -1094,9 +1094,37 @@ export const ReferralView = () => {
             {/* Reason Dropdown */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Cancellation Reason <span className="text-red-500">*</span>
+                Cancellation Remarks <span className="text-red-500">*</span>
               </label>
               <CancellationReasonSelect value={cancellationReason} onChange={setCancellationReason} />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowCancelDialog(false)}
+                disabled={cancelling}
+              >
+                Back
+              </Button>
+              <Button
+                onClick={handleCancelReferral}
+                disabled={cancelling || !cancellationReason.trim() || cancellationReason === "Others: "}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {cancelling ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Cancelling...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Confirm Cancel
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </DialogContent>

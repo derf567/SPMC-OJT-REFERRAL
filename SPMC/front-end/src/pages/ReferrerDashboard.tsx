@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { ReferrerDashboardLayout } from "@/components/layout/ReferrerDashboardLayout";
 import { TransferActionDropdown } from "@/components/ui/TransferActionDropdown";
 import { TransitFormDialog } from "@/components/ui/TransitFormDialog";
@@ -217,37 +217,37 @@ const ReferrerDashboard = () => {
   const getStatusLabel = (status: string, referral?: any) => {
     // Show emergent label if triage decision is emergent
     if (referral?.triage_decision === 'emergent' && status === 'in_transit') {
-      return "🚨 Emergent - In Transit";
+      return "ðŸš¨ Emergent - In Transit";
     }
     
     // Show transit decision status if available
     if (referral?.transit_decision) {
       if (referral.transit_decision === 'now') {
-        return "🚑 Transport Initiated";
+        return "ðŸš‘ Transport Initiated";
       } else if (referral.transit_decision === 'scheduled') {
-        return "📅 Transport Scheduled";
+        return "ðŸ“… Transport Scheduled";
       }
     }
 
     switch (status) {
       case "pending":
-        return "⏳ Pending Review";
+        return "â³ Pending Review";
       case "waiting":
-        return "👨‍⚕️ Under Triage";
+        return "ðŸ‘¨â€âš•ï¸ Under Triage";
       case "waiting_acceptance":
-        return "⏱ Waiting Department Response";
+        return "â± Waiting Department Response";
       case "dispositioned":
-        return "✅ Accepted - Fill In-Transit Form";
+        return "âœ… Accepted - Fill In-Transit Form";
       case "in_transit":
-        return "🚑 In Transit";
+        return "ðŸš‘ In Transit";
       case "emergent":
-        return "🚨 Emergent";
+        return "ðŸš¨ Emergent";
       case "urgent":
-        return "⚡ Urgent";
+        return "âš¡ Urgent";
       case "schedule_opd":
-        return "📅 Scheduled OPD";
+        return "ðŸ“… Scheduled OPD";
       case "completed":
-        return "✅ Completed";
+        return "âœ… Completed";
       default:
         return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
@@ -440,200 +440,287 @@ const ReferrerDashboard = () => {
 
   const renderReportsSection = () => {
     const availableYears = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
-
     const PENDING_STATUSES = ['pending', 'waiting', 'waiting_acceptance', 'dispositioned', 'in_transit', 'emergent', 'urgent', 'schedule_opd'];
-    const coordinated = allReferrals.filter(r => r.status === 'completed');
-    const cancelled = allReferrals.filter(r => r.status === 'cancelled' || r.status === 'uncoordinated');
-    const pending = allReferrals.filter(r => PENDING_STATUSES.includes(r.status));
 
-    // Chart data
-    const getChartData = () => {
+    // Filter allReferrals by the selected period (already scoped to this hospital's referrer)
+    const filtered = allReferrals.filter(r => {
+      const d = new Date(r.created_at);
+      if (reportFilter === 'month') return d.getFullYear() === reportYear;
+      return d.getFullYear() === reportYear && (d.getMonth() + 1) === reportMonth;
+    });
+
+    const coordinated = filtered.filter(r => r.status === 'completed');
+    const cancelled = filtered.filter(r => r.status === 'cancelled' || r.status === 'uncoordinated');
+    const pending = filtered.filter(r => PENDING_STATUSES.includes(r.status));
+    const total = filtered.length;
+    const coordinationRate = total > 0 ? Math.round((coordinated.length / total) * 100) : 0;
+    const cancellationRate = total > 0 ? Math.round((cancelled.length / total) * 100) : 0;
+
+    // Bar chart data
+    const chartData = (() => {
       if (reportFilter === 'month') {
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        return months.map((label, i) => ({
+        return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((label, i) => ({
           period: label,
-          count: allReferrals.filter(r => {
-            const d = new Date(r.created_at);
-            return d.getFullYear() === reportYear && d.getMonth() === i;
-          }).length
+          count: filtered.filter(r => new Date(r.created_at).getMonth() === i).length
         }));
       }
       const weeks: { period: string; count: number }[] = [];
-      const year = new Date().getFullYear();
-      const firstDay = new Date(year, reportMonth - 1, 1);
-      const lastDay = new Date(year, reportMonth, 0);
+      const firstDay = new Date(reportYear, reportMonth - 1, 1);
+      const lastDay = new Date(reportYear, reportMonth, 0);
       let ws = new Date(firstDay); let wn = 1;
       while (ws <= lastDay) {
         const we = new Date(ws); we.setDate(we.getDate() + 6);
         if (we > lastDay) we.setTime(lastDay.getTime());
-        weeks.push({ period: `Wk ${wn}`, count: allReferrals.filter(r => { const d = new Date(r.created_at); return d >= ws && d <= we; }).length });
+        const wsSnap = new Date(ws); const weSnap = new Date(we);
+        weeks.push({ period: `Wk ${wn}`, count: filtered.filter(r => { const d = new Date(r.created_at); return d >= wsSnap && d <= weSnap; }).length });
         ws.setDate(ws.getDate() + 7); wn++;
       }
       return weeks;
-    };
+    })();
 
-    const chartData = getChartData();
     const maxVal = Math.max(...chartData.map(d => d.count), 1);
     const step = Math.max(1, Math.ceil(maxVal / 4));
     const gridVals = Array.from({ length: 5 }, (_, i) => i * step);
     const actualMax = Math.max(maxVal, gridVals[gridVals.length - 1]);
 
-    // Fixed SVG dimensions — small and tight
-    const VW = 500; const VH = 130;
-    const pL = 30; const pR = 8; const pT = 10; const pB = 28;
-    const cW = VW - pL - pR; const cH = VH - pT - pB;
+    // Specialty pie data
+    const specialtyCounts: Record<string, number> = {};
+    filtered.forEach(r => {
+      const name = r.specialty_needed_name || r.specialty || 'Unknown';
+      specialtyCounts[name] = (specialtyCounts[name] || 0) + 1;
+    });
+    const specialtyData = Object.entries(specialtyCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count).slice(0, 6);
+    const specialtyTotal = specialtyData.reduce((s, x) => s + x.count, 0) || 1;
+
+    // Cancellation reasons
+    const REASON_LABELS: Record<string, string> = {
+      patient_hama: 'Patient went HAMA (Home Against Medical Advice)',
+      patient_expired: 'Patient Expired',
+      patient_opted_stay: 'Patient Opted to Stay at Facility',
+      referred_tertiary: 'Referred to Nearest Tertiary Hospital',
+      patient_scheduled_opd: 'Patient Scheduled for OPD',
+      opd_no_show: 'OPD Appointment No-Show',
+      opd_rescheduled: 'OPD Appointment Rescheduled',
+      opd_slot_unavailable: 'OPD Slot Unavailable',
+      referral_sent_in_error: 'Referral Sent in Error',
+      duplicate_referral: 'Duplicate Referral',
+      patient_condition_improved: 'Patient Condition Improved',
+      no_available_specialist: 'No Available Specialist at SPMC',
+      others: 'Others',
+    };
+    const reasonCounts: Record<string, number> = {};
+    cancelled.forEach(r => {
+      const raw = r.cancellation_reason;
+      const reason = raw ? (REASON_LABELS[raw] || raw) : 'Unspecified / Legacy';
+      reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
+    });
+    const cancelReasons = Object.entries(reasonCounts)
+      .map(([name, count]) => ({ name, count, percentage: cancelled.length > 0 ? +((count / cancelled.length) * 100).toFixed(1) : 0 }))
+      .sort((a, b) => b.count - a.count);
+
+    const SPECIALTY_COLORS = ['#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#3b82f6'];
+    const CANCEL_COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'];
+
+    const PieChart = ({ data, colors, totalLabel }: { data: {name:string;count:number}[]; colors: string[]; totalLabel: string }) => {
+      const tot = data.reduce((s, d) => s + d.count, 0) || 1;
+      const circumference = 2 * Math.PI * 30;
+      let cumPct = 0;
+      return (
+        <div className="relative w-48 h-48 mx-auto">
+          <svg className="w-48 h-48 transform -rotate-90" viewBox="0 0 100 100">
+            {data.length === 0
+              ? <circle cx="50" cy="50" r="30" fill="transparent" stroke="#e5e7eb" strokeWidth="8" />
+              : data.map((item, i) => {
+                  const pct = item.count / tot;
+                  const dash = `${pct * circumference} ${circumference}`;
+                  const offset = -(cumPct * circumference);
+                  cumPct += pct;
+                  return <circle key={i} cx="50" cy="50" r="30" fill="transparent" stroke={colors[i % colors.length]} strokeWidth="8" strokeDasharray={dash} strokeDashoffset={offset} />;
+                })}
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{data.reduce((s,d)=>s+d.count,0)}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{totalLabel}</p>
+            </div>
+          </div>
+        </div>
+      );
+    };
 
     return (
-      <div className="space-y-4">
-        {/* Header */}
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">My Reports</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Analytics for your submitted referrals</p>
-        </div>
-
-        {/* 3 summary cards — Coordinated, Pending, Cancelled only */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-green-50 dark:bg-gray-800 border border-green-200 dark:border-gray-700 px-4 py-3 rounded-lg">
-            <p className="text-xs font-medium text-green-700 dark:text-green-400">Coordinated</p>
-            <p className="text-3xl font-bold text-green-600 dark:text-green-400 leading-tight">{coordinated.length}</p>
-            <p className="text-xs text-green-500 mt-0.5">{allReferrals.length > 0 ? Math.round((coordinated.length / allReferrals.length) * 100) : 0}% success rate</p>
+      <div className="space-y-6">
+        {/* Header + Global Filter */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Reports</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {user?.hospital_name ? `Analytics for ${user.hospital_name}` : 'Analytics for your submitted referrals'}
+            </p>
           </div>
-          <div className="bg-yellow-50 dark:bg-gray-800 border border-yellow-200 dark:border-gray-700 px-4 py-3 rounded-lg">
-            <p className="text-xs font-medium text-yellow-700 dark:text-yellow-400">Pending</p>
-            <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 leading-tight">{pending.length}</p>
-            <p className="text-xs text-yellow-500 mt-0.5">Active referrals</p>
-          </div>
-          <div className="bg-red-50 dark:bg-gray-800 border border-red-200 dark:border-gray-700 px-4 py-3 rounded-lg">
-            <p className="text-xs font-medium text-red-700 dark:text-red-400">Cancelled</p>
-            <p className="text-3xl font-bold text-red-600 dark:text-red-400 leading-tight">{cancelled.length}</p>
-            <p className="text-xs text-red-500 mt-0.5">{allReferrals.length > 0 ? Math.round((cancelled.length / allReferrals.length) * 100) : 0}% cancellation rate</p>
-          </div>
-        </div>
-
-        {/* Chart — compact */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-2">            <TrendingUp className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
-            <span className="text-xs font-semibold text-gray-900 dark:text-white">
-              Referrals by {reportFilter === 'month' ? 'Month' : 'Week'}
-            </span>
-            <div className="ml-auto flex items-center gap-1">
+          <div className="flex items-center gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 rounded-lg flex-wrap">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Global Filter:</span>
+            </div>
+            <div className="flex gap-2">
               {(['week', 'month'] as const).map(f => (
-                <button key={f} onClick={() => setReportFilter(f)}
-                  className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${
-                    reportFilter === f ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
-                  }`}>
+                <button key={f} onClick={() => { setReportFilter(f); if (f === 'week' && reportMonth === 0) setReportMonth(new Date().getMonth() + 1); }}
+                  className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${reportFilter === f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'}`}>
                   {f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
               ))}
-              {reportFilter === 'month' && (
+            </div>
+            {reportFilter === 'month' && (
+              <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
+                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            )}
+            {reportFilter === 'week' && (
+              <>
                 <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
-                  className="px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                   {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
-              )}
-              {reportFilter === 'week' && (
                 <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))}
-                  className="px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                  {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                  {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
                     <option key={i+1} value={i+1}>{m}</option>
                   ))}
                 </select>
-              )}
-            </div>
-          </div>
-          <div className="h-36 w-full max-w-2xl mx-auto">
-            <svg className="w-full h-full" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet">
-            <line x1={pL} y1={pT} x2={pL} y2={pT+cH} stroke="#6b7280" strokeWidth="1"/>
-            <line x1={pL} y1={pT+cH} x2={pL+cW} y2={pT+cH} stroke="#6b7280" strokeWidth="1"/>
-            {gridVals.map((v, i) => {
-              const yp = pT + cH - (v / actualMax) * cH;
-              return (
-                <g key={i}>
-                  <line x1={pL} y1={yp} x2={pL+cW} y2={yp} stroke="#e5e7eb" strokeWidth="0.8" opacity="0.8"/>
-                  <text x={pL-3} y={yp} textAnchor="end" dominantBaseline="middle" fill="#9ca3af" fontSize="7">{v}</text>
-                </g>
-              );
-            })}
-            {chartData.map((item, idx) => {
-              const sp = cW / chartData.length;
-              const bw = Math.max(6, sp * 0.45);
-              const x = pL + idx * sp + (sp - bw) / 2;
-              const bh = Math.max((item.count / actualMax) * cH, item.count > 0 ? 1.5 : 0);
-              const y = pT + cH - bh;
-              const lx = pL + idx * sp + sp / 2;
-              return (
-                <g key={idx}>
-                  <rect x={x} y={y} width={bw} height={bh} fill="#3b82f6" rx="1.5"/>
-                  {item.count > 0 && <text x={x+bw/2} y={y-2} textAnchor="middle" fill="#6b7280" fontSize="7" fontWeight="600">{item.count}</text>}
-                  <text x={lx} y={pT+cH+9} textAnchor="middle" fill="#9ca3af" fontSize="7"
-                    transform={chartData.length > 6 ? `rotate(-40 ${lx} ${pT+cH+9})` : undefined}>
-                    {item.period}
-                  </text>
-                </g>
-              );
-            })}
-            </svg>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Detail panels — 3 columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          {/* Coordinated */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-            <div className="bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800 px-3 py-2 flex items-center gap-2">
-              <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0"/>
-              <span className="text-xs font-semibold text-green-800 dark:text-green-300">Coordinated Referrals</span>
-              <span className="ml-auto text-xs font-bold text-green-600 dark:text-green-400">{coordinated.length}</span>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-gray-700 p-5 rounded-lg">
+            <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-400 mb-1">Total Referrals</h3>
+            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{total.toLocaleString()}</p>
+            <p className="text-xs text-blue-500 dark:text-blue-400 mt-1">in selected period</p>
+          </div>
+          <div className="bg-green-50 dark:bg-gray-800 border border-green-200 dark:border-gray-700 p-5 rounded-lg">
+            <h3 className="text-sm font-semibold text-green-800 dark:text-green-400 mb-1">Coordinated</h3>
+            <p className="text-3xl font-bold text-green-600 dark:text-green-400">{coordinated.length.toLocaleString()}</p>
+            <p className="text-xs text-green-500 dark:text-green-400 mt-1">{coordinationRate}% coordination rate</p>
+          </div>
+          <div className="bg-yellow-50 dark:bg-gray-800 border border-yellow-200 dark:border-gray-700 p-5 rounded-lg">
+            <h3 className="text-sm font-semibold text-yellow-800 dark:text-yellow-400 mb-1">Pending</h3>
+            <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{pending.length.toLocaleString()}</p>
+            <p className="text-xs text-yellow-500 dark:text-yellow-400 mt-1">Active referrals</p>
+          </div>
+          <div className="bg-red-50 dark:bg-gray-800 border border-red-200 dark:border-gray-700 p-5 rounded-lg">
+            <h3 className="text-sm font-semibold text-red-800 dark:text-red-400 mb-1">Cancelled</h3>
+            <p className="text-3xl font-bold text-red-600 dark:text-red-400">{cancelled.length.toLocaleString()}</p>
+            <p className="text-xs text-red-500 dark:text-red-400 mt-1">{cancellationRate}% cancellation rate</p>
+          </div>
+        </div>
+
+        {/* Charts Row – 3 columns */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Referrals by Month/Week bar chart */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="w-4 h-4 text-blue-600" />
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                Referrals by {reportFilter === 'month' ? 'Month' : 'Week'}
+              </h3>
             </div>
-            <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-56 overflow-y-auto">
-              {coordinated.length === 0
-                ? <p className="text-center text-gray-400 text-xs py-4">No coordinated referrals yet</p>
-                : coordinated.map(r => (
-                  <div key={r.id} className="px-3 py-2">
-                    <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{r.patient_name || 'Unknown Patient'}</p>
-                    <p className="text-xs text-gray-400 truncate">{r.hospital_name || r.referring_hospital_name || '—'} · {new Date(r.created_at).toLocaleDateString()}</p>
+            <div className="h-64 w-full">
+              <svg className="w-full h-full" viewBox="0 0 500 260" preserveAspectRatio="xMidYMid meet">
+                <line x1="50" y1="20" x2="50" y2="210" stroke="#374151" strokeWidth="2"/>
+                <line x1="50" y1="210" x2="480" y2="210" stroke="#374151" strokeWidth="2"/>
+                {gridVals.map((v, i) => {
+                  const yp = 20 + 190 - (v / actualMax) * 190;
+                  return (
+                    <g key={i}>
+                      <line x1="50" y1={yp} x2="480" y2={yp} stroke="#e5e7eb" strokeWidth="1" opacity="0.6"/>
+                      <text x="44" y={yp} textAnchor="end" dominantBaseline="middle" fill="#6b7280" fontSize="9">{v}</text>
+                    </g>
+                  );
+                })}
+                {chartData.map((item, idx) => {
+                  const sp = 430 / chartData.length;
+                  const bw = Math.max(10, sp * 0.55);
+                  const x = 50 + idx * sp + (sp - bw) / 2;
+                  const bh = Math.max((item.count / actualMax) * 190, item.count > 0 ? 2 : 0);
+                  const y = 210 - bh;
+                  const lx = 50 + idx * sp + sp / 2;
+                  return (
+                    <g key={idx}>
+                      <rect x={x} y={y} width={bw} height={bh} fill="#3b82f6" rx="2"/>
+                      {item.count > 0 && <text x={x+bw/2} y={y-4} textAnchor="middle" fill="#1f2937" fontSize="8" fontWeight="600">{item.count}</text>}
+                      <text x={lx} y="230" textAnchor="middle" fill="#6b7280" fontSize="8"
+                        transform={chartData.length > 6 ? `rotate(-40 ${lx} 230)` : undefined}>{item.period}</text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+            <div className="space-y-1 max-h-28 overflow-y-auto border-t pt-3 mt-2">
+              {chartData.filter(d => d.count > 0).map((item, i) => (
+                <div key={i} className="flex items-center justify-between text-xs py-1 px-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-blue-600 rounded-full flex-shrink-0"/>
+                    <span className="text-gray-700 dark:text-gray-300">{item.period}</span>
                   </div>
-                ))}
+                  <span className="font-bold text-gray-900 dark:text-white">{item.count}</span>
+                </div>
+              ))}
+              {chartData.every(d => d.count === 0) && <p className="text-center text-gray-400 text-xs py-2">No data for this period</p>}
             </div>
           </div>
 
-          {/* Cancelled */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-            <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-3 py-2 flex items-center gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-red-600 dark:text-red-400 flex-shrink-0"/>
-              <span className="text-xs font-semibold text-red-800 dark:text-red-300">Cancelled Referrals</span>
-              <span className="ml-auto text-xs font-bold text-red-600 dark:text-red-400">{cancelled.length}</span>
+          {/* Specialty Required pie */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg">
+            <div className="flex items-center gap-2 mb-4">
+              <FileText className="w-4 h-4 text-purple-600" />
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Specialty Required</h3>
             </div>
-            <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-56 overflow-y-auto">
-              {cancelled.length === 0
-                ? <p className="text-center text-gray-400 text-xs py-4">No cancelled referrals</p>
-                : cancelled.map(r => (
-                  <div key={r.id} className="px-3 py-2">
-                    <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{r.patient_name || 'Unknown Patient'}</p>
-                    <p className="text-xs text-gray-400 truncate">{r.hospital_name || r.referring_hospital_name || '—'} · {new Date(r.created_at).toLocaleDateString()}</p>
-                    {r.cancellation_reason && <p className="text-xs text-red-400 italic truncate">Reason: {r.cancellation_reason}</p>}
+            <PieChart data={specialtyData} colors={SPECIALTY_COLORS} totalLabel="Total" />
+            <div className="space-y-1 max-h-40 overflow-y-auto border-t pt-3 mt-3">
+              {specialtyData.map((s, i) => (
+                <div key={i} className="flex items-center justify-between text-xs py-1 px-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: SPECIALTY_COLORS[i % SPECIALTY_COLORS.length] }}/>
+                    <span className="text-gray-700 dark:text-gray-300 truncate max-w-[160px]" title={s.name}>{s.name}</span>
                   </div>
-                ))}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-gray-400">{((s.count / specialtyTotal) * 100).toFixed(1)}%</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{s.count}</span>
+                  </div>
+                </div>
+              ))}
+              {specialtyData.length === 0 && <p className="text-center text-gray-400 text-xs py-3">No data</p>}
             </div>
           </div>
 
-          {/* Pending */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800 px-3 py-2 flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400 flex-shrink-0"/>
-              <span className="text-xs font-semibold text-yellow-800 dark:text-yellow-300">Pending Referrals</span>
-              <span className="ml-auto text-xs font-bold text-yellow-600 dark:text-yellow-400">{pending.length}</span>
+          {/* Cancellation Reasons */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 rounded-lg">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle className="w-4 h-4 text-red-600" />
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Cancellation Reasons</h3>
+              <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
+                Total: <span className="font-semibold text-gray-900 dark:text-white">{cancelled.length}</span>
+              </span>
             </div>
-            <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-56 overflow-y-auto">
-              {pending.length === 0
-                ? <p className="text-center text-gray-400 text-xs py-4">No pending referrals</p>
-                : pending.map(r => (
-                  <div key={r.id} className="px-3 py-2">
-                    <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{r.patient_name || 'Unknown Patient'}</p>
-                    <div className="flex items-center justify-between gap-1 mt-0.5">
-                      <p className="text-xs text-gray-400 truncate">{r.hospital_name || r.referring_hospital_name || '—'} · {new Date(r.created_at).toLocaleDateString()}</p>
-                      <span className={`text-xs px-1 py-0.5 rounded-full border flex-shrink-0 ${getStatusColor(r.status)}`}>{getStatusLabel(r.status)}</span>
+            <PieChart data={cancelReasons} colors={CANCEL_COLORS} totalLabel="Cancelled" />
+            <div className="space-y-1 max-h-40 overflow-y-auto border-t pt-3 mt-3">
+              {cancelReasons.length === 0
+                ? <p className="text-center text-gray-400 text-xs py-6">No cancellations in this period</p>
+                : cancelReasons.map((r, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs py-1 px-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: CANCEL_COLORS[i % CANCEL_COLORS.length] }}/>
+                      <span className="text-gray-700 dark:text-gray-300 truncate max-w-[140px]" title={r.name}>{r.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-gray-400">{r.percentage}%</span>
+                      <span className="font-bold text-gray-900 dark:text-white">{r.count}</span>
                     </div>
                   </div>
                 ))}
@@ -789,7 +876,7 @@ const ReferrerDashboard = () => {
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-red-800 dark:text-red-200">
-                🚨 EMERGENT - Transfer Patient Immediately
+                ðŸš¨ EMERGENT - Transfer Patient Immediately
               </h3>
               <p className="text-red-700 dark:text-red-300 mt-1">
                 You have {recentReferrals.filter(r => r.triage_decision === 'emergent' && r.status === 'in_transit').length} referral(s) 
@@ -809,7 +896,7 @@ const ReferrerDashboard = () => {
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-orange-800 dark:text-orange-200">
-                🚨 Urgent Triage Call Required
+                ðŸš¨ Urgent Triage Call Required
               </h3>
               <p className="text-orange-700 dark:text-orange-300 mt-1">
                 You have {recentReferrals.filter(r => r.status === 'urgent' && r.triage_decision === 'urgent' && !r.transit_decision).length} referral(s) 
@@ -840,7 +927,7 @@ const ReferrerDashboard = () => {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Referrals</h3>
             <Link to="/referrer/referred" className="text-green-600 hover:text-green-800 text-sm font-medium">
-              View All →
+              View All â†’
             </Link>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -888,10 +975,10 @@ const ReferrerDashboard = () => {
                           {referral.patient_full_name}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {referral.chief_complaint} • {referral.specialty_needed_name}
+                          {referral.chief_complaint} â€¢ {referral.specialty_needed_name}
                         </p>
                         <p className="text-xs text-gray-400 dark:text-gray-500">
-                          {new Date(referral.created_at).toLocaleDateString()} • ID: {referral.referral_id}
+                          {new Date(referral.created_at).toLocaleDateString()} â€¢ ID: {referral.referral_id}
                         </p>
                       </div>
                     </div>
@@ -933,7 +1020,7 @@ const ReferrerDashboard = () => {
                           ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30'
                           : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
                       }`}>
-                        {referral.status === 'completed' ? '✅ Completed' : '❌ Cancelled'}
+                        {referral.status === 'completed' ? 'âœ… Completed' : 'âŒ Cancelled'}
                       </span>
                     )}
                     <button
@@ -1145,7 +1232,7 @@ const ReferrerDashboard = () => {
                     ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30'
                     : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
                 }`}>
-                  {referral.status === 'completed' ? '✅' : '❌'}
+                  {referral.status === 'completed' ? 'âœ…' : 'âŒ'}
                 </span>
               )}
               {/* Show Edit button only if status is pending */}
@@ -1311,7 +1398,7 @@ const ReferrerDashboard = () => {
                                     ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30'
                                     : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
                                 }`}>
-                                  {referral.status === 'completed' ? '✅ Completed' : '❌ Cancelled'}
+                                  {referral.status === 'completed' ? 'âœ… Completed' : 'âŒ Cancelled'}
                                 </span>
                               )}
                               <button
@@ -1728,7 +1815,7 @@ const ReferrerDashboard = () => {
                   <strong>Referral ID:</strong> {transitDecisionReferral.referral_id}
                 </p>
                 <p className="text-sm text-orange-600 dark:text-orange-400 font-medium mt-2">
-                  ⚡ Marked as URGENT by EDMAR Triage
+                  âš¡ Marked as URGENT by EDMAR Triage
                 </p>
               </div>
 

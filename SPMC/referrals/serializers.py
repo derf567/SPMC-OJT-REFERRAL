@@ -313,6 +313,9 @@ class ReferralListSerializer(serializers.ModelSerializer):
             'fraud_risk_score', 'fraud_risk_level', 'fraud_risk_flags',
             'fraud_requires_manual_review', 'fraud_last_evaluated_at',
 
+            # Cancellation
+            'cancellation_reason', 'cancellation_reason_other',
+
             # Transit info (includes remarks)
             'transit_info',
         ]

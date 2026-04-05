@@ -46,6 +46,37 @@ def _parse_cancellation_reason(reason_str):
     return key, None
 
 
+def filter_by_department_sqlite_compatible(queryset, user_department):
+    """
+    Helper function to filter referrals by department in a SQLite-compatible way.
+    SQLite doesn't support JSON contains lookups, so we need to handle this manually.
+    """
+    from django.db import connection
+    
+    if connection.vendor == 'sqlite':
+        # For SQLite, we need to manually filter the JSON array
+        # Get all referrals and filter in Python
+        all_referrals = list(queryset)
+        filtered_ids = []
+        
+        for referral in all_referrals:
+            # Check if department is in assigned_departments JSON array
+            if referral.assigned_departments and isinstance(referral.assigned_departments, list):
+                if user_department in referral.assigned_departments:
+                    filtered_ids.append(referral.id)
+            # Also check old assigned_department field for backwards compatibility
+            elif referral.assigned_department == user_department:
+                filtered_ids.append(referral.id)
+        
+        return queryset.filter(id__in=filtered_ids)
+    else:
+        # For PostgreSQL and other databases that support JSON contains
+        return queryset.filter(
+            Q(assigned_departments__contains=[user_department]) |
+            Q(assigned_department=user_department)
+        )
+
+
 class ReferringHospitalViewSet(viewsets.ModelViewSet):
     queryset = ReferringHospital.objects.all()
     serializer_class = ReferringHospitalSerializer
@@ -149,32 +180,8 @@ class ReferralViewSet(viewsets.ModelViewSet):
         if hasattr(user, 'profile') and user.profile.is_doctor:
             user_department = user.profile.department
             if user_department:
-                # Filter referrals where assigned_departments contains the doctor's department
-                from django.db.models import Q
-                from django.db import connection
-                
-                if connection.vendor == 'sqlite':
-                    # For SQLite, we need to manually filter the JSON array
-                    # Get all referrals and filter in Python
-                    all_referrals = list(queryset)
-                    filtered_ids = []
-                    
-                    for referral in all_referrals:
-                        # Check if department is in assigned_departments JSON array
-                        if referral.assigned_departments and isinstance(referral.assigned_departments, list):
-                            if user_department in referral.assigned_departments:
-                                filtered_ids.append(referral.id)
-                        # Also check old assigned_department field for backwards compatibility
-                        elif referral.assigned_department == user_department:
-                            filtered_ids.append(referral.id)
-                    
-                    queryset = queryset.filter(id__in=filtered_ids)
-                else:
-                    # For PostgreSQL and other databases that support JSON contains
-                    queryset = queryset.filter(
-                        Q(assigned_departments__contains=[user_department]) |
-                        Q(assigned_department=user_department)
-                    )
+                # Use SQLite-compatible filtering
+                queryset = filter_by_department_sqlite_compatible(queryset, user_department)
         
         return queryset
 
@@ -1249,88 +1256,278 @@ class ReferralViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def reports_analytics(self, request):
-        """Get comprehensive reports and analytics data"""
+        """Get comprehensive reports and analytics data with filtering"""
         from django.utils import timezone
-        from datetime import timedelta
-        from django.db.models import Count, Q
+        from datetime import datetime, timedelta
+        from django.db.models import Count, Q, Avg
         
-        # Basic counts
-        total_referrals = Referral.objects.count()
-        successful_referrals = Referral.objects.filter(status='completed').count()
-        pending_referrals = Referral.objects.filter(status='pending').count()
-        cancelled_referrals = Referral.objects.filter(status='cancelled').count()
+        # Get filter parameters
+        time_filter = request.query_params.get('filter', 'month')
+        year = int(request.query_params.get('year', timezone.now().year))
+        month = int(request.query_params.get('month', 0))
+        week = int(request.query_params.get('week', 0))
         
-        # Calculate success rate
-        success_rate = (successful_referrals / total_referrals * 100) if total_referrals > 0 else 0
+        # Base queryset
+        queryset = Referral.objects.all()
+        
+        # Apply time filters
+        if time_filter == 'year':
+            year_start = datetime(year, 1, 1).date()
+            year_end = datetime(year, 12, 31).date()
+            queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
+        elif time_filter == 'month':
+            if month > 0:
+                # Filter by specific month
+                month_start = datetime(year, month, 1).date()
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+            else:
+                # Filter by entire year (month = 0 means all months in the year)
+                year_start = datetime(year, 1, 1).date()
+                year_end = datetime(year, 12, 31).date()
+                queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
+        elif time_filter == 'week':
+            if month > 0:
+                # Filter weeks within a specific month
+                month_start = datetime(year, month, 1).date()
+                # Get last day of month
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+            elif week > 0:
+                # Original week logic
+                year_start = datetime(year, 1, 1).date()
+                week_start = year_start + timedelta(weeks=week-1)
+                week_end = week_start + timedelta(days=6)
+                queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+        
+        # Filter by department if user is a doctor
+        if hasattr(request, 'user') and hasattr(request.user, 'profile') and request.user.profile.is_doctor:
+            user_department = request.user.profile.department
+            if user_department:
+                queryset = filter_by_department_sqlite_compatible(queryset, user_department)
+        
+        # Basic counts from filtered queryset
+        total_referrals = queryset.count()
+        successful_referrals = queryset.filter(status__in=['completed', 'received', 'in_transit']).count()
+        pending_referrals = queryset.filter(status='pending').count()
+        cancelled_referrals = queryset.filter(status='cancelled').count()
+        
+        # Calculate rates
+        coordination_rate = (successful_referrals / total_referrals * 100) if total_referrals > 0 else 0
         cancellation_rate = (cancelled_referrals / total_referrals * 100) if total_referrals > 0 else 0
         
-        # Monthly trends (last 6 months)
+        # Monthly trends based on filter
         monthly_data = []
-        for i in range(6):
-            month_start = timezone.now().replace(day=1) - timedelta(days=30*i)
-            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+        if time_filter == 'month' and month == 0:
+            # Show all months in the year
+            for m in range(1, 13):
+                month_start = datetime(year, m, 1).date()
+                if m == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, m + 1, 1).date() - timedelta(days=1)
+                
+                month_queryset = Referral.objects.filter(
+                    created_at__date__gte=month_start,
+                    created_at__date__lte=month_end
+                )
+                
+                # Apply department filter if user is doctor
+                if hasattr(request, 'user') and hasattr(request.user, 'profile') and request.user.profile.is_doctor:
+                    user_department = request.user.profile.department
+                    if user_department:
+                        month_queryset = filter_by_department_sqlite_compatible(month_queryset, user_department)
+                
+                month_referrals = month_queryset.count()
+                
+                monthly_data.append({
+                    'month': datetime(year, m, 1).strftime('%B %Y'),
+                    'count': month_referrals
+                })
+        elif time_filter == 'week' and month == 0:
+            # Show all weeks in the year (sample every 4th week to avoid too many data points)
+            year_start = datetime(year, 1, 1).date()
+            year_end = datetime(year, 12, 31).date()
             
-            month_referrals = Referral.objects.filter(
-                created_at__date__gte=month_start.date(),
-                created_at__date__lte=month_end.date()
-            ).count()
+            # Generate weeks throughout the year, sampling every 4th week
+            current_date = year_start
+            week_count = 0
             
-            monthly_data.append({
-                'month': month_start.strftime('%B %Y'),
-                'count': month_referrals
-            })
+            while current_date <= year_end:
+                week_count += 1
+                
+                # Only include every 4th week to keep the chart readable
+                if week_count % 4 == 1:
+                    week_start = current_date
+                    week_end = min(current_date + timedelta(days=6), year_end)
+                    
+                    week_queryset = Referral.objects.filter(
+                        created_at__date__gte=week_start,
+                        created_at__date__lte=week_end
+                    )
+                    
+                    # Apply department filter if user is doctor
+                    if hasattr(request, 'user') and hasattr(request.user, 'profile') and request.user.profile.is_doctor:
+                        user_department = request.user.profile.department
+                        if user_department:
+                            week_queryset = filter_by_department_sqlite_compatible(week_queryset, user_department)
+                    
+                    week_referrals = week_queryset.count()
+                    
+                    monthly_data.append({
+                        'month': f"Week of {week_start.strftime('%b %d')}",
+                        'count': week_referrals
+                    })
+                
+                current_date += timedelta(days=7)
+        elif time_filter == 'week' and month > 0:
+            # Show weeks within the selected month and year
+            month_start = datetime(year, month, 1).date()
+            if month == 12:
+                month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+            else:
+                month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+            
+            # Generate weeks within the month
+            current_date = month_start
+            week_number = 1
+            
+            while current_date <= month_end:
+                week_start = current_date
+                week_end = min(current_date + timedelta(days=6), month_end)
+                
+                week_queryset = Referral.objects.filter(
+                    created_at__date__gte=week_start,
+                    created_at__date__lte=week_end
+                )
+                
+                # Apply department filter if user is doctor
+                if hasattr(request, 'user') and hasattr(request.user, 'profile') and request.user.profile.is_doctor:
+                    user_department = request.user.profile.department
+                    if user_department:
+                        week_queryset = filter_by_department_sqlite_compatible(week_queryset, user_department)
+                
+                week_referrals = week_queryset.count()
+                
+                # Format week name
+                if week_start == week_end:
+                    week_name = f"Week of {week_start.strftime('%b %d')}"
+                else:
+                    week_name = f"Week of {week_start.strftime('%b %d')}"
+                
+                monthly_data.append({
+                    'month': week_name,
+                    'count': week_referrals
+                })
+                
+                current_date = week_end + timedelta(days=1)
+                week_number += 1
+        else:
+            # For other cases or fallback, show data from the filtered queryset period
+            # This ensures we only show data from the selected time period
+            if time_filter == 'week':
+                # If week filter but no specific month, show recent weeks from the selected year
+                year_start = datetime(year, 1, 1).date()
+                year_end = datetime(year, 12, 31).date()
+                
+                # Get the last 6 weeks of the selected year
+                base_date = min(timezone.now().date(), year_end)
+                for i in range(6):
+                    week_start = base_date - timedelta(weeks=i)
+                    week_end = week_start + timedelta(days=6)
+                    
+                    # Only include weeks that fall within the selected year
+                    if week_start >= year_start and week_start <= year_end:
+                        week_queryset = Referral.objects.filter(
+                            created_at__date__gte=week_start,
+                            created_at__date__lte=week_end
+                        )
+                        
+                        # Apply department filter if user is doctor
+                        if hasattr(request, 'user') and hasattr(request.user, 'profile') and request.user.profile.is_doctor:
+                            user_department = request.user.profile.department
+                            if user_department:
+                                week_queryset = filter_by_department_sqlite_compatible(week_queryset, user_department)
+                        
+                        week_referrals = week_queryset.count()
+                        
+                        monthly_data.append({
+                            'month': f"Week of {week_start.strftime('%b %d, %Y')}",
+                            'count': week_referrals
+                        })
+            else:
+                # For month filter with specific month, or other cases
+                # Show data from the already filtered queryset
+                monthly_data.append({
+                    'month': f"{datetime(year, month if month > 0 else 1, 1).strftime('%B %Y')}",
+                    'count': total_referrals
+                })
+            
+            monthly_data.reverse()  # Show oldest to newest
         
-        monthly_data.reverse()  # Show oldest to newest
+        # Top referring hospitals from filtered queryset
+        hospital_data = queryset.values('referring_hospital__name').annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
         
-        # Top referring hospitals
-        top_hospitals = ReferringHospital.objects.annotate(
-            referral_count=Count('referral')
-        ).filter(referral_count__gt=0).order_by('-referral_count')[:5]
+        top_hospitals = []
+        for item in hospital_data:
+            if item['referring_hospital__name']:
+                percentage = (item['count'] / total_referrals * 100) if total_referrals > 0 else 0
+                top_hospitals.append({
+                    'name': item['referring_hospital__name'],
+                    'count': item['count'],
+                    'percentage': round(percentage, 1)
+                })
         
-        hospital_data = []
-        for hospital in top_hospitals:
-            percentage = (hospital.referral_count / total_referrals * 100) if total_referrals > 0 else 0
-            hospital_data.append({
-                'name': hospital.name,
-                'count': hospital.referral_count,
-                'percentage': round(percentage, 1)
-            })
-        
-        # Status distribution
-        status_distribution = Referral.objects.values('status').annotate(
+        # Status distribution from filtered queryset
+        status_distribution = queryset.values('status').annotate(
             count=Count('status')
         ).order_by('-count')
         
-        # Priority distribution
-        priority_distribution = Referral.objects.values('priority').annotate(
+        # Priority distribution from filtered queryset
+        priority_distribution = queryset.values('priority').annotate(
             count=Count('priority')
         ).order_by('-count')
         
-        # Specialty distribution
-        specialty_distribution = Specialty.objects.annotate(
-            referral_count=Count('referral')
-        ).filter(referral_count__gt=0).order_by('-referral_count')[:10]
+        # Specialty distribution from filtered queryset
+        specialty_data = queryset.filter(specialty_needed__isnull=False).values('specialty_needed__name').annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
         
-        specialty_data = []
-        for specialty in specialty_distribution:
-            specialty_data.append({
-                'name': specialty.name,
-                'count': specialty.referral_count
+        specialty_distribution = []
+        for item in specialty_data:
+            specialty_distribution.append({
+                'name': item['specialty_needed__name'],
+                'count': item['count']
             })
         
-        # Recent activity (last 7 days)
+        # Recent activity (last 7 days) from filtered queryset
         week_ago = timezone.now() - timedelta(days=7)
-        recent_referrals = Referral.objects.filter(created_at__gte=week_ago).count()
+        recent_referrals = queryset.filter(created_at__gte=week_ago).count()
         
-        # Average processing time (for completed referrals)
-        completed_referrals = Referral.objects.filter(status='completed')
+        # Average processing time (for completed referrals) from filtered queryset
+        completed_referrals = queryset.filter(status__in=['completed', 'received', 'in_transit'])
         avg_processing_time = 0
         if completed_referrals.exists():
-            total_time = sum([
-                (ref.updated_at - ref.created_at).total_seconds() / 3600  # Convert to hours
-                for ref in completed_referrals
-            ])
-            avg_processing_time = total_time / completed_referrals.count()
+            # Calculate average processing time in hours
+            total_time = 0
+            count = 0
+            for ref in completed_referrals:
+                if ref.updated_at and ref.created_at:
+                    processing_time = (ref.updated_at - ref.created_at).total_seconds() / 3600
+                    total_time += processing_time
+                    count += 1
+            
+            if count > 0:
+                avg_processing_time = total_time / count
         
         return Response({
             'summary': {
@@ -1338,16 +1535,16 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 'successful_referrals': successful_referrals,
                 'pending_referrals': pending_referrals,
                 'cancelled_referrals': cancelled_referrals,
-                'success_rate': round(success_rate, 1),
+                'coordination_rate': round(coordination_rate, 1),
                 'cancellation_rate': round(cancellation_rate, 1),
                 'recent_referrals': recent_referrals,
                 'avg_processing_time_hours': round(avg_processing_time, 1)
             },
             'monthly_trends': monthly_data,
-            'top_hospitals': hospital_data,
+            'top_hospitals': top_hospitals,
             'status_distribution': list(status_distribution),
             'priority_distribution': list(priority_distribution),
-            'specialty_distribution': specialty_data
+            'specialty_distribution': specialty_distribution
         })
 
     @action(detail=False, methods=['get'])
@@ -1927,34 +2124,55 @@ class ReferralViewSet(viewsets.ModelViewSet):
         queryset = Referral.objects.filter(status__in=['completed', 'received', 'in_transit'])
         
         # Apply time filters
-        if time_filter == 'year':
-            year_start = datetime(year, 1, 1).date()
-            year_end = datetime(year, 12, 31).date()
-            queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
-        elif time_filter == 'month':
+        if time_filter == 'month':
             if month > 0:
+                # Specific month in a year
                 month_start = datetime(year, month, 1).date()
                 if month == 12:
                     month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
                 else:
                     month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
                 queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
-        elif time_filter == 'week' and week > 0:
-            year_start = datetime(year, 1, 1).date()
-            week_start = year_start + timedelta(weeks=week-1)
-            week_end = week_start + timedelta(days=6)
-            queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+            else:
+                # All months in the selected year
+                year_start = datetime(year, 1, 1).date()
+                year_end = datetime(year, 12, 31).date()
+                queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
+        elif time_filter == 'week':
+            if week > 0:
+                # Specific ISO week number
+                year_start = datetime(year, 1, 1).date()
+                week_start = year_start + timedelta(weeks=week - 1)
+                week_end = week_start + timedelta(days=6)
+                queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+            elif month > 0:
+                # All weeks within a specific month
+                month_start = datetime(year, month, 1).date()
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+            else:
+                # All weeks in the selected year
+                year_start = datetime(year, 1, 1).date()
+                year_end = datetime(year, 12, 31).date()
+                queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
         
-        # Get referral data
+        # Get referral data including hospital location for regional filtering
         result = []
-        for ref in queryset.order_by('-created_at')[:100]:
+        for ref in queryset.select_related('referring_hospital', 'specialty_needed').order_by('-created_at'):
+            hospital = ref.referring_hospital
             result.append({
                 'referral_id': ref.referral_id,
                 'patient_name': ref.patient_full_name,
                 'specialty': ref.specialty_needed.name if ref.specialty_needed else 'N/A',
                 'department': dict(Referral.DEPARTMENT_CHOICES).get(ref.assigned_department, ref.assigned_department) if ref.assigned_department else 'N/A',
                 'status': ref.status,
-                'date_received': ref.created_at.strftime('%Y-%m-%d')
+                'date_received': ref.created_at.strftime('%Y-%m-%d'),
+                'hospital_name': hospital.name if hospital else '',
+                'city': hospital.city if hospital and hospital.city else '',
+                'processing_time_hours': (ref.updated_at - ref.created_at).total_seconds() / 3600 if ref.updated_at and ref.created_at else 0,
             })
         
         return Response(result)
@@ -1974,11 +2192,7 @@ class ReferralViewSet(viewsets.ModelViewSet):
         queryset = Referral.objects.filter(status='cancelled')
         
         # Apply time filters
-        if time_filter == 'year':
-            year_start = datetime(year, 1, 1).date()
-            year_end = datetime(year, 12, 31).date()
-            queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
-        elif time_filter == 'month':
+        if time_filter == 'month':
             if month > 0:
                 month_start = datetime(year, month, 1).date()
                 if month == 12:
@@ -1986,18 +2200,33 @@ class ReferralViewSet(viewsets.ModelViewSet):
                 else:
                     month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
                 queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
-        elif time_filter == 'week' and week > 0:
-            year_start = datetime(year, 1, 1).date()
-            week_start = year_start + timedelta(weeks=week-1)
-            week_end = week_start + timedelta(days=6)
-            queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+            else:
+                # All months in the selected year
+                year_start = datetime(year, 1, 1).date()
+                year_end = datetime(year, 12, 31).date()
+                queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
+        elif time_filter == 'week':
+            if week > 0:
+                year_start = datetime(year, 1, 1).date()
+                week_start = year_start + timedelta(weeks=week - 1)
+                week_end = week_start + timedelta(days=6)
+                queryset = queryset.filter(created_at__date__gte=week_start, created_at__date__lte=week_end)
+            elif month > 0:
+                month_start = datetime(year, month, 1).date()
+                if month == 12:
+                    month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                queryset = queryset.filter(created_at__date__gte=month_start, created_at__date__lte=month_end)
+            else:
+                year_start = datetime(year, 1, 1).date()
+                year_end = datetime(year, 12, 31).date()
+                queryset = queryset.filter(created_at__date__gte=year_start, created_at__date__lte=year_end)
         
-        # Get referral data
         def extract_cancellation_reason(referral):
             cancelled_history = referral.status_history.filter(new_status='cancelled').first()
             if not cancelled_history or not cancelled_history.notes:
                 return 'No reason provided'
-
             notes = cancelled_history.notes.strip()
             if 'Reason:' in notes:
                 return notes.split('Reason:', 1)[1].strip() or 'No reason provided'
@@ -2006,13 +2235,16 @@ class ReferralViewSet(viewsets.ModelViewSet):
             return notes
 
         result = []
-        for ref in queryset.order_by('-updated_at')[:100]:
+        for ref in queryset.select_related('referring_hospital', 'specialty_needed').order_by('-updated_at'):
+            hospital = ref.referring_hospital
             result.append({
                 'referral_id': ref.referral_id,
                 'patient_name': ref.patient_full_name,
                 'reason': extract_cancellation_reason(ref),
                 'specialty': ref.specialty_needed.name if ref.specialty_needed else 'N/A',
-                'date_cancelled': ref.updated_at.strftime('%Y-%m-%d')
+                'date_cancelled': ref.updated_at.strftime('%Y-%m-%d'),
+                'hospital_name': hospital.name if hospital else '',
+                'city': hospital.city if hospital and hospital.city else '',
             })
         
         return Response(result)

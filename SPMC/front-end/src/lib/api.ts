@@ -239,16 +239,22 @@ export const referralsAPI = {
   },
 
   // Get reports and analytics data
-  getReportsAnalytics: async () => {
-    return apiRequest('/referrals/reports_analytics/');
+  getReportsAnalytics: async (filter?: string, year?: number, month?: number, week?: number) => {
+    const params = new URLSearchParams();
+    if (filter) params.append('filter', filter);
+    if (year !== undefined) params.append('year', year.toString());
+    if (month !== undefined && month > 0) params.append('month', month.toString());
+    if (week !== undefined && week > 0) params.append('week', week.toString());
+    const qs = params.toString();
+    return apiRequest(`/referrals/reports_analytics/${qs ? '?' + qs : ''}`);
   },
 
   // Get cancellation reasons distribution
   getCancellationReasonsAnalytics: async (filter?: string, year?: number, month?: number) => {
     const params = new URLSearchParams();
     if (filter) params.append('filter', filter);
-    if (year) params.append('year', year.toString());
-    if (month) params.append('month', month.toString());
+    if (year !== undefined) params.append('year', year.toString());
+    if (month !== undefined && month > 0) params.append('month', month.toString());
     const qs = params.toString();
     return apiRequest(`/referrals/cancellation_reasons_analytics/${qs ? '?' + qs : ''}`);
   },
@@ -257,8 +263,8 @@ export const referralsAPI = {
   getTATAnalytics: async (filter?: string, year?: number, month?: number) => {
     const params = new URLSearchParams();
     if (filter) params.append('filter', filter);
-    if (year) params.append('year', year.toString());
-    if (month) params.append('month', month.toString());
+    if (year !== undefined) params.append('year', year.toString());
+    if (month !== undefined && month > 0) params.append('month', month.toString());
     const qs = params.toString();
     return apiRequest(`/referrals/tat_analytics/${qs ? '?' + qs : ''}`);
   },
@@ -266,9 +272,9 @@ export const referralsAPI = {
   // Get referrals by time period (week, month, year)
   getReferralsByTimePeriod: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) params.append('year', year.toString());
-    if (month) params.append('month', month.toString());
-    if (week) params.append('week', week.toString());
+    if (year !== undefined) params.append('year', year.toString());
+    if (month !== undefined && month > 0) params.append('month', month.toString());
+    if (week !== undefined && week > 0) params.append('week', week.toString());
     return apiRequest(`/referrals/referrals_by_time_period/?${params.toString()}`);
   },
 
@@ -280,45 +286,45 @@ export const referralsAPI = {
   // Get filtered top hospitals
   getTopHospitals: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) params.append('year', year.toString());
-    if (month) params.append('month', month.toString());
-    if (week) params.append('week', week.toString());
+    if (year !== undefined) params.append('year', year.toString());
+    if (month !== undefined && month > 0) params.append('month', month.toString());
+    if (week !== undefined && week > 0) params.append('week', week.toString());
     return apiRequest(`/referrals/top_hospitals/?${params.toString()}`);
   },
 
   // Get filtered top departments
   getTopDepartments: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) params.append('year', year.toString());
-    if (month) params.append('month', month.toString());
-    if (week) params.append('week', week.toString());
+    if (year !== undefined) params.append('year', year.toString());
+    if (month !== undefined && month > 0) params.append('month', month.toString());
+    if (week !== undefined && week > 0) params.append('week', week.toString());
     return apiRequest(`/referrals/top_departments/?${params.toString()}`);
   },
 
   // Get filtered top specialties
   getTopSpecialties: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) params.append('year', year.toString());
-    if (month) params.append('month', month.toString());
-    if (week) params.append('week', week.toString());
+    if (year !== undefined) params.append('year', year.toString());
+    if (month !== undefined && month > 0) params.append('month', month.toString());
+    if (week !== undefined && week > 0) params.append('week', week.toString());
     return apiRequest(`/referrals/top_specialties/?${params.toString()}`);
   },
 
   // Get coordinated referrals (received by department)
   getCoordinatedReferrals: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) params.append('year', year.toString());
-    if (month) params.append('month', month.toString());
-    if (week) params.append('week', week.toString());
+    if (year !== undefined) params.append('year', year.toString());
+    if (month !== undefined && month > 0) params.append('month', month.toString());
+    if (week !== undefined && week > 0) params.append('week', week.toString());
     return apiRequest(`/referrals/coordinated_referrals/?${params.toString()}`);
   },
 
   // Get uncoordinated referrals (cancelled)
   getUncoordinatedReferrals: async (filter: string, year?: number, month?: number, week?: number) => {
     const params = new URLSearchParams({ filter });
-    if (year) params.append('year', year.toString());
-    if (month) params.append('month', month.toString());
-    if (week) params.append('week', week.toString());
+    if (year !== undefined) params.append('year', year.toString());
+    if (month !== undefined && month > 0) params.append('month', month.toString());
+    if (week !== undefined && week > 0) params.append('week', week.toString());
     return apiRequest(`/referrals/uncoordinated_referrals/?${params.toString()}`);
   },
 
